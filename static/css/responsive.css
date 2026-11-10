@@ -1,0 +1,163 @@
+/* ============================================================
+   더치지직 (The Chzzk) - 웹 / 모바일 반응형 보완 스타일 (responsive.css)
+   데스크톱 PC UI를 100% 원본 그대로 유지하면서,
+   모바일(아이폰 Safari 등 900px 이하) 화면에서도 깨지지 않도록 자동 최적화합니다.
+   ============================================================ */
+
+@media (max-width: 900px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Header Compact & Scrollable Nav */
+  header {
+    height: auto !important;
+    flex-wrap: wrap !important;
+    padding: 8px 10px !important;
+    gap: 8px !important;
+  }
+
+  .logo-area {
+    flex-shrink: 0;
+  }
+
+  .header-actions {
+    margin-left: auto;
+    gap: 6px !important;
+  }
+
+  .master-volume-dual-container {
+    display: none !important; /* 모바일에서는 기기 하드웨어 볼륨 사용, 공간 절약 */
+  }
+
+  .nav-tabs {
+    order: 3;
+    width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start !important;
+    padding-bottom: 4px;
+    gap: 4px !important;
+  }
+
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-btn {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Explore Layout: Stack Category Bar Above Grid */
+  .explore-layout {
+    flex-direction: column !important;
+    height: auto !important;
+  }
+
+  .category-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px !important;
+  }
+
+  .category-sidebar-header,
+  .category-sidebar-search {
+    display: none !important;
+  }
+
+  .category-list {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    padding: 2px 0 !important;
+    max-height: none !important;
+  }
+
+  .category-item {
+    width: auto !important;
+    white-space: nowrap !important;
+    padding: 5px 10px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .category-count {
+    display: none !important;
+  }
+
+  .lives-main-content {
+    padding: 10px !important;
+  }
+
+  .lives-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .search-controls {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* Multiview Toolbar & Slots */
+  .multiview-toolbar {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    padding: 6px 10px !important;
+    height: auto !important;
+  }
+
+  .multiview-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    height: auto !important;
+    min-height: 60vh;
+  }
+
+  .slot-card {
+    width: 100% !important;
+    min-height: 240px !important;
+    aspect-ratio: 16 / 9;
+  }
+
+  .slot-body {
+    flex-direction: column !important;
+  }
+
+  .slot-chat-col {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 260px !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border-color);
+  }
+
+  /* Youtube Layout */
+  .youtube-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  /* Editor & Recorder Layout */
+  .editor-layout,
+  .recorder-layout {
+    flex-direction: column !important;
+  }
+
+  .editor-sidebar,
+  .recorder-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .editor-source-header {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+}

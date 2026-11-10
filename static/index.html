@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0b0e14">
+  <title>더치지직 (The Chzzk) - 멀티뷰잉 & 레코더</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="apple-touch-icon" href="/static/img/favicon.png">
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/responsive.css">
+  <script src="/static/js/web_backend_polyfill.js"></script>
+  <script src="/static/js/hls.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header>
+    <div class="logo-area" onclick="window.app.switchTab('explore')">
+      <img class="logo-icon-img" src="/static/img/favicon.png" alt="더치지직" style="width: 28px; height: 28px; border-radius: 7px; box-shadow: 0 0 10px rgba(0, 255, 163, 0.45); object-fit: cover;">
+      <div class="logo-title">
+        더치지직 <span style="font-size: 13px; color: var(--accent-color); font-weight: 700;">CHZZK</span>
+      </div>
+    </div>
+
+    <nav class="nav-tabs">
+      <button class="nav-btn active" data-tab="explore">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+        <span>홈</span>
+      </button>
+      <button class="nav-btn" data-tab="youtube" id="nav-youtube-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="#ff0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        <span>유튜브</span>
+      </button>
+      <button class="nav-btn" data-tab="bookmarks">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+        <span>즐겨찾기</span>
+        <span class="badge" id="bookmarks-badge">0</span>
+      </button>
+      <button class="nav-btn" data-tab="multiview">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+        <span>플레이어</span>
+        <span class="badge" id="multiview-badge">0/1</span>
+      </button>
+      <button class="nav-btn" data-tab="clips">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
+        <span>클립</span>
+      </button>
+      <button class="nav-btn" data-tab="recorder">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3" fill="currentColor"></circle></svg>
+        <span>녹화</span>
+        <span class="badge" id="recorder-badge">0</span>
+      </button>
+      <button class="nav-btn" data-tab="editor">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
+        <span>편집</span>
+      </button>
+      <button class="nav-btn" data-tab="settings">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span>설정</span>
+        <span class="badge" id="settings-update-badge" style="display: none; background: #38bdf8; color: #0b0e14; font-weight: 800;">UP</span>
+      </button>
+    </nav>
+
+    <!-- Header Actions (Active Recording Indicator & Master Volume Control) -->
+    <div class="header-actions" style="position: relative;">
+      <div id="headerRecordingIndicator" class="header-recording-pill" style="display: none;" onclick="window.recorderUI.toggleHeaderPopup(event)" title="현재 백그라운드 녹화 진행 중 (클릭 시 실시간 상태 확인 및 제어)">
+        <span class="live-dot-pulse" style="width: 8px; height: 8px; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+        <span id="headerRecordingText">0개 녹화 중</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 2px;"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+
+      <!-- Realtime Header Recording Jobs Dropdown Popup (Item 1) -->
+      <div id="headerRecordingPopup" class="header-recording-popup" style="display: none;">
+        <div class="rec-popup-header">
+          <div class="rec-popup-title">
+            <span class="live-dot-pulse" style="width: 8px; height: 8px; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+            <span>실시간 녹화 진행 상태</span>
+            <span class="badge" id="recPopupCountBadge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; font-size: 11px;">0</span>
+          </div>
+          <button class="rec-popup-close" onclick="window.recorderUI.toggleHeaderPopup(event)" title="닫기">&times;</button>
+        </div>
+        <div class="rec-popup-body" id="recPopupBody">
+          <!-- Dynamically populated -->
+        </div>
+        <div style="padding: 8px 12px; background: #111520; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 11.5px; color: var(--text-muted);">진행률, 파일 크기 및 에러 실시간 감시</span>
+          <button class="btn btn-sm btn-secondary" onclick="window.recorderUI.toggleHeaderPopup(event); window.app.switchTab('recorder');" style="font-size: 11px; padding: 4px 10px;">
+            녹화 보관함 열기 →
+          </button>
+        </div>
+      </div>
+
+      <div class="master-volume-dual-container">
+        <!-- Chzzk Master Volume Row -->
+        <div class="master-volume-row" title="치지직 슬롯 마스터 볼륨 조절">
+          <span class="master-vol-tag chzzk-tag">CHZZK</span>
+          <button class="master-vol-btn" id="masterChzzkMuteBtn" title="치지직 음소거 토글">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          </button>
+          <input type="range" id="masterChzzkVolumeSlider" min="0" max="100" value="100" class="master-vol-slider chzzk-slider" title="치지직 볼륨">
+          <span id="masterChzzkVolumeText" class="master-vol-text">100%</span>
+        </div>
+        <!-- YouTube Master Volume Row -->
+        <div class="master-volume-row" title="유튜브 슬롯 마스터 볼륨 조절">
+          <span class="master-vol-tag yt-tag">YT</span>
+          <button class="master-vol-btn" id="masterYTMuteBtn" title="유튜브 음소거 토글">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          </button>
+          <input type="range" id="masterYTVolumeSlider" min="0" max="100" value="100" class="master-vol-slider yt-slider" title="유튜브 볼륨">
+          <span id="masterYTVolumeText" class="master-vol-text">100%</span>
+        </div>
+      </div>
+      <!-- Hidden legacy fallbacks -->
+      <div style="display:none;">
+        <button id="masterMuteBtn"></button>
+        <input type="range" id="masterVolumeSlider" min="0" max="100" value="100">
+        <span id="masterVolumeText">100%</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Areas -->
+  <main>
+
+    <!-- 1. Explore & Live Catalog Tab (Left Category Sidebar + Right Lives Content) -->
+    <section class="tab-pane active" id="explore-tab">
+      <div id="slotSelectionBanner" class="slot-selection-banner" style="display: none;">
+        <span id="slotSelectionText" style="display: flex; align-items: center; gap: 6px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          <span>멀티뷰 슬롯에 추가할 방송을 선택해주세요.</span>
+        </span>
+        <button class="btn btn-sm btn-danger" onclick="window.multiview.cancelTargetSlot()">선택 취소</button>
+      </div>
+
+      <div class="explore-layout">
+        <!-- Left Category Sidebar -->
+        <aside class="category-sidebar">
+          <div class="category-sidebar-header">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 12h4m-2-2v4m7-2h.01m3 0h.01"></path></svg>
+            <span>게임 / 카테고리</span>
+          </div>
+          <div class="category-sidebar-search">
+            <input type="text" id="categoryFilterInput" placeholder="카테고리 검색..." class="input-box" style="width: 100%; font-size: 12px; padding: 6px 10px;">
+          </div>
+          <div class="category-list" id="categoryChipsBar">
+            <button class="category-item active" data-category="">
+              <span class="category-name">전체 카테고리</span>
+              <span class="category-count" id="catTotalCount">ALL</span>
+            </button>
+          </div>
+        </aside>
+
+        <!-- Right Content Area -->
+        <div class="explore-content">
+          <div class="explore-toolbar">
+            <div class="search-group" style="flex: 1; max-width: none; display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="liveSearchInput" class="input-box" placeholder="스트리머명, 방송 제목, 게임/장르 검색..." style="flex: 1;">
+              <button class="btn btn-secondary" id="searchOfflineChannelToggleBtn" style="display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; padding: 6px 12px;" title="오프라인 채널까지 포함하여 검색 (다시보기 및 클립 탐색)">
+                <span id="searchOfflineIcon">🌐</span>
+                <span id="searchOfflineText">오프라인 채널 검색</span>
+              </button>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span id="liveTotalCountDisplay" style="font-size: 13px; color: var(--text-muted);">불러오는 중...</span>
+              <button class="btn" id="refreshLivesBtn" style="display: flex; align-items: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                <span>새로고침</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section: Offline Channel Search Results (Accessible when toggled or no live stream matches) -->
+          <div id="channelSearchResultsSection" style="margin-bottom: 24px; display: none;">
+            <div style="font-size: 16px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: var(--accent-color);">🌐</span>
+                <span>채널 검색 결과 (오프라인 포함)</span>
+                <span class="badge" id="channelSearchCountBadge">0</span>
+              </div>
+              <button class="btn btn-sm btn-secondary" id="closeChannelSearchBtn">✕ 검색 닫기</button>
+            </div>
+            <div class="channel-search-grid" id="channelSearchResultsGrid"></div>
+          </div>
+
+          <!-- Section A: Logged-in Following Lives (Top Priority) -->
+          <div id="followingLivesSection" style="margin-bottom: 24px; display: none;">
+            <div style="font-size: 16px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="live-dot-pulse"></span>
+                <span>즐겨찾기 라이브 방송</span>
+                <span class="badge" id="followingCountBadge">0</span>
+              </div>
+            </div>
+            <div class="lives-grid" id="followingLivesGrid"></div>
+          </div>
+
+          <!-- Section B: TOP 8 Popular Lives -->
+          <div id="popularLivesSection" style="margin-bottom: 24px;">
+            <div style="font-size: 16px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--danger-color)" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+              <span>실시간 인기 방송 TOP 8</span>
+            </div>
+            <div class="lives-grid" id="popularLivesGrid"></div>
+          </div>
+
+          <!-- Section C: All Lives -->
+          <div id="allLivesSection">
+            <div style="font-size: 16px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+              <span id="allLivesTitle">전체 라이브 방송</span>
+            </div>
+            <div class="lives-grid" id="livesGrid"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Bookmarks / Favorites Tab (Unified Follow & Bookmarks) -->
+    <section class="tab-pane" id="bookmarks-tab">
+      <div class="explore-toolbar">
+        <div style="display: flex; gap: 8px; flex: 1; max-width: 520px;">
+          <input type="text" id="addBookmarkInput" class="input-box" placeholder="스트리머명, 채널 ID 또는 치지직 링크 붙여넣기..." style="flex: 1;">
+          <button class="btn btn-primary" id="addBookmarkBtn">+ 즐겨찾기 추가</button>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-sm" id="importChzzkFollowBtn" style="background: rgba(0, 255, 163, 0.15); border-color: var(--accent-color); color: var(--accent-color); font-weight: 700; display: flex; align-items: center; gap: 6px;" title="네이버 계정의 팔로우 목록을 1회 안전하게 불러와 즐겨찾기에 등록 (로그인 선택사항 - 로그인 없이도 왼쪽 입력창이나 별표로 자유롭게 추가 가능)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>치지직 팔로우 불러오기</span>
+          </button>
+          <span id="bookmarksSummaryDisplay" style="font-size: 13px; color: var(--text-muted);"></span>
+          <button class="btn btn-sm" id="refreshBookmarksBtn" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>새로고침</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Empty state when no bookmarks registered -->
+      <div id="bookmarksEmptyState" style="display: none;"></div>
+
+      <!-- Online Bookmarks Section -->
+      <div id="bookmarksOnlineSection" style="margin-bottom: 28px;">
+        <div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <span class="live-dot-pulse"></span>
+          <span>방송 중인 즐겨찾기</span>
+          <span class="badge" id="bookmarksOnlineCountBadge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">0</span>
+        </div>
+        <div class="lives-grid" id="bookmarksOnlineGrid"></div>
+      </div>
+
+      <!-- Offline Bookmarks Section -->
+      <div id="bookmarksOfflineSection">
+        <div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #64748b;"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          <span style="color: var(--text-muted);">오프라인 즐겨찾기</span>
+          <span class="badge" id="bookmarksOfflineCountBadge" style="background: rgba(255, 255, 255, 0.08); color: #94a3b8;">0</span>
+        </div>
+        <div class="lives-grid" id="bookmarksOfflineGrid"></div>
+      </div>
+
+      <div class="lives-grid" id="bookmarksGrid" style="display: none;"></div>
+    </section>
+
+    <!-- 2.5 YouTube Tab (유튜브 영상 탐색, 채널 즐겨찾기, 무광고 멀티뷰, 시청기록 및 맞춤 알고리즘 피드) -->
+    <section class="tab-pane" id="youtube-tab">
+      <div class="youtube-container">
+        <!-- Sticky Container for Search, Subtabs & Keywords (스크롤 시 항상 상단 고정) -->
+        <div class="youtube-sticky-header">
+          <!-- Top Search & Subtab Header -->
+          <div class="youtube-top-header">
+            <div class="yt-search-bar-wrap">
+              <div class="search-group" style="flex: 1; position: relative;">
+                <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="ytSearchInput" class="input-box" placeholder="유튜브 영상 검색, 채널명 검색, 또는 YouTube 링크(URL) 붙여넣기..." style="width: 100%; padding-left: 36px; padding-right: 32px;">
+                <button id="ytClearSearchBtn" class="yt-clear-btn" style="display: none;" title="검색어 지우기">✕</button>
+              </div>
+              <button class="btn btn-primary" id="ytSearchBtn" style="display: flex; align-items: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span>검색</span>
+              </button>
+            </div>
+
+            <!-- Sub-Tab Navigation Pills (All Emojis Removed) -->
+            <div class="yt-subtab-nav">
+              <button class="yt-subtab-btn active" data-subtab="recommendations">
+                <span>추천 영상</span>
+                <span class="yt-subtab-subtext">알고리즘 맞춤</span>
+              </button>
+              <button class="yt-subtab-btn" data-subtab="search">
+                <span>영상 탐색</span>
+              </button>
+              <button class="yt-subtab-btn" data-subtab="bookmarks">
+                <span>즐겨찾기</span>
+                <span class="badge" id="yt-bookmarks-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">0</span>
+              </button>
+              <button class="yt-subtab-btn" data-subtab="playlists">
+                <span>재생목록</span>
+                <span class="badge" id="yt-playlists-badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8;">0</span>
+              </button>
+              <button class="yt-subtab-btn" data-subtab="watchlater">
+                <span>나중에 볼 영상</span>
+                <span class="badge" id="yt-watchlater-badge" style="background: rgba(234, 179, 8, 0.2); color: #eab308;">0</span>
+              </button>
+              <button class="yt-subtab-btn" data-subtab="history">
+                <span>시청 기록</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Algorithm Keywords Control Bar (희망 알고리즘 키워드 툴바 - 접기/펼치기 지원) -->
+          <div class="yt-algorithm-toolbar" id="ytAlgorithmToolbar">
+            <button class="yt-kw-toggle-btn" id="ytToggleKeywordsBtn" onclick="window.youtubeUI.toggleKeywordsBar()" title="알고리즘 키워드 바 접기/펼치기">
+              <span id="ytToggleKeywordsIcon">▼</span>
+              <span style="font-weight: 700;">희망 알고리즘 키워드</span>
+            </button>
+            <div class="yt-kw-chips-container" id="ytKeywordsBar">
+              <!-- Dynamically populated chips -->
+            </div>
+            <div class="yt-kw-add-form" id="ytAddKeywordForm" style="display: none;">
+              <input type="text" id="ytAddKeywordInput" class="input-box" placeholder="새 희망 키워드 입력 후 Enter (예: 롤, 음악, 개발...)" style="font-size: 12px; padding: 4px 10px; width: 220px;">
+              <button class="btn btn-sm btn-primary" onclick="window.youtubeUI.addKeywordFromInput()">추가</button>
+              <button class="btn btn-sm btn-ghost" onclick="document.getElementById('ytAddKeywordForm').style.display='none'">취소</button>
+            </div>
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+              <button class="btn btn-sm btn-secondary" id="ytRefreshRecsBtn" title="시청 기록 및 최신 키워드 조합으로 추천 피드 재생성">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                <span>알고리즘 새로고침</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Channel View Detail Overlay (Pinned Top Drawer for Channel Videos - Requirement 7) -->
+        <div id="ytChannelViewSection" class="yt-channel-view-section" style="display: none;">
+          <div class="yt-channel-banner">
+            <img class="yt-channel-banner-avatar" id="ytChannelBannerAvatar" src="/static/img/favicon.png" alt="Channel Avatar">
+            <div class="yt-channel-banner-info">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h2 id="ytChannelBannerTitle" style="margin: 0; font-size: 17px; font-weight: 800; color: #fff;">채널명</h2>
+                <span class="yt-badge-channel-pinned" style="font-size: 11px; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); padding: 1px 7px; border-radius: 4px; font-weight: 700;">상단 고정 채널 탐색</span>
+              </div>
+              <span id="ytChannelBannerSubs" style="font-size: 12.5px; color: var(--text-muted); margin-top: 3px; display: block;">구독자 수</span>
+            </div>
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+              <button class="btn btn-sm btn-primary" id="ytChannelBookmarkToggleBtn">
+                채널 즐겨찾기
+              </button>
+              <button class="btn btn-sm btn-secondary" id="ytCloseChannelViewBtn" onclick="window.youtubeUI.closeChannelView()" title="채널 탐색 창 닫기" style="font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>닫기</span>
+              </button>
+            </div>
+          </div>
+          <div class="yt-channel-videos-wrap" id="ytChannelVideosWrap">
+            <div class="yt-channel-videos-grid" id="ytChannelVideosGrid">
+              <!-- Channel videos dynamically populated -->
+            </div>
+            <div id="ytChannelMoreWrap" style="text-align: center; margin: 16px 0 20px; display: none;">
+              <button class="btn btn-sm btn-secondary" id="ytChannelLoadMoreBtn" style="padding: 8px 24px; font-size: 13px; font-weight: 700;">
+                더보기 ▼
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1. Recommendations Sub-Pane -->
+        <div class="yt-sub-pane active" id="yt-recommendations-pane">
+          <div class="yt-pane-desc-banner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <div>
+              <strong style="color: #fff;">스마트 알고리즘 추천 피드</strong>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                실제 유튜브처럼 <strong>시청 기록 연관 영상</strong>과 내가 설정한 <strong>희망 알고리즘 키워드 & 2개 키워드 조합</strong>을 종합 분석하여 실시간 큐레이션합니다.
+              </div>
+            </div>
+          </div>
+          <div class="yt-loading-state" id="ytRecsLoading" style="display: none;">
+            <div class="loading-spinner"></div>
+            <span>맞춤 알고리즘 추천 영상을 큐레이션 중입니다...</span>
+          </div>
+          <div class="yt-empty-state" id="ytRecsEmpty" style="display: none;">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <h3>추천 영상을 불러오지 못했습니다</h3>
+            <p>상단의 희망 알고리즘 키워드를 추가하거나 [알고리즘 새로고침] 버튼을 눌러보세요.</p>
+          </div>
+          <div class="yt-videos-grid" id="ytRecsGrid"></div>
+        </div>
+
+        <!-- 2. Search Sub-Pane -->
+        <div class="yt-sub-pane" id="yt-search-pane">
+          <div id="ytSearchChannelsRow" class="yt-channels-row" style="display: none;"></div>
+          <div class="yt-loading-state" id="ytSearchLoading" style="display: none;">
+            <div class="loading-spinner"></div>
+            <span>유튜브 검색 중...</span>
+          </div>
+          <div class="yt-empty-state" id="ytSearchEmpty">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <h3>보고 싶은 유튜브 영상을 검색해보세요</h3>
+            <p>스트리머명, 게임명, 주제, 또는 유튜브 링크(URL)를 직접 입력하여 광고 없이 시청할 수 있습니다.</p>
+          </div>
+          <div class="yt-videos-grid" id="ytSearchGrid"></div>
+        </div>
+
+        <!-- 3. Bookmarks Sub-Pane (채널 및 영상 즐겨찾기) -->
+        <div class="yt-sub-pane" id="yt-bookmarks-pane">
+          <div class="yt-segment-nav">
+            <button class="yt-segment-btn active" id="ytBmChannelsTabBtn" onclick="window.youtubeUI.switchBookmarksSegment('channels')">
+              <span>채널 즐겨찾기</span>
+              <span class="badge" id="yt-bm-channels-count" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">0</span>
+            </button>
+            <button class="yt-segment-btn" id="ytBmVideosTabBtn" onclick="window.youtubeUI.switchBookmarksSegment('videos')">
+              <span>영상 즐겨찾기</span>
+              <span class="badge" id="yt-bm-videos-count" style="background: rgba(251, 191, 36, 0.2); color: #fbbf24;">0</span>
+            </button>
+          </div>
+          <div id="ytBookmarksChannelSection">
+            <div class="yt-empty-state" id="ytBookmarksEmpty" style="display: none;">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <h3>즐겨찾기한 유튜브 채널이 없습니다</h3>
+              <p>영상 카드나 채널 검색 결과에서 [채널 즐겨찾기] 버튼을 눌러 자주 보는 채널을 등록해보세요.</p>
+            </div>
+            <div class="yt-bookmarks-grid" id="ytBookmarksGrid"></div>
+          </div>
+          <div id="ytBookmarksVideoSection" style="display: none;">
+            <div class="yt-empty-state" id="ytVideoBookmarksEmpty" style="display: none;">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <h3>즐겨찾기한 유튜브 영상이 없습니다</h3>
+              <p>영상 썸네일 우상단의 별(★) 아이콘을 클릭하여 마음에 드는 영상을 즐겨찾기에 보관해보세요.</p>
+            </div>
+            <div class="yt-videos-grid" id="ytVideoBookmarksGrid"></div>
+          </div>
+        </div>
+
+        <!-- 4. Playlists Sub-Pane (Requirement 2) -->
+        <div class="yt-sub-pane" id="yt-playlists-pane">
+          <div class="yt-history-toolbar">
+            <span style="font-size: 13px; color: var(--text-muted);">직접 만든 커스텀 재생목록이나 YouTube 재생목록을 저장하고 멀티뷰에서 연속 재생할 수 있습니다.</span>
+            <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+              <button class="btn btn-sm btn-secondary" onclick="window.youtubeUI.promptImportPlaylist()" title="유튜브 재생목록 URL을 가져와서 내 재생목록에 저장">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>YouTube 링크 가져오기</span>
+              </button>
+              <button class="btn btn-sm btn-primary" onclick="window.youtubeUI.promptCreatePlaylist()" title="새 빈 재생목록 생성">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>새 재생목록</span>
+              </button>
+            </div>
+          </div>
+          <div class="yt-empty-state" id="ytPlaylistsEmpty" style="display: none;">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <h3>생성되거나 가져온 재생목록이 없습니다</h3>
+            <p>[새 재생목록]을 만들거나 [YouTube 링크 가져오기]로 기존 유튜브 재생목록을 등록해보세요.</p>
+          </div>
+          <div class="yt-videos-grid" id="ytPlaylistsGrid"></div>
+        </div>
+
+        <!-- 5. Watch Later Sub-Pane (Requirement 3) -->
+        <div class="yt-sub-pane" id="yt-watchlater-pane">
+          <div class="yt-history-toolbar">
+            <span style="font-size: 13px; color: var(--text-muted);" id="ytWatchLaterCountDesc">나중에 볼 영상 모음</span>
+            <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+              <button class="btn btn-sm btn-primary" id="ytPlayAllWatchLaterBtn" onclick="window.youtubeUI.playAllWatchLater()" title="나중에 볼 모든 영상을 슬롯에서 재생목록 형태로 연속 재생">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>전체 연속 재생</span>
+              </button>
+              <button class="btn btn-sm btn-ghost" onclick="window.youtubeUI.clearWatchLater()" style="color: #f87171;" title="나중에 볼 영상 전체 비우기">
+                전체 비우기
+              </button>
+            </div>
+          </div>
+          <div class="yt-empty-state" id="ytWatchLaterEmpty" style="display: none;">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <h3>나중에 볼 영상이 없습니다</h3>
+            <p>영상 썸네일 우상단의 시계(🕒) 아이콘을 클릭하여 나중에 볼 영상을 담아두세요.</p>
+          </div>
+          <div class="yt-videos-grid" id="ytWatchLaterGrid"></div>
+        </div>
+
+        <!-- 6. Watch History Sub-Pane -->
+        <div class="yt-sub-pane" id="yt-history-pane">
+          <div class="yt-history-toolbar">
+            <span style="font-size: 13px; color: var(--text-muted);">시청한 영상이 누적될수록 추천 알고리즘이 내 취향에 맞게 더욱 정밀해집니다.</span>
+            <button class="btn btn-sm btn-ghost" id="ytClearHistoryBtn" style="color: #f87171;">
+              전체 시청 기록 삭제
+            </button>
+          </div>
+          <div class="yt-empty-state" id="ytHistoryEmpty" style="display: none;">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <h3>아직 시청한 유튜브 영상이 없습니다</h3>
+            <p>영상을 시청하면 여기에 자동으로 기록되며, 추천 알고리즘의 핵심 데이터로 활용됩니다.</p>
+          </div>
+          <div class="yt-history-list" id="ytHistoryGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Multi-Viewing Tab -->
+    <section class="tab-pane" id="multiview-tab">
+      <div class="multiview-container">
+        <div class="multiview-toolbar">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button class="btn btn-primary btn-sm" id="addSlotBtn" onclick="window.multiview.addNewSlot()" title="새 슬롯 1개 추가" style="display: flex; align-items: center; gap: 5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>슬롯 추가</span>
+            </button>
+            <button class="btn btn-sm" id="removeEmptySlotBtn" onclick="window.multiview.removeLastEmptySlot()" title="비어있는 슬롯 1개 제거" style="display: flex; align-items: center; gap: 5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>슬롯 제거</span>
+            </button>
+            <button class="btn btn-sm" onclick="window.multiview.clearAllSlots()" title="모든 슬롯을 비우고 단일 슬롯으로 초기화" style="display: flex; align-items: center; gap: 5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>전체 비우기</span>
+            </button>
+            <div class="layout-mode-group" style="display: flex; align-items: center; gap: 3px; margin-left: 6px; background: rgba(0,0,0,0.35); padding: 2px 4px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
+              <button class="btn btn-sm layout-mode-btn active" id="layoutModeEqualBtn" onclick="window.multiview.setLayoutMode('auto')" title="슬롯들이 화면에 맞춰 서로 붙어 정렬되는 모드">정렬 모드</button>
+              <button class="btn btn-sm layout-mode-btn" id="layoutModeFocusBtn" onclick="window.multiview.setLayoutMode('focus')" title="1번 슬롯 대형 메인 + 보조 슬롯 분할">메인 1대형</button>
+              <button class="btn btn-sm layout-mode-btn" id="layoutModeCustomBtn" onclick="window.multiview.setLayoutMode('custom')" title="슬롯을 자유롭게 이동 및 크기 조절하는 모드">자유 모드</button>
+              <button class="btn btn-sm layout-mode-btn" id="alignSlotsBtn" onclick="window.multiview.alignCustomSlots()" title="슬롯들을 한 화면에 빈틈없이 격자로 자동 정렬" style="border-left: 1px solid rgba(255,255,255,0.15); margin-left: 3px;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 2px;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span>정렬</span>
+              </button>
+            </div>
+            <span id="slotCountDisplay" style="font-size: 13px; font-weight: 700; color: var(--accent-color); margin-left: 6px;">
+              슬롯 1개 (단일)
+            </span>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn btn-sm" id="muteAllSlotsBtn" style="display: flex; align-items: center; gap: 5px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+              <span>전체 음소거</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Multi-view Workspace -->
+        <div class="multiview-workspace">
+          <div class="players-grid dynamic-grid" id="playersGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Channel Clips Tab -->
+    <section class="tab-pane" id="clips-tab">
+      <!-- Priority Top: Streamers Chip Bar (Following & Bookmarks toggle) -->
+      <div id="clipsFollowingBarSection" style="margin-bottom: 16px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 14px; display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="font-size: 13.5px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--accent-color)" stroke="var(--accent-color)" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <span id="clipsStreamersBarTitle">즐겨찾기 스트리머</span>
+              <span class="badge" id="clipsBookmarksCountBadge" style="font-size: 11px;">0</span>
+            </div>
+          </div>
+          <span style="font-size: 11.5px; color: var(--text-dim);">아이콘 클릭 시 클립 즉시 로드</span>
+        </div>
+        <div class="following-chips-scroll" id="clipsFollowingChips">
+          <!-- Filled dynamically with circular avatar chips -->
+        </div>
+      </div>
+
+      <div class="explore-toolbar">
+        <div style="display: flex; gap: 10px; align-items: center; flex: 1; max-width: 600px;">
+          <select id="clipsChannelSelect" class="input-box" style="min-width: 220px;">
+            <option value="">-- 채널 선택 --</option>
+          </select>
+          <input type="text" id="clipsChannelSearchInput" class="input-box" placeholder="또는 다른 스트리머명 검색..." style="flex: 1;">
+          <button class="btn" id="clipsSearchChannelBtn" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span>검색</span>
+          </button>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn" id="openClipsFolderTopBtn" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span>클립 폴더</span>
+          </button>
+          <button class="btn" id="refreshClipsBtn" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>새로고침</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="clipsChannelBanner" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; margin-bottom: 20px; display: none; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <img id="clipsBannerAvatar" src="" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-color); cursor: pointer;" title="채널 홈으로 이동">
+          <div>
+            <div id="clipsBannerName" style="font-size: 16px; font-weight: 800; color: #fff; cursor: pointer;" title="채널 홈으로 이동"></div>
+            <div id="clipsBannerMeta" style="font-size: 12.5px; color: var(--text-muted); margin-top: 2px;"></div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-sm" id="clipsGoChannelBtn" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            <span>채널 홈 / 다시보기</span>
+          </button>
+          <button class="btn btn-sm btn-primary" id="clipsWatchLiveBtn" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+            <span>현재 방송 시청</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="clips-grid" id="clipsGrid">
+        <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-muted);">
+          <div style="font-size: 15px; font-weight: 700;">상단에서 채널을 선택하거나 스트리머명을 검색하세요.</div>
+          <div style="font-size: 13px; margin-top: 6px; color: var(--text-dim);">채널의 인기 클립을 감상하고 MP4로 초고속 다운로드할 수 있습니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Dedicated Channel Page Tab (Channel Home, VOD Replays, Clips, Live Stream) -->
+    <section class="tab-pane" id="channel-tab">
+      <!-- Back button and Navigation bar -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <button class="btn btn-sm" id="channelBackBtn" style="display: flex; align-items: center; gap: 6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          <span>뒤로 가기</span>
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-sm" id="channelOpenWebBtn" style="display: flex; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>웹에서 보기</span>
+          </button>
+          <button class="btn btn-sm btn-primary" id="channelMultiviewBtn" style="display: none; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>플레이어에 추가</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Channel Hero Banner -->
+      <div class="channel-hero-banner" id="channelHeroBanner">
+        <div style="display: flex; align-items: center; gap: 20px; flex: 1; flex-wrap: wrap;">
+          <div style="position: relative;">
+            <img id="channelHeroAvatar" src="" class="channel-hero-avatar">
+            <span id="channelLiveBadge" class="channel-live-indicator" style="display: none;">LIVE</span>
+          </div>
+          <div style="flex: 1; min-width: 240px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <h2 id="channelHeroName" style="font-size: 22px; font-weight: 900; color: #fff; margin: 0;">스트리머</h2>
+              <span id="channelVerifiedBadge" style="color: var(--accent-color); font-size: 16px; display: none;">✓</span>
+              <button class="btn btn-sm" id="channelBookmarkToggleBtn" style="font-size: 12px; padding: 4px 10px; display: flex; align-items: center; gap: 5px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <span>즐겨찾기</span>
+              </button>
+              <button class="btn btn-sm" id="channelNotifyToggleBtn" style="font-size: 12px; padding: 4px 10px; display: flex; align-items: center; gap: 5px;" title="이 채널 방송 시작 알림 설정">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                <span id="channelNotifyBtnText">알림 켜짐</span>
+              </button>
+            </div>
+            <div id="channelHeroMeta" style="font-size: 13px; color: var(--text-muted); margin-top: 6px; display: flex; gap: 14px; flex-wrap: wrap;">
+              <span id="channelFollowerCount">팔로워 0명</span>
+              <span id="channelLiveStatusText" style="color: var(--accent-color);">오프라인</span>
+            </div>
+            <div id="channelHeroDesc" style="font-size: 12.5px; color: var(--text-dim); margin-top: 6px; max-width: 700px; line-height: 1.5;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inline Live Player (If Stream is OPEN) -->
+      <div id="channelLivePlayerSection" style="display: none; margin-bottom: 24px; background: #000; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-color);">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="live-dot-pulse"></span>
+            <span id="channelLivePlayerTitle" style="font-size: 14px; font-weight: 800; color: #fff;">현재 방송 중</span>
+            <span class="badge" id="channelLivePlayerUsers" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">0명 시청 중</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm btn-primary" id="channelSendToMultiviewBtn" style="display: flex; align-items: center; gap: 6px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span>플레이어로 보내기</span>
+            </button>
+          </div>
+        </div>
+        <div style="position: relative; width: 100%; aspect-ratio: 16/9; max-height: 560px; background: #000; display: flex; align-items: center; justify-content: center;">
+          <video id="channelLiveVideo" controls autoplay muted style="width: 100%; height: 100%; object-fit: contain;"></video>
+        </div>
+      </div>
+
+      <!-- Sub Tabs: VODs (다시보기) vs Clips (클립) -->
+      <div class="channel-subtabs">
+        <button class="channel-subtab-btn active" data-subtab="vods" id="channelSubtabVodsBtn" style="display: flex; align-items: center; gap: 6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+          <span>라이브 다시보기</span>
+          <span class="badge" id="channelVodsCountBadge">0</span>
+        </button>
+        <button class="channel-subtab-btn" data-subtab="clips" id="channelSubtabClipsBtn" style="display: flex; align-items: center; gap: 6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+          <span>채널 클립</span>
+          <span class="badge" id="channelClipsCountBadge">0</span>
+        </button>
+      </div>
+
+      <!-- Sub Tab Pane 1: VOD Replays -->
+      <div id="channelVodsPane" class="channel-subpane active">
+        <div class="vods-grid" id="channelVodsGrid">
+          <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted);">
+            다시보기를 불러오는 중...
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub Tab Pane 2: Channel Clips -->
+      <div id="channelClipsPane" class="channel-subpane" style="display: none;">
+        <div class="clips-grid" id="channelClipsGrid"></div>
+      </div>
+    </section>
+
+    <!-- 5. Recorder Manager Tab -->
+    <section class="tab-pane" id="recorder-tab">
+      <div class="recorder-container">
+        <div class="panel-section">
+          <!-- Header Toolbar: Subtabs + View Modes + Action Buttons -->
+          <div class="section-header" style="flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <!-- Subtabs (전체 / 녹화 영상 / 캡처 이미지) -->
+              <div class="recorder-subtabs">
+                <button class="recorder-subtab active" data-subtab="all" onclick="window.recorderUI.setSubtab('all')">
+                  전체 <span class="badge" id="recCountAll" style="font-size: 10px; margin-left: 2px;">0</span>
+                </button>
+                <button class="recorder-subtab" data-subtab="videos" onclick="window.recorderUI.setSubtab('videos')">
+                  🎬 녹화 영상 <span class="badge" id="recCountVideos" style="font-size: 10px; margin-left: 2px;">0</span>
+                </button>
+                <button class="recorder-subtab" data-subtab="captures" onclick="window.recorderUI.setSubtab('captures')">
+                  📸 캡처 이미지 <span class="badge" id="recCountCaptures" style="font-size: 10px; margin-left: 2px;">0</span>
+                </button>
+              </div>
+
+              <!-- View Mode Toggle (갤러리 그리드 / 목록 테이블) -->
+              <div class="view-mode-group">
+                <button class="view-mode-btn active" id="viewModeGridBtn" onclick="window.recorderUI.setViewMode('grid')" title="갤러리(썸네일 그리드) 보기">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                </button>
+                <button class="view-mode-btn" id="viewModeListBtn" onclick="window.recorderUI.setViewMode('list')" title="목록(테이블) 보기">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button class="btn btn-primary btn-sm" id="directRecordBtn">+ 직접 녹화 (채널 ID/이름)</button>
+              <button class="btn btn-sm" id="openRecordingsFolderBtn" style="display: flex; align-items: center; gap: 5px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>녹화 폴더</span>
+              </button>
+              <button class="btn btn-sm" id="refreshRecordingsBtn" style="display: flex; align-items: center; gap: 5px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                <span>목록 새로고침</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter & Search Bar (Item 5: 파일명 검색, 날짜별 검색, 날짜별 묶어보기) -->
+          <div class="recorder-filters-bar">
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 220px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="recordingsSearchInput" class="input-box" placeholder="파일명 또는 스트리머명 검색..." style="flex: 1; font-size: 12.5px; padding: 6px 10px;">
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <label for="recordingsDateFilter" style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">날짜 선택:</label>
+                <input type="date" id="recordingsDateFilter" class="input-box" style="font-size: 12px; padding: 5px 8px; color-scheme: dark;">
+                <button class="btn btn-sm" id="clearDateFilterBtn" style="font-size: 11px; padding: 4px 8px;" title="날짜 필터 해제">전체 날짜</button>
+              </div>
+
+              <button class="btn btn-sm" id="groupByDateToggleBtn" style="display: flex; align-items: center; gap: 5px; font-size: 12px;">
+                <span>📅 날짜별 묶어보기</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Dynamic Container for Grid Cards or List Table -->
+          <div id="recordingsContainer" style="min-height: 280px; margin-top: 10px;">
+            <!-- Populated dynamically by recorderUI.render() -->
+          </div>
+
+          <!-- Pagination Bar (Item 2) -->
+          <div id="recordingsPagination" class="pagination-container" style="display: none;">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Video Cut & Trim Editor Tab -->
+    <section class="tab-pane" id="editor-tab">
+      <div class="editor-layout">
+        <div class="editor-main">
+          <!-- Editor Source Header (Item 4: 파일 선택 드롭다운 대신 녹화 보관함 연동) -->
+          <div class="editor-source-header">
+            <button class="btn btn-primary" id="openRecorderToSelectBtn" onclick="window.app.switchTab('recorder')" style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 6px 14px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span>녹화 보관함에서 영상 선택</span>
+            </button>
+            <input type="file" id="editorLocalFileUpload" accept="video/*" style="display: none;" onchange="if(window.editorUI) window.editorUI.handleLocalFileUpload(event)">
+            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('editorLocalFileUpload').click()" title="내 기기 탐색기에서 영상 파일 직접 불러오기" style="display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 12px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>탐색기에서 열기</span>
+            </button>
+            <div class="editor-cur-file-info">
+              <span class="editor-file-label">현재 편집 영상:</span>
+              <span class="editor-file-name" id="editorCurrentFileName">선택된 영상 없음 (보관함에서 [✂️ 편집실로 가져오기]를 누르세요)</span>
+            </div>
+            <button class="btn btn-sm" id="refreshEditorSourcesBtn" title="목록 새로고침" style="display: flex; align-items: center; gap: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+            </button>
+            <!-- Hidden compatibility select for existing logic -->
+            <select id="editorSourceSelect" class="input-box" style="display: none;"></select>
+          </div>
+
+          <div class="preview-player-box" style="position: relative;">
+            <video id="editorVideo" class="editor-video" controls></video>
+            <!-- Subtitle Overlay Preview -->
+            <div id="editorSubtitleOverlay" class="editor-subtitle-overlay" style="display: none;"></div>
+          </div>
+
+          <div class="timeline-panel">
+            <div class="timecode-row">
+              <div>현재 위치: <span id="currentTimeDisplay" style="color: #fff; font-weight: 700;">00:00:00.000</span> / <span id="totalDurationDisplay">00:00:00.000</span></div>
+              <div>선택 구간: <span id="startTimeDisplay" style="color: var(--accent-color); font-weight: 700;">00:00:00.000</span> ~ <span id="endTimeDisplay" style="color: var(--accent-color); font-weight: 700;">00:00:00.000</span> (<span id="cutDurationDisplay" style="color: var(--success-color);">00:00:00.000</span>)</div>
+            </div>
+
+            <div class="timeline-bar-wrapper" id="timelineBar">
+              <div class="timeline-cut-range" id="timelineCutRange"></div>
+              <div class="timeline-playhead" id="timelinePlayhead"></div>
+            </div>
+
+            <div class="editor-controls-row">
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="setStartBtn">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg> 시작점 [In]
+                </button>
+                <button class="btn btn-primary" id="setEndBtn">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg> 끝점 [Out]
+                </button>
+                <button class="btn" id="playPreviewBtn">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> 구간 재생
+                </button>
+                <button class="btn" id="addSegmentBtn" style="background: rgba(0,255,163,0.15); border-color: var(--accent-color); color: var(--accent-color); font-weight: 700;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 편집 구간 목록에 추가
+                </button>
+              </div>
+
+              <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                <span style="font-size: 12px; color: var(--text-muted); margin-right: 4px;">미세 조절:</span>
+                <button class="btn btn-sm" id="stepBackSec">-1초</button>
+                <button class="btn btn-sm" id="stepBackSmall">-0.1초</button>
+                <button class="btn btn-sm" id="stepFwdSmall">+0.1초</button>
+                <button class="btn btn-sm" id="stepFwdSec">+1초</button>
+                <button class="btn btn-sm" id="jumpStartBtn">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"/></svg> 시작점
+                </button>
+                <button class="btn btn-sm" id="jumpEndBtn">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/></svg> 끝점
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Multi-Cut Segments & Subtitles Panels -->
+          <div class="editor-extra-panels" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px;">
+            <!-- Segment 1: Multi-Cut Segments Management -->
+            <div class="panel-box" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="font-size: 13.5px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 6px;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+                  <span>컷편집 구간 목록 (<span id="segmentsCountBadge">0</span>개)</span>
+                </div>
+                <button class="btn btn-sm" id="clearSegmentsBtn" style="font-size: 11px; padding: 2px 6px;">전체 비우기</button>
+              </div>
+
+              <!-- Cut Mode Toggle -->
+              <div style="display: flex; gap: 10px; margin-bottom: 10px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px;">
+                <label style="font-size: 11.5px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                  <input type="radio" name="multiCutMode" id="modeKeep" value="keep" checked>
+                  <span style="color: var(--accent-color); font-weight: 700;">구간들만 합치기 (Keep)</span>
+                </label>
+                <label style="font-size: 11.5px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                  <input type="radio" name="multiCutMode" id="modeCutOut" value="cut_out">
+                  <span style="color: #f87171; font-weight: 700;">구간들 잘라내기 (Cut Out)</span>
+                </label>
+              </div>
+
+              <div id="editorSegmentsList" class="editor-segments-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+                <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px 0;">
+                  상단에서 시작점/끝점을 잡고 [편집 구간 목록에 추가]를 누르세요.
+                </div>
+              </div>
+            </div>
+
+            <!-- Segment 2: Subtitle Burning Management -->
+            <div class="panel-box" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="font-size: 13.5px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 6px;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <span>자막 추가 / 합성 (<span id="subtitlesCountBadge">0</span>개)</span>
+                </div>
+                <button class="btn btn-sm btn-primary" id="addSubtitleBtn" style="font-size: 11px; padding: 2px 8px;">
+                  + 현재 위치에 자막 추가
+                </button>
+              </div>
+
+              <div id="editorSubtitlesList" class="editor-subtitles-list" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px 0;">
+                  [+ 현재 위치에 자막 추가]를 눌러 원하는 구간에 텍스트 자막을 합성할 수 있습니다.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="editor-sidebar">
+          <div style="font-size: 15px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+            <span>클립 내보내기</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-size: 12px; color: var(--text-muted);">저장할 파일명:</label>
+            <input type="text" id="cutOutputNameInput" class="input-box" placeholder="my_cut_clip.mp4">
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; background: #121620; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <label style="font-size: 12px; font-weight: 700; color: #fff;">인코딩 모드:</label>
+            <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="radio" name="cutMode" id="cutModeCopy" value="copy" checked>
+              <span><strong>초고속 무손실 컷</strong> (재인코딩 없음, 1초 완료)</span>
+            </label>
+            <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="radio" name="cutMode" id="cutModeAccurate" value="accurate">
+              <span><strong>프레임 정밀 인코딩</strong> (자막 합성 및 다중 컷 정밀 병합)</span>
+            </label>
+          </div>
+
+          <button class="btn btn-primary" id="exportCutBtn" style="padding: 12px; font-weight: 800; justify-content: center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> 클립 자르기 / 내보내기 (Export)
+          </button>
+
+          <hr style="border: none; border-top: 1px solid var(--border-color); margin: 6px 0;">
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 14px; font-weight: 800; display: flex; align-items: center; gap: 6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> 생성된 클립 파일
+            </div>
+            <button class="btn btn-sm" id="openClipsFolderBtn">폴더 열기</button>
+          </div>
+
+          <div style="flex: 1; overflow-y: auto;" id="clipsListContainer">
+            <div id="editorClipsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Settings Tab (Naver Login & Followings) -->
+    <section class="tab-pane" id="settings-tab">
+      <div style="max-width: 800px; display: flex; flex-direction: column; gap: 24px;">
+        
+        <!-- 1-Time Follow Import with Zero-Credential Security -->
+        <div class="panel-section">
+          <div class="section-title" style="margin-bottom: 12px; color: var(--accent-color); display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>치지직 팔로우 불러오기 (보안 1회성 연동)</span>
+          </div>
+          <div style="font-size: 13.5px; line-height: 1.7; color: var(--text-muted); margin-bottom: 16px;">
+            <p style="margin-bottom: 6px;">
+              치지직 통나무 파워 제도가 종료되어 더 이상 상시 로그인이 필요하지 않습니다. 사용자의 네이버 계정 보안을 철저히 보호하기 위해 <strong>로그인 세션 쿠키를 프로그램에 영구 보관하지 않습니다</strong>.
+            </p>
+            <p style="margin-bottom: 8px;">
+              [치지직 팔로우 불러오기]를 실행하면 네이버 로그인 후 치지직의 팔로우 목록을 1회만 안전하게 불러와 <strong>즐겨찾기</strong>에 자동 등록하며, <strong>작업 완료 즉시 로그인 쿠키와 인증 토큰은 메모리와 디스크에서 영구 삭제</strong>됩니다.
+            </p>
+          </div>
+
+          <!-- Follow Import Button Area -->
+          <div style="background: #121620; padding: 18px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+            <div>
+              <div style="font-size: 14.5px; font-weight: 800; color: #fff;">치지직 계정 팔로우 목록 가져오기</div>
+              <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 3px;">로그인 완료 즉시 팔로우 채널을 즐겨찾기로 등록하고 세션 쿠키는 자동 파기됩니다.</div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-primary" id="openBrowserLoginBtn" style="padding: 10px 18px; font-size: 13.5px; font-weight: 800;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 치지직 팔로우 불러오기 (1회성 연동)
+              </button>
+            </div>
+          </div>
+
+          <!-- Status Bar -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px; background: rgba(0, 255, 163, 0.08); border: 1px solid rgba(0, 255, 163, 0.25); border-radius: var(--radius-sm); margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; background: rgba(0,255,163,0.15); color: var(--accent-color);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <div>
+                <span id="cookieStatusText" style="font-size: 13.5px; font-weight: 700; color: var(--accent-color);">보안 모드 활성화</span>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">계정 정보가 파일에 저장되지 않으며, 즐겨찾기 탭에서 채널을 안전하게 관리합니다.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Optional Manual Cookie 1-Time Input (Collapsible) -->
+          <details style="margin-top: 8px;">
+            <summary style="font-size: 12px; color: var(--text-dim); cursor: pointer; user-select: none;">쿠키 문자열로 1회 불러오기 (고급 사용자용)</summary>
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+              <textarea id="cookieInput" class="input-box" rows="2" style="width: 100%; font-family: monospace; font-size: 12px;" placeholder="NID_AUT=...; NID_SES=..."></textarea>
+              <div style="display: flex; justify-content: flex-end;">
+                <button class="btn btn-sm btn-primary" id="saveCookiesBtn">쿠키로 팔로우 1회 불러오기</button>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- Cloudflare 1.1.1.1 / Proxy Network Settings (IP 밴 방지) -->
+        <div class="panel-section">
+          <div class="section-title" style="margin-bottom: 12px; color: #38bdf8; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              <span>Cloudflare 1.1.1.1 보안 프록시 (IP 밴 방지)</span>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-sm btn-secondary" id="testProxyBtn" style="display: flex; align-items: center; gap: 5px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <span>연결 테스트</span>
+              </button>
+              <button class="btn btn-sm btn-primary" id="saveProxyBtn">설정 저장</button>
+            </div>
+          </div>
+
+          <div style="font-size: 13.5px; line-height: 1.6; color: var(--text-muted); margin-bottom: 16px;">
+            동시에 다수의 고화질 라이브를 시청하거나 새로고침할 때 발생할 수 있는 <strong>IP 차단(IP 밴) 및 통신사 속도 제한(Throttling)을 방지</strong>하기 위해 프록시를 사용할 수 있습니다. Cloudflare WARP(1.1.1.1) 또는 사용자 정의 프록시(SOCKS5/HTTP)를 지원합니다.
+          </div>
+
+          <div style="background: #121620; padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 14px;">
+            <!-- On/Off Toggle -->
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <strong style="font-size: 14px; color: #fff;">보안 프록시 활성화</strong>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">치지직 및 유튜브 스트리밍 연결을 지정된 프록시를 통해 경유합니다.</div>
+              </div>
+              <label class="switch-toggle" style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
+                <input type="checkbox" id="proxyEnableToggle" style="width: 18px; height: 18px; cursor: pointer;">
+                <span id="proxyEnableText" style="font-size: 13px; font-weight: 700; color: var(--text-muted);">꺼짐 (비활성)</span>
+              </label>
+            </div>
+
+            <!-- Proxy Type selection -->
+            <div id="proxySettingsBody" style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
+              <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #fff; cursor: pointer;">
+                  <input type="radio" name="proxyMode" value="cloudflare_warp" id="proxyModeWarp" checked>
+                  <span>Cloudflare WARP (기본 로컬 프록시: socks5://127.0.0.1:40000)</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #fff; cursor: pointer;">
+                  <input type="radio" name="proxyMode" value="custom" id="proxyModeCustom">
+                  <span>사용자 지정 프록시 URL</span>
+                </label>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-size: 12px; color: var(--text-muted);">프록시 서버 주소 (SOCKS5 / HTTP):</label>
+                <input type="text" id="proxyUrlInput" class="input-box" placeholder="socks5://127.0.0.1:40000 또는 http://127.0.0.1:1080" value="socks5://127.0.0.1:40000" style="font-family: monospace; font-size: 12.5px;">
+              </div>
+            </div>
+
+            <!-- Diagnostic Trace Test Output -->
+            <div id="proxyTestResult" style="display: none; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.5; font-family: monospace;"></div>
+          </div>
+        </div>
+
+        <!-- Playback Diagnostics & Situation Log Panel (상황로그파일) -->
+        <div class="panel-section">
+          <div class="section-title" style="margin-bottom: 12px; color: var(--accent-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <span>재생 진단 및 상황 로그 (상황로그파일)</span>
+            </div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button class="btn btn-sm" id="refreshDiagBtn" title="최신 상황 로그 불러오기" style="display: inline-flex; align-items: center; gap: 4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                <span>새로고침</span>
+              </button>
+              <button class="btn btn-sm btn-primary" id="copyDiagBtn" title="최신 로그 전체 클립보드 복사" style="display: inline-flex; align-items: center; gap: 4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>상황로그 복사</span>
+              </button>
+              <button class="btn btn-sm btn-secondary" id="openDiagFileBtn" title="메모장 등 텍스트 편집기로 로그 파일 직접 열기" style="display: inline-flex; align-items: center; gap: 4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>파일 열기</span>
+              </button>
+              <button class="btn btn-sm btn-danger" id="clearDiagBtn" title="기록된 진단 로그 비우기" style="display: inline-flex; align-items: center; gap: 4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span>비우기</span>
+              </button>
+            </div>
+          </div>
+          <div style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px;">
+            멀티뷰 스트리밍 중 발생하는 버퍼링, 지연 추적(Catch-up), 프록시 연결 및 자동 복구 내역을 실시간 기록합니다. 끊김 문제가 발생했을 때 아래 로그를 복사하여 전달하시면 문제 원인을 정확히 파악할 수 있습니다.
+          </div>
+          <div id="diagLogContainer" style="background: #090c12; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; font-family: Consolas, monospace; font-size: 11.5px; line-height: 1.55; color: #a5f3fc; max-height: 240px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">
+            상황 로그 로딩 중...
+          </div>
+        </div>
+
+        <!-- Data Management & Reset Section (프로그램 데이터 관리 및 초기값 복원) -->
+        <div class="panel-section">
+          <div class="section-title" style="margin-bottom: 12px; color: #f87171; display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            <span>데이터 관리 및 초기값 복원</span>
+          </div>
+          <div style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px;">
+            프로그램 내에 저장된 북마크, 유튜브 시청 기록, 로그인 세션 쿠키, 그리고 녹화/클립 파일들을 선택적으로 정리하거나 프로그램을 초기 설치 상태로 되돌릴 수 있습니다.
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Reset User Data Only -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); flex-wrap: wrap; gap: 10px;">
+              <div>
+                <strong style="font-size: 13.5px; color: #fff;">저장 데이터 초기화</strong>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">치지직/유튜브 북마크, 유튜브 시청 기록 및 추천 키워드를 초기화합니다. (로그인 및 영상 파일 유지)</div>
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="window.app.resetSystemData('data')" style="white-space: nowrap;">데이터 초기화</button>
+            </div>
+
+            <!-- Clear Login Session -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); flex-wrap: wrap; gap: 10px;">
+              <div>
+                <strong style="font-size: 13.5px; color: #fff;">로그인 세션 초기화</strong>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">저장된 네이버 로그인 쿠키(NID_AUT, NID_SES)를 삭제하고 로그아웃합니다.</div>
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="window.app.resetSystemData('login')" style="white-space: nowrap;">로그인 정보 삭제</button>
+            </div>
+
+            <!-- Clear Recordings & Clips -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); flex-wrap: wrap; gap: 10px;">
+              <div>
+                <strong style="font-size: 13.5px; color: #fff;">녹화 및 클립 파일 정리</strong>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">recordings/ 및 clips/ 디렉터리에 저장된 영상 및 클립 파일들을 모두 삭제합니다.</div>
+              </div>
+              <button class="btn btn-sm btn-danger" onclick="window.app.resetSystemData('media')" style="white-space: nowrap;">영상/클립 비우기</button>
+            </div>
+
+            <!-- Full Factory Reset -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: var(--radius-sm); flex-wrap: wrap; gap: 10px;">
+              <div>
+                <strong style="font-size: 14px; color: #f87171;">전체 공장 초기화 (Factory Reset)</strong>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">모든 설정, 북마크, 시청 기록, 로그인 세션, 녹화/클립 파일을 완전히 삭제하고 프로그램을 최초 상태로 되돌립니다.</div>
+              </div>
+              <button class="btn btn-danger" onclick="window.app.resetSystemData('factory')" style="font-weight: 800; white-space: nowrap;">전체 공장 초기화</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- GitHub In-App Update Panel (프로그램 자동 업데이트) -->
+        <div class="panel-section">
+          <div class="section-title" style="margin-bottom: 12px; color: #38bdf8; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>프로그램 업데이트 (GitHub 연동)</span>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span id="updateCurrentVerBadge" style="font-size: 11.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);">v1.2.5</span>
+              <button class="btn btn-sm btn-secondary" id="checkUpdateBtn" onclick="window.app.checkSystemUpdate(true)">
+                업데이트 확인
+              </button>
+            </div>
+          </div>
+
+          <div style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
+            공식 GitHub 저장소(<strong>https://github.com/BooDLEi/TheChzzk.git</strong>)의 최신 릴리즈 및 커밋을 확인하여, <strong>저장된 데이터(북마크·시청기록·로그인·녹화/클립 파일)를 그대로 보존</strong>한 채 프로그램 안에서 즉시 업데이트할 수 있습니다.
+          </div>
+
+          <div id="updateStatusBox" style="background: #121620; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 220px;">
+              <div id="updateStatusTitle" style="font-size: 13.5px; font-weight: 800; color: #fff;">버전 상태 확인 가능</div>
+              <div id="updateStatusDesc" style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.45;">[업데이트 확인] 버튼을 눌러 GitHub 최신 버전 여부를 조회하세요.</div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button class="btn btn-primary" id="applyUpdateBtn" onclick="window.app.applySystemUpdate()" style="display: none; font-weight: 800; padding: 8px 16px;">
+                지금 업데이트 및 재시작
+              </button>
+            </div>
+          </div>
+
+          <details style="margin-top: 12px;">
+            <summary style="font-size: 12px; color: var(--text-dim); cursor: pointer; user-select: none;">GitHub 저장소 주소 및 비공개(Private) 토큰 설정</summary>
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.25); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-size: 11.5px; color: var(--text-muted);">GitHub 저장소 URL:</label>
+                <input type="text" id="updateRepoUrlInput" class="input-box" value="https://github.com/BooDLEi/TheChzzk.git" style="font-size: 12px;">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-size: 11.5px; color: var(--text-muted);">GitHub Personal Access Token (비공개 저장소인 경우에만 입력):</label>
+                <input type="password" id="updateGithubTokenInput" class="input-box" placeholder="ghp_... (공개 저장소면 비워두세요)" style="font-size: 12px;">
+              </div>
+              <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+                <button class="btn btn-sm btn-primary" onclick="window.app.saveUpdateConfig()">설정 저장 및 확인</button>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div class="panel-section">
+          <div class="section-title" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>프로그램 정보</span>
+          </div>
+          <div style="font-size: 13px; line-height: 1.8; color: var(--text-muted);">
+            <div><strong>프로그램명:</strong> 더치지직 (The Chzzk Multi Studio & Recorder)</div>
+            <div><strong>현재 버전:</strong> <span id="infoVersionText">v1.2.5</span></div>
+            <div><strong>GitHub 저장소:</strong> <a href="https://github.com/BooDLEi/TheChzzk" target="_blank" style="color: #38bdf8; text-decoration: underline;">https://github.com/BooDLEi/TheChzzk.git</a></div>
+            <div><strong>플랫폼:</strong> 네이버 치지직 & 유튜브 무광고 멀티뷰 통합 스튜디오</div>
+            <div><strong>엔진:</strong> FastAPI + PyWebView + HLS.js + yt-dlp + FFmpeg Concat Remux</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal: Clip Popup Player -->
+  <div class="modal-overlay" id="clipPlayerModal">
+    <div class="modal-content" style="max-width: 860px; position: relative;">
+      <div class="modal-header">
+        <div class="modal-title" id="clipModalTitle">클립 재생</div>
+        <button class="modal-close-btn" onclick="window.clipsUI.closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 0;">
+        <div style="background: #000; display: flex; align-items: center; justify-content: center; min-height: 400px; max-height: 540px; overflow: hidden; position: relative;">
+          <div id="clipVideoSlideContainer" class="clip-slide-container">
+            <video id="clipModalVideo" controls style="width: 100%; max-height: 520px;"></video>
+          </div>
+        </div>
+        <div style="padding: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary);">
+          <div>
+            <div id="clipModalMeta" style="font-size: 12px; color: var(--text-muted);"></div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm" id="clipModalSendToMultiviewBtn" style="background: rgba(249, 115, 22, 0.25); border: 1px solid rgba(249, 115, 22, 0.6); color: #fdba74;" title="이 클립을 멀티뷰 슬롯에서 시청">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2"/><polyline points="17 2 12 7 7 2"/></svg> 멀티뷰로 재생
+            </button>
+            <button class="btn btn-primary" id="clipModalDownloadBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> MP4 다운로드
+            </button>
+            <button class="btn btn-secondary" id="clipModalWebEncodeBtn" title="디스코드, X(트위터), 웹 업로드에 100% 호환되는 H.264 MP4로 인코딩 다운로드">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> 웹 호환(H.264) 다운로드
+            </button>
+            <button class="btn" id="clipModalCutBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> 이 클립 컷편집
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: VOD Replay Player -->
+  <div class="modal-overlay" id="vodPlayerModal">
+    <div class="modal-content" style="max-width: 980px; position: relative;">
+      <div class="modal-header">
+        <div class="modal-title" id="vodModalTitle" style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+          <span id="vodModalTitleText">다시보기 재생</span>
+        </div>
+        <button class="modal-close-btn" onclick="window.channelUI.closeVodModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 0;">
+        <div style="background: #000; display: flex; align-items: center; justify-content: center; min-height: 420px; max-height: 600px; position: relative;">
+          <video id="vodModalVideo" controls style="width: 100%; max-height: 580px;"></video>
+        </div>
+        <div style="padding: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); flex-wrap: wrap; gap: 10px;">
+          <div>
+            <div id="vodModalMeta" style="font-size: 13px; color: var(--text-muted);"></div>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="vodQualitySelect" class="input-box" style="padding: 6px 10px; font-size: 12px; min-width: 100px;"></select>
+            <button class="btn btn-sm" id="vodModalSendToMultiviewBtn" style="background: rgba(139, 92, 246, 0.25); border: 1px solid rgba(139, 92, 246, 0.6); color: #c4b5fd;" title="이 다시보기를 멀티뷰 슬롯에서 시청">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2"/><polyline points="17 2 12 7 7 2"/></svg> 멀티뷰로 재생
+            </button>
+            <button class="btn btn-primary btn-sm" id="vodModalDownloadBtn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> MP4 다운로드
+            </button>
+            <button class="btn btn-sm" id="vodModalCutBtn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> 컷편집기로 보내기
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Recording Video Preview Player -->
+  <div class="modal-overlay" id="recordPreviewModal">
+    <div class="modal-content" style="max-width: 960px; position: relative;">
+      <div class="modal-header">
+        <div class="modal-title" style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent-color)"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span id="recordPreviewFileName">녹화 영상 미리보기</span>
+        </div>
+        <button class="modal-close-btn" onclick="window.recorderUI.closePreviewModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 0;">
+        <div style="background: #000; display: flex; align-items: center; justify-content: center; min-height: 420px; max-height: 580px;">
+          <video id="recordPreviewVideo" controls style="width: 100%; max-height: 560px;"></video>
+        </div>
+        <div style="padding: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); flex-wrap: wrap; gap: 10px;">
+          <div id="recordPreviewMeta" style="font-size: 12.5px; color: var(--text-muted);"></div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary" id="recordPreviewSendEditorBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> 컷편집기로 보내기
+            </button>
+            <button class="btn" onclick="window.recorderUI.closePreviewModal()">✕ 닫기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Capture Screenshot Image Preview (Item 2) -->
+  <div class="modal-overlay" id="capturePreviewModal">
+    <div class="modal-content" style="max-width: 920px; position: relative;">
+      <div class="modal-header">
+        <div class="modal-title" style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">📸</span>
+          <span id="capturePreviewFileName">캡처 이미지 미리보기</span>
+        </div>
+        <button class="modal-close-btn" onclick="window.recorderUI.closeCaptureModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 0;">
+        <div style="background: #000; display: flex; align-items: center; justify-content: center; min-height: 380px; max-height: 580px; overflow: hidden;">
+          <img id="capturePreviewImg" src="" style="max-width: 100%; max-height: 560px; object-fit: contain;">
+        </div>
+        <div style="padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); flex-wrap: wrap; gap: 10px;">
+          <div id="capturePreviewMeta" style="font-size: 12.5px; color: var(--text-muted);"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-sm" id="capturePreviewRenameBtn">✏️ 이름 변경</button>
+            <a id="capturePreviewDownloadLink" href="#" download="" class="btn btn-sm btn-primary">💾 이미지 저장</a>
+            <button class="btn btn-sm btn-danger" id="capturePreviewDeleteBtn">🗑️ 삭제</button>
+            <button class="btn btn-sm" onclick="window.recorderUI.closeCaptureModal()">✕ 닫기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: File Rename Modal (Item 5) -->
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-title" style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <span>✏️</span>
+          <span>파일명 수정</span>
+        </div>
+        <button class="modal-close-btn" onclick="window.recorderUI.closeRenameModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">현재 파일명:</div>
+        <div id="renameCurrentName" style="font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 16px; word-break: break-all;"></div>
+        
+        <label for="renameNewNameInput" style="font-size: 12px; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px;">새 파일명:</label>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <input type="text" id="renameNewNameInput" class="input-box" style="flex: 1; font-size: 13px; padding: 8px 12px;">
+          <span id="renameExtLabel" style="font-size: 13px; color: var(--text-muted); font-weight: 700;">.mp4</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-dim); margin-top: 6px;">* 파일 시스템에서 허용되지 않는 특수문자는 자동으로 정리됩니다.</div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: rgba(0, 0, 0, 0.2); border-top: 1px solid var(--border-color);">
+        <button class="btn" onclick="window.recorderUI.closeRenameModal()">취소</button>
+        <button class="btn btn-primary" id="renameConfirmBtn">변경 완료</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Video to Playlist Modal (Requirement 2) -->
+  <div class="modal-overlay" id="ytAddToPlaylistModal">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title" style="font-size: 15px; font-weight: 800;">
+          <span>재생목록에 추가</span>
+        </div>
+        <button class="modal-close-btn" onclick="document.getElementById('ytAddToPlaylistModal').classList.remove('active')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <div id="ytAddToPlTargetVideoInfo" style="font-size: 12.5px; font-weight: 600; color: #fff; margin-bottom: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">저장할 재생목록을 선택하세요:</div>
+        <div id="ytAddToPlList" style="max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+          <!-- Dynamically populated playlist choices -->
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(0, 0, 0, 0.2); border-top: 1px solid var(--border-color);">
+        <button class="btn btn-sm btn-ghost" onclick="window.youtubeUI.promptCreatePlaylist(); document.getElementById('ytAddToPlaylistModal').classList.remove('active');">+ 새 재생목록</button>
+        <button class="btn btn-sm" onclick="document.getElementById('ytAddToPlaylistModal').classList.remove('active')">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Create Custom Playlist Modal -->
+  <div class="modal-overlay" id="ytCreatePlaylistModal">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header">
+        <div class="modal-title" style="font-size: 15px; font-weight: 800;">
+          <span>새 재생목록 만들기</span>
+        </div>
+        <button class="modal-close-btn" onclick="document.getElementById('ytCreatePlaylistModal').classList.remove('active')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div>
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">재생목록 제목</label>
+          <input type="text" id="ytNewPlaylistTitle" class="input-box" placeholder="예: 내가 좋아하는 플레이리스트, 공부할 때 듣는 음악..." style="width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">설명 (선택사항)</label>
+          <input type="text" id="ytNewPlaylistDesc" class="input-box" placeholder="간단한 메모나 설명을 입력하세요" style="width: 100%;">
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; background: rgba(0, 0, 0, 0.2); border-top: 1px solid var(--border-color);">
+        <button class="btn btn-sm" onclick="document.getElementById('ytCreatePlaylistModal').classList.remove('active')">취소</button>
+        <button class="btn btn-sm btn-primary" onclick="window.youtubeUI.confirmCreatePlaylist()">생성하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Import YouTube Playlist Modal -->
+  <div class="modal-overlay" id="ytImportPlaylistModal">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-title" style="font-size: 15px; font-weight: 800;">
+          <span>YouTube 재생목록 링크 가져오기</span>
+        </div>
+        <button class="modal-close-btn" onclick="document.getElementById('ytImportPlaylistModal').classList.remove('active')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5;">
+          YouTube의 공개/일부공개 재생목록 URL(예: https://www.youtube.com/playlist?list=PL...)을 입력하면 영상 목록을 통째로 가져와 내 재생목록에 저장합니다.
+        </div>
+        <div>
+          <input type="text" id="ytImportPlaylistUrl" class="input-box" placeholder="https://www.youtube.com/playlist?list=..." style="width: 100%;">
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; background: rgba(0, 0, 0, 0.2); border-top: 1px solid var(--border-color);">
+        <button class="btn btn-sm" onclick="document.getElementById('ytImportPlaylistModal').classList.remove('active')">취소</button>
+        <button class="btn btn-sm btn-primary" id="ytImportPlaylistSubmitBtn" onclick="window.youtubeUI.confirmImportPlaylist()">가져오기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating PiP Mini Player (Draggable, Resizable, Slot Selectable) -->
+  <div id="pipMiniPlayer" class="pip-mini-player" style="display: none;">
+    <div class="pip-header" id="pipHeader" title="헤더를 드래그하여 화면 원하는 위치로 이동하세요">
+      <div class="pip-header-left" style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;">
+        <span class="pip-drag-icon" style="cursor: grab; user-select: none; color: var(--text-muted); font-size: 14px;">⋮⋮</span>
+        <select id="pipSlotSelect" class="pip-slot-select" title="화면을 표시할 활성 슬롯 선택" style="flex: 1; font-size: 12px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 2px 6px;">
+        </select>
+      </div>
+      <div class="pip-actions" style="margin-left: 8px; display: flex; align-items: center; gap: 4px;">
+        <button class="pip-btn" id="pipMuteBtn" title="소리 켜기 / 끄기">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        </button>
+        <button class="pip-btn" id="pipCloseBtn" title="PiP 닫기">✕</button>
+      </div>
+    </div>
+    <div class="pip-video-body" id="pipVideoBody" title="더블클릭 시 플레이어로 이동">
+      <!-- Active slot video element mounted here dynamically -->
+    </div>
+    <div class="pip-resize-handle" id="pipResizeHandle" title="모서리를 드래그하여 크기 조절"></div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer"></div>
+
+  <!-- Live Stream Start Notification Container -->
+  <div id="liveNotificationContainer" class="live-notification-container"></div>
+
+  <!-- Scripts -->
+  <script src="/static/js/multiview.js"></script>
+  <script src="/static/js/channel_ui.js"></script>
+  <script src="/static/js/clips_ui.js"></script>
+  <script src="/static/js/recorder_ui.js"></script>
+  <script src="/static/js/editor_ui.js"></script>
+  <script src="/static/js/youtube_ui.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
