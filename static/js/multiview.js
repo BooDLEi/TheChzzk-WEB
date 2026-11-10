@@ -6804,6 +6804,7 @@ class MultiViewManager {
     this.slots.forEach(s => {
       if (!s || !s.active) return;
       if (s.type === 'live') {
+        s.isPlaying = true;
         if (s.videoEl) {
           const effMuted = Boolean(s.muted || masterChzzkMuted);
           s.videoEl.muted = effMuted;
@@ -6814,6 +6815,10 @@ class MultiViewManager {
             }
           }
           s.videoEl.play().catch(() => {});
+        }
+        const playBtn = document.getElementById(`slot-play-btn-${s.index}`);
+        if (playBtn && typeof ICONS !== 'undefined') {
+          playBtn.innerHTML = ICONS.pause;
         }
       } else {
         // 비-라이브 슬롯(다시보기/클립/유튜브)은 클립·쇼츠 이탈 후에도 일시정지 상태 유지
@@ -6845,9 +6850,9 @@ class MultiViewManager {
       this.hidePiP();
       return;
     }
-    const isLandscape = window.innerWidth > window.innerHeight;
-    if (!isLandscape) {
-      // 클립/쇼츠 세로모드에서는 멀티뷰 PiP 미표시
+    const isMobilePortrait = window.innerWidth <= 960 && window.innerHeight > window.innerWidth;
+    if (isMobilePortrait) {
+      // 모바일 세로 화면에서만 멀티뷰 PiP 미표시 (데스크톱/태블릿 가로에서는 PiP 허용)
       this.hidePiP();
       return;
     }
@@ -6860,6 +6865,8 @@ class MultiViewManager {
     const target = unmuted.length > 0 ? unmuted[0] : activeSlots.sort((a, b) => a.index - b.index)[0];
     if (this.pipMiniPlayer) {
       this.pipMiniPlayer.classList.add('pip-shortform-landscape');
+      const isDesktopYt = Boolean(window.innerWidth > 960 && window.app && window.app.currentTab === 'youtube');
+      this.pipMiniPlayer.classList.toggle('pip-yt-sidebar-offset', isDesktopYt);
     }
     this.showPiP(target);
   }
@@ -6962,6 +6969,7 @@ class MultiViewManager {
 
     if (this.pipMiniPlayer) {
       this.pipMiniPlayer.classList.remove('pip-shortform-landscape');
+      this.pipMiniPlayer.classList.remove('pip-yt-sidebar-offset');
       this.pipMiniPlayer.style.display = 'none';
     }
   }

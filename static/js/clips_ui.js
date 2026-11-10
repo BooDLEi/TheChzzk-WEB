@@ -247,9 +247,6 @@ class ClipsUI {
 
   isMobileShortformEnabled() {
     return Boolean(
-      window.app &&
-      typeof window.app.isMobileShortformMode === 'function' &&
-      window.app.isMobileShortformMode() &&
       window.MobileShortformPlayer &&
       document.getElementById('clipsMobileShortformHost')
     );
@@ -855,9 +852,12 @@ class ClipsUI {
       const data = await res.json();
 
       if (data.success) {
-        const sizeMb = (data.fileSize / (1024 * 1024)).toFixed(1);
+        if (window.editorUI && typeof window.editorUI.loadSources === 'function') {
+          window.editorUI.loadSources();
+        }
+        const sizeMb = data.fileSize > 0 ? ` (${(data.fileSize / (1024 * 1024)).toFixed(1)} MB)` : '';
         if (window.app) {
-          window.app.showToast(`'${data.filename}' 다운로드 완료! (${sizeMb} MB)`, 'success');
+          window.app.showToast(`'${data.filename}' 다운로드 완료!${sizeMb}`, 'success');
         }
       } else {
         if (window.app) window.app.showToast(data.error || '클립 다운로드 실패', 'error');

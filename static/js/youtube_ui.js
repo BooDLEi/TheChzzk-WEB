@@ -27,7 +27,7 @@ const YT_SVGS = {
 
 class YouTubeUI {
   constructor() {
-    this.currentSubTab = 'recommendations'; // 'recommendations' | 'search' | 'bookmarks' | 'playlists' | 'watchlater' | 'history'
+    this.currentSubTab = 'recommendations'; // 'recommendations' | 'bookmarks' | 'shorts' | 'playlists' | 'watchlater' | 'history'
     this.activeKeywords = [];
     this.recommendations = [];
     this.searchResults = [];
@@ -37,13 +37,14 @@ class YouTubeUI {
     this.customPlaylists = [];
     this.watchLater = [];
     this.bookmarksSegment = 'channels'; // 'channels' | 'videos'
-    this.keywordsCollapsed = false;
+    this.keywordsCollapsed = true; // 기본 접힘 상태 (검색창 왼쪽 아이콘으로 토글)
+    this.isHomeSearchActive = false;
     this._targetVideoForPlaylist = null;
     this.history = [];
     this._videoCache = {};
     this.currentChannelView = null; // When viewing a channel's uploads
 
-    // Mobile Web / APK Shorts Feed state
+    // Shorts Feed state
     this.shortsPlayer = null;
     this.shortsFeedSeed = '';
     this.shortsFeedChannelId = '';
@@ -67,6 +68,8 @@ class YouTubeUI {
 
     // Keyword chips container
     this.ytKeywordsBar = document.getElementById('ytKeywordsBar');
+    this.ytAlgorithmToolbar = document.getElementById('ytAlgorithmToolbar');
+    this.ytToggleKeywordsBtn = document.getElementById('ytToggleKeywordsBtn');
     this.ytAddKeywordBtn = document.getElementById('ytAddKeywordBtn');
     this.ytAddKeywordInput = document.getElementById('ytAddKeywordInput');
     this.ytAddKeywordForm = document.getElementById('ytAddKeywordForm');
@@ -77,6 +80,12 @@ class YouTubeUI {
     this.ytSearchInput = document.getElementById('ytSearchInput');
     this.ytSearchBtn = document.getElementById('ytSearchBtn');
     this.ytClearSearchBtn = document.getElementById('ytClearSearchBtn');
+
+    // Home unified sections (Recommendations <-> Search Results)
+    this.ytHomeRecsSection = document.getElementById('ytHomeRecsSection');
+    this.ytHomeSearchSection = document.getElementById('ytHomeSearchSection');
+    this.ytHomeSearchResultLabel = document.getElementById('ytHomeSearchResultLabel');
+    this.ytBackToRecsBtn = document.getElementById('ytBackToRecsBtn');
 
     // Feeds
     this.ytRecsGrid = document.getElementById('ytRecsGrid');
@@ -142,6 +151,12 @@ class YouTubeUI {
 
     if (this.ytRefreshRecsBtn) {
       this.ytRefreshRecsBtn.addEventListener('click', () => {
+        if (this.ytSearchInput) this.ytSearchInput.value = '';
+        if (this.ytClearSearchBtn) this.ytClearSearchBtn.style.display = 'none';
+        if (this.currentSubTab !== 'recommendations') {
+          this.switchSubTab('recommendations', false);
+        }
+        this.resetHomeToRecommendations({ reloadIfEmpty: false });
         this.loadRecommendations(true);
       });
     }
@@ -156,9 +171,7 @@ class YouTubeUI {
         }
         clearTimeout(searchTimeout);
         if (!val) {
-          if (this.ytSearchGrid) this.ytSearchGrid.innerHTML = '';
-          if (this.ytSearchChannelsRow) this.ytSearchChannelsRow.innerHTML = '';
-          if (this.ytSearchEmpty) this.ytSearchEmpty.style.display = 'flex';
+          this.resetHomeToRecommendations();
           return;
         }
         searchTimeout = setTimeout(() => {
@@ -169,26 +182,41 @@ class YouTubeUI {
       this.ytSearchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           clearTimeout(searchTimeout);
-          this.handleSearch(this.ytSearchInput.value.trim());
+          const val = this.ytSearchInput.value.trim();
+          if (!val) {
+            this.resetHomeToRecommendations();
+          } else {
+            this.handleSearch(val);
+          }
         }
       });
     }
 
     if (this.ytSearchBtn) {
       this.ytSearchBtn.addEventListener('click', () => {
-        if (this.ytSearchInput) this.handleSearch(this.ytSearchInput.value.trim());
+        if (!this.ytSearchInput) return;
+        const val = this.ytSearchInput.value.trim();
+        if (!val) {
+          this.resetHomeToRecommendations();
+        } else {
+          this.handleSearch(val);
+        }
       });
     }
 
     if (this.ytClearSearchBtn) {
       this.ytClearSearchBtn.addEventListener('click', () => {
-        if (this.ytSearchInput) {
-          this.ytSearchInput.value = '';
-          this.ytClearSearchBtn.style.display = 'none';
-          if (this.ytSearchGrid) this.ytSearchGrid.innerHTML = '';
-          if (this.ytSearchChannelsRow) this.ytSearchChannelsRow.innerHTML = '';
-          if (this.ytSearchEmpty) this.ytSearchEmpty.style.display = 'flex';
-        }
+        if (this.ytSearchInput) this.ytSearchInput.value = '';
+        this.ytClearSearchBtn.style.display = 'none';
+        this.resetHomeToRecommendations();
+      });
+    }
+
+    if (this.ytBackToRecsBtn) {
+      this.ytBackToRecsBtn.addEventListener('click', () => {
+        if (this.ytSearchInput) this.ytSearchInput.value = '';
+        if (this.ytClearSearchBtn) this.ytClearSearchBtn.style.display = 'none';
+        this.resetHomeToRecommendations();
       });
     }
 
@@ -207,6 +235,7 @@ class YouTubeUI {
 
   onEnterTab() {
     this.loadKeywords();
+    this.syncKeywordsToolbarVisibility();
     if (this.currentSubTab === 'recommendations') {
       if (this.recommendations.length === 0) {
         this.loadRecommendations();
@@ -226,7 +255,34 @@ class YouTubeUI {
     }
   }
 
+  setHomeSearchActive(isSearch, labelText = '') {
+    this.isHomeSearchActive = Boolean(isSearch);
+    if (this.ytHomeRecsSection) {
+      this.ytHomeRecsSection.style.display = this.isHomeSearchActive ? 'none' : 'block';
+    }
+    if (this.ytHomeSearchSection) {
+      this.ytHomeSearchSection.style.display = this.isHomeSearchActive ? 'block' : 'none';
+    }
+    if (this.ytHomeSearchResultLabel && labelText) {
+      this.ytHomeSearchResultLabel.textContent = labelText;
+    }
+  }
+
+  resetHomeToRecommendations({ reloadIfEmpty = true } = {}) {
+    this.setHomeSearchActive(false);
+    if (this.ytSearchGrid) this.ytSearchGrid.innerHTML = '';
+    if (this.ytSearchChannelsRow) {
+      this.ytSearchChannelsRow.innerHTML = '';
+      this.ytSearchChannelsRow.style.display = 'none';
+    }
+    if (this.ytSearchEmpty) this.ytSearchEmpty.style.display = 'none';
+    if (reloadIfEmpty && this.recommendations.length === 0) {
+      this.loadRecommendations();
+    }
+  }
+
   switchSubTab(subTabName, triggerAction = true) {
+    if (subTabName === 'search') subTabName = 'recommendations';
     const prevSubTab = this.currentSubTab;
     this.currentSubTab = subTabName;
     this.closeChannelView();
@@ -240,31 +296,35 @@ class YouTubeUI {
     });
 
     const ytTabPane = document.getElementById('youtube-tab');
-    const isMobileShorts = Boolean(subTabName === 'shorts' && window.app && typeof window.app.isMobileShortformMode === 'function' && window.app.isMobileShortformMode());
+    const isShorts = (subTabName === 'shorts');
     if (ytTabPane) {
-      ytTabPane.classList.toggle('shorts-mode-active', isMobileShorts);
+      ytTabPane.classList.toggle('shorts-mode-active', isShorts);
     }
 
     // Pause Shorts feed & restore Multiview when leaving shorts subtab
     if (prevSubTab === 'shorts' && subTabName !== 'shorts') {
       this.pauseShortsFeed();
-      if (window.app && window.app.currentTab === 'youtube' && window.app.isMobileShortformMode() && window.multiview && typeof window.multiview.leaveShortformTab === 'function') {
+      if (window.app && window.app.currentTab === 'youtube' && window.multiview && typeof window.multiview.leaveShortformTab === 'function') {
         window.multiview.leaveShortformTab('youtube');
       }
-    } else if (isMobileShorts && window.app && window.app.currentTab === 'youtube' && window.multiview && typeof window.multiview.enterShortformTab === 'function') {
+    } else if (isShorts && window.app && window.app.currentTab === 'youtube' && window.multiview && typeof window.multiview.enterShortformTab === 'function') {
       window.multiview.enterShortformTab();
     }
 
-    // Requirement 5: 알고리즘 키워드 설정 툴바는 오직 추천영상 탭에서만 노출
-    const algoToolbar = document.getElementById('ytAlgorithmToolbar');
-    if (algoToolbar) {
-      algoToolbar.style.display = (subTabName === 'recommendations') ? 'flex' : 'none';
-    }
+    // Sync collapsible algorithm keywords toolbar state
+    this.syncKeywordsToolbarVisibility();
 
     if (!triggerAction) return;
 
     if (subTabName === 'recommendations') {
-      this.loadRecommendations();
+      // 홈 메뉴 클릭 시 검색 결과를 닫고 추천 영상 목록으로 복귀
+      if (this.ytSearchInput) this.ytSearchInput.value = '';
+      if (this.ytClearSearchBtn) this.ytClearSearchBtn.style.display = 'none';
+      const hadSearch = this.isHomeSearchActive;
+      this.resetHomeToRecommendations({ reloadIfEmpty: false });
+      if (this.recommendations.length === 0 || !hadSearch) {
+        this.loadRecommendations();
+      }
     } else if (subTabName === 'shorts') {
       const sp = this.ensureShortsShortformPlayer();
       if (sp) sp.ensureInitialFeedLoaded();
@@ -277,12 +337,6 @@ class YouTubeUI {
       this.loadWatchLater();
     } else if (subTabName === 'history') {
       this.loadHistory();
-    } else if (subTabName === 'search') {
-      if (this.ytSearchInput && this.ytSearchInput.value.trim()) {
-        this.handleSearch(this.ytSearchInput.value.trim());
-      } else if (this.ytSearchInput) {
-        this.ytSearchInput.focus();
-      }
     }
   }
 
@@ -493,17 +547,21 @@ class YouTubeUI {
     }
   }
 
-  // Requirement 5: 알고리즘 키워드 창 접기/펼치기 토글
+  syncKeywordsToolbarVisibility() {
+    const toolbar = this.ytAlgorithmToolbar || document.getElementById('ytAlgorithmToolbar');
+    const toggleBtn = this.ytToggleKeywordsBtn || document.getElementById('ytToggleKeywordsBtn');
+    const canShow = (this.currentSubTab !== 'shorts') && !this.keywordsCollapsed;
+    if (toolbar) {
+      toolbar.style.display = canShow ? 'flex' : 'none';
+    }
+    if (toggleBtn) {
+      toggleBtn.classList.toggle('active', !this.keywordsCollapsed);
+    }
+  }
+
   toggleKeywordsBar() {
     this.keywordsCollapsed = !this.keywordsCollapsed;
-    const toolbar = document.getElementById('ytAlgorithmToolbar');
-    const icon = document.getElementById('ytToggleKeywordsIcon');
-    if (toolbar) {
-      toolbar.classList.toggle('collapsed', this.keywordsCollapsed);
-    }
-    if (icon) {
-      icon.innerHTML = this.keywordsCollapsed ? YT_SVGS.chevronRight : YT_SVGS.chevronDown;
-    }
+    this.syncKeywordsToolbarVisibility();
   }
 
   // ================= Keywords Management (희망 알고리즘 키워드) =================
@@ -534,7 +592,7 @@ class YouTubeUI {
       html += `
         <span class="yt-kw-chip" title="'${esc}' 관련 영상 및 다른 키워드와의 조합 추천">
           <span class="yt-kw-text" onclick="window.youtubeUI.searchKeywordDirect('${esc}')">#${esc}</span>
-          <button class="yt-kw-del-btn" onclick="window.youtubeUI.removeKeyword('${esc}')" title="키워드 삭제">✕</button>
+          <button class="yt-kw-del-btn" onclick="window.youtubeUI.removeKeyword('${esc}')" title="키워드 삭제">${YT_SVGS.closeX}</button>
         </span>
       `;
     });
@@ -636,7 +694,7 @@ class YouTubeUI {
   }
 
   searchKeywordDirect(keyword) {
-    this.switchSubTab('search');
+    this.switchSubTab('recommendations', false);
     if (this.ytSearchInput) {
       this.ytSearchInput.value = keyword;
       if (this.ytClearSearchBtn) this.ytClearSearchBtn.style.display = 'flex';
@@ -671,12 +729,12 @@ class YouTubeUI {
     }
   }
 
-  // ================= Search (영상 탐색 & YouTube URL 자동 감지) =================
+  // ================= Search (홈 내 검색 결과 전환 & YouTube URL 자동 감지) =================
   async handleSearch(query) {
-    if (!query) return;
-
-    // Auto-switch to search subtab visually
-    this.switchSubTab('search', false);
+    if (!query) {
+      this.resetHomeToRecommendations();
+      return;
+    }
 
     // Detect direct YouTube Video URL (watch, short, embed, shorts, live)
     const ytUrlMatch = query.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|v\/|shorts\/|live\/))([\w-]{11})/i);
@@ -685,6 +743,12 @@ class YouTubeUI {
       this.playInMultiview(extractedVid, `유튜브 영상 (${extractedVid})`, 'YouTube', '', `https://i.ytimg.com/vi/${extractedVid}/hqdefault.jpg`);
       return;
     }
+
+    // Ensure Home subtab is active visually while keeping search state intact
+    if (this.currentSubTab !== 'recommendations') {
+      this.switchSubTab('recommendations', false);
+    }
+    this.setHomeSearchActive(true, `'${query}' 검색 결과`);
 
     if (this.ytSearchLoading) this.ytSearchLoading.style.display = 'flex';
     if (this.ytSearchEmpty) this.ytSearchEmpty.style.display = 'none';
@@ -1666,9 +1730,11 @@ class YouTubeUI {
 
   refreshAllVisibleGrids() {
     if (this.currentSubTab === 'recommendations') {
-      this.renderVideoGrid(this.ytRecsGrid, this.recommendations, 'recommendations');
-    } else if (this.currentSubTab === 'search') {
-      this.renderVideoGrid(this.ytSearchGrid, this.searchResults, 'search');
+      if (this.isHomeSearchActive) {
+        this.renderVideoGrid(this.ytSearchGrid, this.searchResults, 'search');
+      } else {
+        this.renderVideoGrid(this.ytRecsGrid, this.recommendations, 'recommendations');
+      }
     } else if (this.currentSubTab === 'bookmarks') {
       if (this.bookmarksSegment === 'videos') this.renderVideoBookmarks();
       else this.renderBookmarks();

@@ -557,10 +557,34 @@
   }
 
   /* ================= 4. 유튜브 탭 ================= */
+  .youtube-layout {
+    flex-direction: column !important;
+    gap: 8px !important;
+    min-height: 0 !important;
+  }
+
+  .yt-sidebar {
+    width: 100% !important;
+    min-width: 0 !important;
+    position: static !important;
+    max-height: none !important;
+    padding: 6px 8px !important;
+    gap: 0 !important;
+  }
+
+  .yt-sidebar-header {
+    display: none !important;
+  }
+
+  .yt-main-content {
+    width: 100% !important;
+    gap: 10px !important;
+  }
+
   .youtube-sticky-header {
     position: static !important;
     top: auto !important;
-    margin: 0 0 8px 0 !important;
+    margin: 0 0 6px 0 !important;
     padding: 8px !important;
     width: 100% !important;
     box-shadow: none !important;
@@ -573,17 +597,31 @@
     gap: 6px !important;
   }
 
+  .yt-icon-handle-btn {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
   .yt-subtab-nav {
+    flex-direction: row !important;
     gap: 5px !important;
-    padding-top: 6px !important;
-    flex-wrap: wrap !important;
+    padding-top: 0 !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+
+  .yt-subtab-nav::-webkit-scrollbar {
+    display: none;
   }
 
   .yt-subtab-btn {
-    padding: 6px 8px !important;
-    font-size: 11px !important;
-    flex: 1 1 auto !important;
+    padding: 6px 10px !important;
+    font-size: 11.5px !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
     justify-content: center !important;
+    white-space: nowrap !important;
   }
 
   .yt-algorithm-toolbar,
@@ -1230,26 +1268,21 @@ html.is-android-apk .players-grid.mode-custom .resize-handle {
 }
 
 /* ============================================================
-   모바일 웹 / Android APK 전용 숏폼 (클립 & 유튜브 쇼츠)
-   - PC 클라이언트 및 데스크톱 웹에는 미노출
+   통합 숏폼 플레이어 (PC 클라이언트 / PC 웹 / 모바일 웹 / APK 공용)
    ============================================================ */
-html.is-mobile-shortform .mobile-only-yt-subtab {
-  display: inline-flex !important;
-}
-
-html.is-mobile-shortform #clips-tab.active {
+#clips-tab.active {
   padding: 0 !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
 }
 
-html.is-mobile-shortform #clips-tab > :not(#clipsMobileShortformHost) {
+#clips-tab > :not(#clipsMobileShortformHost) {
   display: none !important;
 }
 
-html.is-mobile-shortform #clipsMobileShortformHost,
-html.is-mobile-shortform #ytMobileShortsHost {
+#clipsMobileShortformHost,
+#ytMobileShortsHost {
   display: flex !important;
   flex: 1 1 auto !important;
   width: 100% !important;
@@ -1260,61 +1293,59 @@ html.is-mobile-shortform #ytMobileShortsHost {
   background: #000 !important;
 }
 
-/* 유튜브 쇼츠 세부탭 활성화 시 전체화면 확보 (상단 세부탭 바만 슬림하게 유지) */
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active {
+/* 유튜브 쇼츠 세부탭 활성화 시 전체화면 숏폼 확보 */
+#youtube-tab.active.shorts-mode-active {
   padding: 0 !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
 }
 
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .youtube-container {
-  display: flex !important;
-  flex-direction: column !important;
+#youtube-tab.active.shorts-mode-active .youtube-layout {
+  height: 100% !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  gap: 0 !important;
+  align-items: stretch !important;
+}
+
+#youtube-tab.active.shorts-mode-active .yt-sidebar {
+  margin: 12px;
+  max-height: calc(100% - 24px);
+  height: auto;
+}
+
+#youtube-tab.active.shorts-mode-active .yt-main-content {
   height: 100% !important;
   min-height: 0 !important;
   flex: 1 1 auto !important;
   gap: 0 !important;
 }
 
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-search-bar-wrap,
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-algorithm-toolbar,
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active #ytChannelViewSection {
+#youtube-tab.active.shorts-mode-active .youtube-sticky-header,
+#youtube-tab.active.shorts-mode-active #ytChannelViewSection {
   display: none !important;
 }
 
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .youtube-sticky-header {
-  margin: 0 !important;
-  padding: 5px 8px !important;
-  background: #0b0e14 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  flex-shrink: 0 !important;
-}
-
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-subtab-nav {
-  padding-top: 0 !important;
-  flex-wrap: nowrap !important;
-  overflow-x: auto !important;
-  scrollbar-width: none !important;
-  gap: 5px !important;
-}
-
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-subtab-nav::-webkit-scrollbar {
-  display: none;
-}
-
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-subtab-btn {
-  flex: 0 0 auto !important;
-  padding: 5px 10px !important;
-  white-space: nowrap !important;
-}
-
-html.is-mobile-shortform #youtube-tab.active.shorts-mode-active #yt-shorts-pane.active {
+#youtube-tab.active.shorts-mode-active #yt-shorts-pane.active {
   display: flex !important;
   flex: 1 1 auto !important;
   min-height: 0 !important;
   width: 100% !important;
+  height: 100% !important;
   padding: 0 !important;
+}
+
+@media (max-width: 960px) {
+  #youtube-tab.active.shorts-mode-active .yt-sidebar {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    background: #0b0e14 !important;
+    max-height: none !important;
+  }
 }
 
 .sf-shell {
@@ -1638,6 +1669,14 @@ html.is-mobile-shortform #youtube-tab.active.shorts-mode-active #yt-shorts-pane.
   transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
+.sf-actions-col .sf-icon-btn:hover {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  transform: scale(1.1);
+}
+
 .sf-actions-col .sf-icon-btn:active {
   transform: scale(0.88);
   opacity: 0.8;
@@ -1948,11 +1987,11 @@ html.is-mobile-shortform #youtube-tab.active.shorts-mode-active #yt-shorts-pane.
   color: var(--text-muted);
 }
 
-/* 가로모드(태블릿/폴더블/모바일 가로)에서는 댓글 버튼 시 오른쪽 분할 창으로 띄움 */
-@media (orientation: landscape) {
+/* 가로모드 및 PC 데스크톱에서는 댓글 버튼 시 오른쪽 분할 창으로 띄움 */
+@media (orientation: landscape), (min-width: 961px) {
   .sf-shell.sf-comments-open .sf-comments-panel {
     position: static;
-    width: clamp(275px, 34vw, 390px);
+    width: clamp(290px, 32vw, 420px);
     height: 100%;
     flex-shrink: 0;
     border-radius: 0;
@@ -1962,15 +2001,18 @@ html.is-mobile-shortform #youtube-tab.active.shorts-mode-active #yt-shorts-pane.
   }
 
   .sf-actions-col {
-    bottom: 24px;
-    gap: 12px;
+    right: 18px;
+    bottom: 28px;
+    gap: 14px;
   }
 
   .sf-bottom-info {
-    bottom: 14px;
+    left: 18px;
+    bottom: 18px;
   }
 
   .sf-more-sheet {
-    bottom: 24px;
+    right: 64px;
+    bottom: 28px;
   }
 }

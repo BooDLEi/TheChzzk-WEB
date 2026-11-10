@@ -25,10 +25,10 @@
   <link rel="icon" type="image/x-icon" href="./static/favicon.ico">
   <link rel="apple-touch-icon" href="./static/img/favicon.png">
   <link rel="manifest" href="./static/manifest.json">
-  <link rel="stylesheet" href="./static/css/style.css?v=1.4.0">
-  <link rel="stylesheet" href="./static/css/responsive.css?v=1.4.0">
-  <script src="./static/js/web_backend_polyfill.js?v=1.4.0"></script>
-  <script src="./static/js/hls.min.js?v=1.4.0"></script>
+  <link rel="stylesheet" href="./static/css/style.css?v=1.5.0">
+  <link rel="stylesheet" href="./static/css/responsive.css?v=1.5.0">
+  <script src="./static/js/web_backend_polyfill.js?v=1.5.0"></script>
+  <script src="./static/js/hls.min.js?v=1.5.0"></script>
 </head>
 <body>
 
@@ -347,241 +347,250 @@
 
     <!-- 2.5 YouTube Tab (유튜브 영상 탐색, 채널 즐겨찾기, 무광고 멀티뷰, 시청기록 및 맞춤 알고리즘 피드) -->
     <section class="tab-pane" id="youtube-tab">
-      <div class="youtube-container">
-        <!-- Sticky Container for Search, Subtabs & Keywords (스크롤 시 항상 상단 고정) -->
-        <div class="youtube-sticky-header">
-          <!-- Top Search & Subtab Header -->
-          <div class="youtube-top-header">
+      <div class="youtube-layout">
+        <!-- Left Sidebar Sub-Tabs: 홈 / 즐겨찾기 / Shorts / 재생목록 / 나중에 볼 영상 / 기록 -->
+        <aside class="yt-sidebar" id="ytSidebar">
+          <div class="yt-sidebar-header">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="color: #ef4444;"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            <span>YouTube</span>
+          </div>
+          <nav class="yt-subtab-nav" id="ytSubtabNav">
+            <button type="button" class="yt-subtab-btn active" data-subtab="recommendations">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <span>홈</span>
+            </button>
+            <button type="button" class="yt-subtab-btn" data-subtab="bookmarks">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <span>즐겨찾기</span>
+              <span class="badge" id="yt-bookmarks-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">0</span>
+            </button>
+            <button type="button" class="yt-subtab-btn" data-subtab="shorts">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><polygon points="10.5 9 15.5 12 10.5 15 10.5 9" fill="currentColor" stroke="none"/></svg>
+              <span>Shorts</span>
+            </button>
+            <button type="button" class="yt-subtab-btn" data-subtab="playlists">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <span>재생목록</span>
+              <span class="badge" id="yt-playlists-badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8;">0</span>
+            </button>
+            <button type="button" class="yt-subtab-btn" data-subtab="watchlater">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>나중에 볼 영상</span>
+              <span class="badge" id="yt-watchlater-badge" style="background: rgba(234, 179, 8, 0.2); color: #eab308;">0</span>
+            </button>
+            <button type="button" class="yt-subtab-btn" data-subtab="history">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/></svg>
+              <span>기록</span>
+            </button>
+          </nav>
+        </aside>
+
+        <!-- Right Main Content -->
+        <div class="yt-main-content">
+          <!-- Sticky Search Bar & Collapsible Algorithm Keywords Toolbar -->
+          <div class="youtube-sticky-header">
             <div class="yt-search-bar-wrap">
+              <button type="button" class="btn yt-icon-handle-btn" id="ytToggleKeywordsBtn" onclick="window.youtubeUI.toggleKeywordsBar()" title="희망 알고리즘 키워드 설정 열기/접기" aria-label="희망 알고리즘 키워드">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+              </button>
               <div class="search-group" style="flex: 1; position: relative;">
                 <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="text" id="ytSearchInput" class="input-box" placeholder="유튜브 영상 검색, 채널명 검색, 또는 YouTube 링크(URL) 붙여넣기..." style="width: 100%; padding-left: 36px; padding-right: 32px;">
-                <button id="ytClearSearchBtn" class="yt-clear-btn" style="display: none;" title="검색어 지우기"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                <button type="button" id="ytClearSearchBtn" class="yt-clear-btn" style="display: none;" title="검색어 지우기"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
               </div>
-              <button class="btn btn-primary" id="ytSearchBtn" style="display: flex; align-items: center; gap: 6px;">
+              <button type="button" class="btn btn-primary" id="ytSearchBtn" style="display: flex; align-items: center; gap: 6px;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <span>검색</span>
               </button>
+              <button type="button" class="btn yt-icon-handle-btn" id="ytRefreshRecsBtn" title="시청 기록 및 희망 키워드로 추천 피드 새로고침" aria-label="새로고침">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              </button>
             </div>
 
-            <!-- Sub-Tab Navigation Pills (All Emojis Removed) -->
-            <div class="yt-subtab-nav">
-              <button class="yt-subtab-btn active" data-subtab="recommendations">
-                <span>추천 영상</span>
-                <span class="yt-subtab-subtext">알고리즘 맞춤</span>
-              </button>
-              <button class="yt-subtab-btn mobile-only-yt-subtab" data-subtab="shorts">
-                <span>쇼츠</span>
-              </button>
-              <button class="yt-subtab-btn" data-subtab="search">
-                <span>영상 탐색</span>
-              </button>
-              <button class="yt-subtab-btn" data-subtab="bookmarks">
-                <span>즐겨찾기</span>
-                <span class="badge" id="yt-bookmarks-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">0</span>
-              </button>
-              <button class="yt-subtab-btn" data-subtab="playlists">
-                <span>재생목록</span>
-                <span class="badge" id="yt-playlists-badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8;">0</span>
-              </button>
-              <button class="yt-subtab-btn" data-subtab="watchlater">
-                <span>나중에 볼 영상</span>
-                <span class="badge" id="yt-watchlater-badge" style="background: rgba(234, 179, 8, 0.2); color: #eab308;">0</span>
-              </button>
-              <button class="yt-subtab-btn" data-subtab="history">
-                <span>시청 기록</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Algorithm Keywords Control Bar (희망 알고리즘 키워드 툴바 - 접기/펼치기 지원) -->
-          <div class="yt-algorithm-toolbar" id="ytAlgorithmToolbar">
-            <button class="yt-kw-toggle-btn" id="ytToggleKeywordsBtn" onclick="window.youtubeUI.toggleKeywordsBar()" title="알고리즘 키워드 바 접기/펼치기">
-              <span id="ytToggleKeywordsIcon" style="display:inline-flex;align-items:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-              <span style="font-weight: 700;">희망 알고리즘 키워드</span>
-            </button>
-            <div class="yt-kw-chips-container" id="ytKeywordsBar">
-              <!-- Dynamically populated chips -->
-            </div>
-            <div class="yt-kw-add-form" id="ytAddKeywordForm" style="display: none;">
-              <input type="text" id="ytAddKeywordInput" class="input-box" placeholder="새 희망 키워드 입력 후 Enter (예: 롤, 음악, 개발...)" style="font-size: 12px; padding: 4px 10px; width: 220px;">
-              <button class="btn btn-sm btn-primary" onclick="window.youtubeUI.addKeywordFromInput()">추가</button>
-              <button class="btn btn-sm btn-ghost" onclick="document.getElementById('ytAddKeywordForm').style.display='none'">취소</button>
-            </div>
-            <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-              <button class="btn btn-sm btn-secondary" id="ytRefreshRecsBtn" title="시청 기록 및 최신 키워드 조합으로 추천 피드 재생성">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                <span>알고리즘 새로고침</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Channel View Detail Overlay (Pinned Top Drawer for Channel Videos - Requirement 7) -->
-        <div id="ytChannelViewSection" class="yt-channel-view-section" style="display: none;">
-          <div class="yt-channel-banner">
-            <img class="yt-channel-banner-avatar" id="ytChannelBannerAvatar" src="./static/img/favicon.png" alt="Channel Avatar">
-            <div class="yt-channel-banner-info">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <h2 id="ytChannelBannerTitle" style="margin: 0; font-size: 17px; font-weight: 800; color: #fff;">채널명</h2>
-                <span class="yt-badge-channel-pinned" style="font-size: 11px; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); padding: 1px 7px; border-radius: 4px; font-weight: 700;">상단 고정 채널 탐색</span>
+            <!-- Algorithm Keywords Collapsible Toolbar (기본 접힘 상태, 검색창 왼쪽 아이콘으로 토글) -->
+            <div class="yt-algorithm-toolbar" id="ytAlgorithmToolbar" style="display: none;">
+              <div class="yt-kw-chips-container" id="ytKeywordsBar">
+                <!-- Dynamically populated chips -->
               </div>
-              <span id="ytChannelBannerSubs" style="font-size: 12.5px; color: var(--text-muted); margin-top: 3px; display: block;">구독자 수</span>
-            </div>
-            <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-              <button class="btn btn-sm btn-primary" id="ytChannelBookmarkToggleBtn">
-                채널 즐겨찾기
-              </button>
-              <button class="btn btn-sm btn-secondary" id="ytCloseChannelViewBtn" onclick="window.youtubeUI.closeChannelView()" title="채널 탐색 창 닫기" style="font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                <span>닫기</span>
-              </button>
-            </div>
-          </div>
-          <div class="yt-channel-videos-wrap" id="ytChannelVideosWrap">
-            <div class="yt-channel-videos-grid" id="ytChannelVideosGrid">
-              <!-- Channel videos dynamically populated -->
-            </div>
-            <div id="ytChannelMoreWrap" style="text-align: center; margin: 16px 0 20px; display: none;">
-              <button class="btn btn-sm btn-secondary" id="ytChannelLoadMoreBtn" style="padding: 8px 24px; font-size: 13px; font-weight: 700;">
-                더보기 ▼
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 1. Recommendations Sub-Pane -->
-        <div class="yt-sub-pane active" id="yt-recommendations-pane">
-          <div class="yt-pane-desc-banner">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <div>
-              <strong style="color: #fff;">스마트 알고리즘 추천 피드</strong>
-              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                실제 유튜브처럼 <strong>시청 기록 연관 영상</strong>과 내가 설정한 <strong>희망 알고리즘 키워드 & 2개 키워드 조합</strong>을 종합 분석하여 실시간 큐레이션합니다.
+              <div class="yt-kw-add-form" id="ytAddKeywordForm" style="display: none;">
+                <input type="text" id="ytAddKeywordInput" class="input-box" placeholder="새 희망 키워드 입력 후 Enter (예: 롤, 음악, 개발...)" style="font-size: 12px; padding: 4px 10px; width: 220px;">
+                <button type="button" class="btn btn-sm btn-primary" onclick="window.youtubeUI.addKeywordFromInput()">추가</button>
+                <button type="button" class="btn btn-sm btn-ghost" onclick="document.getElementById('ytAddKeywordForm').style.display='none'">취소</button>
               </div>
             </div>
           </div>
-          <div class="yt-loading-state" id="ytRecsLoading" style="display: none;">
-            <div class="loading-spinner"></div>
-            <span>맞춤 알고리즘 추천 영상을 큐레이션 중입니다...</span>
-          </div>
-          <div class="yt-empty-state" id="ytRecsEmpty" style="display: none;">
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            <h3>추천 영상을 불러오지 못했습니다</h3>
-            <p>상단의 희망 알고리즘 키워드를 추가하거나 [알고리즘 새로고침] 버튼을 눌러보세요.</p>
-          </div>
-          <div class="yt-videos-grid" id="ytRecsGrid"></div>
-        </div>
 
-        <!-- 2. Search Sub-Pane -->
-        <div class="yt-sub-pane" id="yt-search-pane">
-          <div id="ytSearchChannelsRow" class="yt-channels-row" style="display: none;"></div>
-          <div class="yt-loading-state" id="ytSearchLoading" style="display: none;">
-            <div class="loading-spinner"></div>
-            <span>유튜브 검색 중...</span>
-          </div>
-          <div class="yt-empty-state" id="ytSearchEmpty">
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <h3>보고 싶은 유튜브 영상을 검색해보세요</h3>
-            <p>스트리머명, 게임명, 주제, 또는 유튜브 링크(URL)를 직접 입력하여 광고 없이 시청할 수 있습니다.</p>
-          </div>
-          <div class="yt-videos-grid" id="ytSearchGrid"></div>
-        </div>
-
-        <!-- 3. Bookmarks Sub-Pane (채널 및 영상 즐겨찾기) -->
-        <div class="yt-sub-pane" id="yt-bookmarks-pane">
-          <div class="yt-segment-nav">
-            <button class="yt-segment-btn active" id="ytBmChannelsTabBtn" onclick="window.youtubeUI.switchBookmarksSegment('channels')">
-              <span>채널 즐겨찾기</span>
-              <span class="badge" id="yt-bm-channels-count" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">0</span>
-            </button>
-            <button class="yt-segment-btn" id="ytBmVideosTabBtn" onclick="window.youtubeUI.switchBookmarksSegment('videos')">
-              <span>영상 즐겨찾기</span>
-              <span class="badge" id="yt-bm-videos-count" style="background: rgba(251, 191, 36, 0.2); color: #fbbf24;">0</span>
-            </button>
-          </div>
-          <div id="ytBookmarksChannelSection">
-            <div class="yt-empty-state" id="ytBookmarksEmpty" style="display: none;">
-              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-              <h3>즐겨찾기한 유튜브 채널이 없습니다</h3>
-              <p>영상 카드나 채널 검색 결과에서 [채널 즐겨찾기] 버튼을 눌러 자주 보는 채널을 등록해보세요.</p>
+          <!-- Channel View Detail Overlay -->
+          <div id="ytChannelViewSection" class="yt-channel-view-section" style="display: none;">
+            <div class="yt-channel-banner">
+              <img class="yt-channel-banner-avatar" id="ytChannelBannerAvatar" src="./static/img/favicon.png" alt="Channel Avatar">
+              <div class="yt-channel-banner-info">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <h2 id="ytChannelBannerTitle" style="margin: 0; font-size: 17px; font-weight: 800; color: #fff;">채널명</h2>
+                  <span class="yt-badge-channel-pinned" style="font-size: 11px; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); padding: 1px 7px; border-radius: 4px; font-weight: 700;">상단 고정 채널 탐색</span>
+                </div>
+                <span id="ytChannelBannerSubs" style="font-size: 12.5px; color: var(--text-muted); margin-top: 3px; display: block;">구독자 수</span>
+              </div>
+              <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                <button class="btn btn-sm btn-primary" id="ytChannelBookmarkToggleBtn">
+                  채널 즐겨찾기
+                </button>
+                <button class="btn btn-sm btn-secondary" id="ytCloseChannelViewBtn" onclick="window.youtubeUI.closeChannelView()" title="채널 탐색 창 닫기" style="font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <span>닫기</span>
+                </button>
+              </div>
             </div>
-            <div class="yt-bookmarks-grid" id="ytBookmarksGrid"></div>
-          </div>
-          <div id="ytBookmarksVideoSection" style="display: none;">
-            <div class="yt-empty-state" id="ytVideoBookmarksEmpty" style="display: none;">
-              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-              <h3>즐겨찾기한 유튜브 영상이 없습니다</h3>
-              <p>영상 썸네일 우상단의 즐겨찾기 별 아이콘을 클릭하여 마음에 드는 영상을 보관해보세요.</p>
-            </div>
-            <div class="yt-videos-grid" id="ytVideoBookmarksGrid"></div>
-          </div>
-        </div>
-
-        <!-- 4. Playlists Sub-Pane (Requirement 2) -->
-        <div class="yt-sub-pane" id="yt-playlists-pane">
-          <div class="yt-history-toolbar">
-            <span style="font-size: 13px; color: var(--text-muted);">직접 만든 커스텀 재생목록이나 YouTube 재생목록을 저장하고 멀티뷰에서 연속 재생할 수 있습니다.</span>
-            <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
-              <button class="btn btn-sm btn-secondary" onclick="window.youtubeUI.promptImportPlaylist()" title="유튜브 재생목록 URL을 가져와서 내 재생목록에 저장">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                <span>YouTube 링크 가져오기</span>
-              </button>
-              <button class="btn btn-sm btn-primary" onclick="window.youtubeUI.promptCreatePlaylist()" title="새 빈 재생목록 생성">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>새 재생목록</span>
-              </button>
+            <div class="yt-channel-videos-wrap" id="ytChannelVideosWrap">
+              <div class="yt-channel-videos-grid" id="ytChannelVideosGrid">
+                <!-- Channel videos dynamically populated -->
+              </div>
+              <div id="ytChannelMoreWrap" style="text-align: center; margin: 16px 0 20px; display: none;">
+                <button class="btn btn-sm btn-secondary" id="ytChannelLoadMoreBtn" style="padding: 8px 24px; font-size: 13px; font-weight: 700;">
+                  더보기
+                </button>
+              </div>
             </div>
           </div>
-          <div class="yt-empty-state" id="ytPlaylistsEmpty" style="display: none;">
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            <h3>생성되거나 가져온 재생목록이 없습니다</h3>
-            <p>[새 재생목록]을 만들거나 [YouTube 링크 가져오기]로 기존 유튜브 재생목록을 등록해보세요.</p>
-          </div>
-          <div class="yt-videos-grid" id="ytPlaylistsGrid"></div>
-        </div>
 
-        <!-- 5. Watch Later Sub-Pane (Requirement 3) -->
-        <div class="yt-sub-pane" id="yt-watchlater-pane">
-          <div class="yt-history-toolbar">
-            <span style="font-size: 13px; color: var(--text-muted);" id="ytWatchLaterCountDesc">나중에 볼 영상 모음</span>
-            <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
-              <button class="btn btn-sm btn-primary" id="ytPlayAllWatchLaterBtn" onclick="window.youtubeUI.playAllWatchLater()" title="나중에 볼 모든 영상을 슬롯에서 재생목록 형태로 연속 재생">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                <span>전체 연속 재생</span>
-              </button>
-              <button class="btn btn-sm btn-ghost" onclick="window.youtubeUI.clearWatchLater()" style="color: #f87171;" title="나중에 볼 영상 전체 비우기">
-                전체 비우기
-              </button>
+          <!-- 1. Home Sub-Pane (추천 영상 기본 + 검색 시 검색 결과 전환) -->
+          <div class="yt-sub-pane active" id="yt-recommendations-pane">
+            <div id="ytHomeRecsSection">
+              <div class="yt-pane-desc-banner">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <div>
+                  <strong style="color: #fff;">스마트 알고리즘 추천 피드</strong>
+                  <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                    <strong>시청 기록 연관 영상</strong>과 설정한 <strong>희망 알고리즘 키워드 조합</strong>을 분석하여 추천 피드를 제공합니다.
+                  </div>
+                </div>
+              </div>
+              <div class="yt-loading-state" id="ytRecsLoading" style="display: none;">
+                <div class="loading-spinner"></div>
+                <span>맞춤 알고리즘 추천 영상을 큐레이션 중입니다...</span>
+              </div>
+              <div class="yt-empty-state" id="ytRecsEmpty" style="display: none;">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <h3>추천 영상을 불러오지 못했습니다</h3>
+                <p>검색창 왼쪽 알고리즘 아이콘으로 키워드를 추가하거나 새로고침 아이콘을 눌러보세요.</p>
+              </div>
+              <div class="yt-videos-grid" id="ytRecsGrid"></div>
+            </div>
+
+            <div id="ytHomeSearchSection" style="display: none;">
+              <div class="yt-home-search-header" id="ytHomeSearchHeader">
+                <span id="ytHomeSearchResultLabel" style="font-size: 13px; font-weight: 700; color: #e2e8f0;">검색 결과</span>
+                <button type="button" class="btn btn-sm btn-ghost" id="ytBackToRecsBtn" style="font-size: 12px;">추천 영상으로 돌아가기</button>
+              </div>
+              <div id="ytSearchChannelsRow" class="yt-channels-row" style="display: none;"></div>
+              <div class="yt-loading-state" id="ytSearchLoading" style="display: none;">
+                <div class="loading-spinner"></div>
+                <span>유튜브 검색 중...</span>
+              </div>
+              <div class="yt-empty-state" id="ytSearchEmpty" style="display: none;">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <h3>검색 결과가 없습니다</h3>
+                <p>다른 검색어를 입력하거나 검색창을 비우면 추천 영상으로 돌아갑니다.</p>
+              </div>
+              <div class="yt-videos-grid" id="ytSearchGrid"></div>
             </div>
           </div>
-          <div class="yt-empty-state" id="ytWatchLaterEmpty" style="display: none;">
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <h3>나중에 볼 영상이 없습니다</h3>
-            <p>영상 썸네일 우상단의 시계 아이콘을 클릭하여 나중에 볼 영상을 담아두세요.</p>
-          </div>
-          <div class="yt-videos-grid" id="ytWatchLaterGrid"></div>
-        </div>
 
-        <!-- 6. Watch History Sub-Pane -->
-        <div class="yt-sub-pane" id="yt-history-pane">
-          <div class="yt-history-toolbar">
-            <span style="font-size: 13px; color: var(--text-muted);">시청한 영상이 누적될수록 추천 알고리즘이 내 취향에 맞게 더욱 정밀해집니다.</span>
-            <button class="btn btn-sm btn-ghost" id="ytClearHistoryBtn" style="color: #f87171;">
-              전체 시청 기록 삭제
-            </button>
+          <!-- 2. Bookmarks Sub-Pane (채널 및 영상 즐겨찾기) -->
+          <div class="yt-sub-pane" id="yt-bookmarks-pane">
+            <div class="yt-segment-nav">
+              <button class="yt-segment-btn active" id="ytBmChannelsTabBtn" onclick="window.youtubeUI.switchBookmarksSegment('channels')">
+                <span>채널 즐겨찾기</span>
+                <span class="badge" id="yt-bm-channels-count" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">0</span>
+              </button>
+              <button class="yt-segment-btn" id="ytBmVideosTabBtn" onclick="window.youtubeUI.switchBookmarksSegment('videos')">
+                <span>영상 즐겨찾기</span>
+                <span class="badge" id="yt-bm-videos-count" style="background: rgba(251, 191, 36, 0.2); color: #fbbf24;">0</span>
+              </button>
+            </div>
+            <div id="ytBookmarksChannelSection">
+              <div class="yt-empty-state" id="ytBookmarksEmpty" style="display: none;">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <h3>즐겨찾기한 유튜브 채널이 없습니다</h3>
+                <p>영상 카드나 채널 검색 결과에서 [채널 즐겨찾기] 버튼을 눌러 자주 보는 채널을 등록해보세요.</p>
+              </div>
+              <div class="yt-bookmarks-grid" id="ytBookmarksGrid"></div>
+            </div>
+            <div id="ytBookmarksVideoSection" style="display: none;">
+              <div class="yt-empty-state" id="ytVideoBookmarksEmpty" style="display: none;">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <h3>즐겨찾기한 유튜브 영상이 없습니다</h3>
+                <p>영상 썸네일 우상단의 즐겨찾기 별 아이콘을 클릭하여 마음에 드는 영상을 보관해보세요.</p>
+              </div>
+              <div class="yt-videos-grid" id="ytVideoBookmarksGrid"></div>
+            </div>
           </div>
-          <div class="yt-empty-state" id="ytHistoryEmpty" style="display: none;">
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <h3>아직 시청한 유튜브 영상이 없습니다</h3>
-            <p>영상을 시청하면 여기에 자동으로 기록되며, 추천 알고리즘의 핵심 데이터로 활용됩니다.</p>
-          </div>
-          <div class="yt-history-list" id="ytHistoryGrid"></div>
-        </div>
 
-        <!-- 7. Mobile Web / APK Dedicated Shorts Sub-Pane -->
-        <div class="yt-sub-pane" id="yt-shorts-pane">
-          <div id="ytMobileShortsHost" class="sf-host-root" style="display: none;"></div>
+          <!-- 3. Shorts Sub-Pane -->
+          <div class="yt-sub-pane" id="yt-shorts-pane">
+            <div id="ytMobileShortsHost" class="sf-host-root" style="display: none;"></div>
+          </div>
+
+          <!-- 4. Playlists Sub-Pane -->
+          <div class="yt-sub-pane" id="yt-playlists-pane">
+            <div class="yt-history-toolbar">
+              <span style="font-size: 13px; color: var(--text-muted);">직접 만든 커스텀 재생목록이나 YouTube 재생목록을 저장하고 멀티뷰에서 연속 재생할 수 있습니다.</span>
+              <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+                <button class="btn btn-sm btn-secondary" onclick="window.youtubeUI.promptImportPlaylist()" title="유튜브 재생목록 URL을 가져와서 내 재생목록에 저장">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>YouTube 링크 가져오기</span>
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="window.youtubeUI.promptCreatePlaylist()" title="새 빈 재생목록 생성">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <span>새 재생목록</span>
+                </button>
+              </div>
+            </div>
+            <div class="yt-empty-state" id="ytPlaylistsEmpty" style="display: none;">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <h3>생성되거나 가져온 재생목록이 없습니다</h3>
+              <p>[새 재생목록]을 만들거나 [YouTube 링크 가져오기]로 기존 유튜브 재생목록을 등록해보세요.</p>
+            </div>
+            <div class="yt-videos-grid" id="ytPlaylistsGrid"></div>
+          </div>
+
+          <!-- 5. Watch Later Sub-Pane -->
+          <div class="yt-sub-pane" id="yt-watchlater-pane">
+            <div class="yt-history-toolbar">
+              <span style="font-size: 13px; color: var(--text-muted);" id="ytWatchLaterCountDesc">나중에 볼 영상 모음</span>
+              <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+                <button class="btn btn-sm btn-primary" id="ytPlayAllWatchLaterBtn" onclick="window.youtubeUI.playAllWatchLater()" title="나중에 볼 모든 영상을 슬롯에서 재생목록 형태로 연속 재생">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <span>전체 연속 재생</span>
+                </button>
+                <button class="btn btn-sm btn-ghost" onclick="window.youtubeUI.clearWatchLater()" style="color: #f87171;" title="나중에 볼 영상 전체 비우기">
+                  전체 비우기
+                </button>
+              </div>
+            </div>
+            <div class="yt-empty-state" id="ytWatchLaterEmpty" style="display: none;">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <h3>나중에 볼 영상이 없습니다</h3>
+              <p>영상 썸네일 우상단의 시계 아이콘을 클릭하여 나중에 볼 영상을 담아두세요.</p>
+            </div>
+            <div class="yt-videos-grid" id="ytWatchLaterGrid"></div>
+          </div>
+
+          <!-- 6. Watch History Sub-Pane -->
+          <div class="yt-sub-pane" id="yt-history-pane">
+            <div class="yt-history-toolbar">
+              <span style="font-size: 13px; color: var(--text-muted);">시청한 영상이 누적될수록 추천 알고리즘이 내 취향에 맞게 더욱 정밀해집니다.</span>
+              <button class="btn btn-sm btn-ghost" id="ytClearHistoryBtn" style="color: #f87171;">
+                전체 시청 기록 삭제
+              </button>
+            </div>
+            <div class="yt-empty-state" id="ytHistoryEmpty" style="display: none;">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <h3>아직 시청한 유튜브 영상이 없습니다</h3>
+              <p>영상을 시청하면 여기에 자동으로 기록되며, 추천 알고리즘의 핵심 데이터로 활용됩니다.</p>
+            </div>
+            <div class="yt-history-list" id="ytHistoryGrid"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -638,8 +647,8 @@
 
     <!-- 4. Channel Clips Tab -->
     <section class="tab-pane" id="clips-tab">
-      <!-- Mobile Web / APK Shortform Host (PC 클라이언트에서는 숨김) -->
-      <div id="clipsMobileShortformHost" class="sf-host-root" style="display: none;"></div>
+      <!-- Unified Shortform Host (PC Client, PC Web, Mobile Web / APK) -->
+      <div id="clipsMobileShortformHost" class="sf-host-root"></div>
       <!-- Priority Top: Streamers Chip Bar (Following & Bookmarks toggle) -->
       <div id="clipsFollowingBarSection" style="margin-bottom: 16px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 14px; display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
@@ -1578,13 +1587,13 @@
   <div id="liveNotificationContainer" class="live-notification-container"></div>
 
   <!-- Scripts -->
-  <script src="./static/js/multiview.js?v=1.4.0"></script>
-  <script src="./static/js/mobile_shortform.js?v=1.4.0"></script>
-  <script src="./static/js/channel_ui.js?v=1.4.0"></script>
-  <script src="./static/js/clips_ui.js?v=1.4.0"></script>
-  <script src="./static/js/recorder_ui.js?v=1.4.0"></script>
-  <script src="./static/js/editor_ui.js?v=1.4.0"></script>
-  <script src="./static/js/youtube_ui.js?v=1.4.0"></script>
-  <script src="./static/js/app.js?v=1.4.0"></script>
+  <script src="./static/js/multiview.js?v=1.5.0"></script>
+  <script src="./static/js/mobile_shortform.js?v=1.5.0"></script>
+  <script src="./static/js/channel_ui.js?v=1.5.0"></script>
+  <script src="./static/js/clips_ui.js?v=1.5.0"></script>
+  <script src="./static/js/recorder_ui.js?v=1.5.0"></script>
+  <script src="./static/js/editor_ui.js?v=1.5.0"></script>
+  <script src="./static/js/youtube_ui.js?v=1.5.0"></script>
+  <script src="./static/js/app.js?v=1.5.0"></script>
 </body>
 </html>

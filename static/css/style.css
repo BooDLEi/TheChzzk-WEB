@@ -4247,47 +4247,113 @@ body.is-slot-resizing iframe {
 }
 
 /* ============================================================
-   YouTube Integration Styles (유튜브 영상 탐색 & 알고리즘 추천)
+   YouTube Integration Styles (좌측 사이드바 레이아웃 + 검색/알고리즘 핸들)
    ============================================================ */
 
-.youtube-container {
+.youtube-layout {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  width: 100%;
+  min-height: calc(100vh - 120px);
+  align-items: flex-start;
+}
+
+.yt-sidebar {
+  width: 205px;
+  min-width: 205px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: fit-content;
+  max-height: calc(100vh - 130px);
+  position: sticky;
+  top: 10px;
+  flex-shrink: 0;
+  transform: translateZ(0);
+}
+
+.yt-sidebar-header {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.yt-main-content {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: 100%;
 }
 
-/* Sticky Container for YouTube Search & Menu */
+/* Sticky Search & Algorithm Toolbar over Main Content */
 .youtube-sticky-header {
   position: sticky;
   top: -20px;
-  margin: -20px -20px 0 -20px;
-  padding: 20px 20px 14px 20px;
+  margin-top: -20px;
+  padding: 18px 0 12px 0;
   background: var(--bg-primary);
   z-index: 100;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-}
-
-/* Top Header & Search */
-.youtube-top-header {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 16px 20px;
 }
 
 .yt-search-bar-wrap {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   width: 100%;
+}
+
+.yt-icon-handle-btn {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.yt-icon-handle-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.yt-icon-handle-btn.active {
+  color: var(--accent-color);
+  border-color: rgba(0, 255, 163, 0.45);
+  background: rgba(0, 255, 163, 0.12);
+}
+
+.yt-home-search-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
 }
 
 .search-group {
@@ -4421,32 +4487,43 @@ body.is-slot-resizing iframe {
   vertical-align: -0.22em;
 }
 
-/* Sub-Tab Navigation */
+/* Sub-Tab Navigation (Left Sidebar Vertical List) */
 .yt-subtab-nav {
   display: flex;
-  gap: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 14px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
 }
 
 .yt-subtab-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
+  justify-content: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 12px;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   border: 1px solid transparent;
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.18s ease;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.yt-subtab-btn svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.yt-subtab-btn .badge {
+  margin-left: auto;
 }
 
 .yt-subtab-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   color: #fff;
 }
 
@@ -4454,6 +4531,11 @@ body.is-slot-resizing iframe {
   background: rgba(239, 68, 68, 0.14);
   border-color: rgba(239, 68, 68, 0.4);
   color: #f87171;
+  font-weight: 700;
+}
+
+.yt-subtab-btn.active svg {
+  opacity: 1;
 }
 
 .yt-subtab-subtext {
@@ -6414,13 +6496,28 @@ body.is-slot-resizing iframe {
 }
 
 .mobile-only-nav-btn,
-.mobile-only-yt-subtab,
 .nav-label-mobile,
 .mobile-vault-header,
 .mobile-explore-filter-row,
 .mobile-home-bookmarks-section,
 .mv-mobile-bottom-bar {
   display: none;
+}
+
+/* Desktop Shortform Floating PiP Safe Position */
+@media (min-width: 961px) {
+  .pip-mini-player.pip-shortform-landscape {
+    top: 72px;
+    left: 20px;
+    right: auto;
+    bottom: auto;
+    width: 300px;
+    height: 188px;
+  }
+
+  .pip-mini-player.pip-shortform-landscape.pip-yt-sidebar-offset {
+    left: 236px;
+  }
 }
 
 

@@ -509,7 +509,6 @@ class ChzzkApp {
   }
 
   isShortformTabActive(tabName = this.currentTab) {
-    if (!this.isMobileShortformMode()) return false;
     if (tabName === 'clips') return true;
     if (tabName === 'youtube' && window.youtubeUI && window.youtubeUI.currentSubTab === 'shorts') return true;
     return false;
@@ -961,7 +960,24 @@ class ChzzkApp {
     }
   }
 
-  goToChannelClips(channelId) {
+  goToChannelClips(channelId, channelName = '') {
+    if (!channelId) return;
+    if (window.clipsUI && typeof window.clipsUI.loadChannelShortformFeed === 'function') {
+      const bm = (this.bookmarks || []).find(b => b.channelId === channelId);
+      const resolvedName = channelName || (bm && bm.channelName) || '채널';
+      window.clipsUI.feedMode = 'channel';
+      window.clipsUI.feedChannelId = channelId;
+      window.clipsUI.feedChannelName = resolvedName;
+      window.clipsUI._pendingChannelFeedOpen = true;
+      this.switchTab('clips');
+      const player = window.clipsUI.ensureMobileShortformPlayer();
+      if (player) {
+        window.clipsUI.loadChannelShortformFeed(channelId, resolvedName, 0).finally(() => {
+          window.clipsUI._pendingChannelFeedOpen = false;
+        });
+      }
+      return;
+    }
     this.switchTab('clips');
     if (window.clipsUI) {
       window.clipsUI.selectChannel(channelId);

@@ -602,7 +602,7 @@ class ChannelUI {
       card.addEventListener('click', () => {
         if (window.clipsUI) {
           const idx = this.currentClips.findIndex(item => item.clipUID === c.clipUID);
-          if (window.app && typeof window.app.isMobileShortformMode === 'function' && window.app.isMobileShortformMode() && typeof window.clipsUI.openFeedFromChannelClips === 'function') {
+          if (typeof window.clipsUI.openFeedFromChannelClips === 'function') {
             window.clipsUI.openFeedFromChannelClips(this.currentChannelId, this.currentChannelData, this.currentClips, Math.max(0, idx));
           } else {
             window.clipsUI.currentClips = this.currentClips;

@@ -111,6 +111,24 @@
     return originalFetch(url, options);
   }
 
+  /**
+   * Fetch Naver neonplayer vodplay JSON directly via CORS on web first (apis.naver.com
+   * allows CORS reads and avoids third-party reader proxies corrupting JSON responses),
+   * falling back to proxyFetchJson (and native AndroidHttp on APK).
+   */
+  async function fetchVodPlayJson(vodUrl) {
+    if (!window.AndroidChzzk) {
+      try {
+        const res = await fetchWithTimeout(vodUrl, { method: 'GET', credentials: 'omit' }, 6500);
+        if (res && res.ok) {
+          const data = await res.json();
+          if (data && typeof data === 'object') return data;
+        }
+      } catch (_) {}
+    }
+    return await proxyFetchJson(vodUrl);
+  }
+
   // 먼저 성공하는 Promise 반환 (구형 브라우저 호환 Promise.any)
   function firstResolved(promises) {
     return new Promise((resolve, reject) => {
@@ -1497,7 +1515,7 @@
       if (!videoId || !inKey) {
         return { success: false, error: '클립 재생 키를 찾을 수 없습니다.' };
       }
-      const vodData = await proxyFetchJson(`https://apis.naver.com/neonplayer/vodplay/v1/playback/${encodeURIComponent(videoId)}?key=${encodeURIComponent(inKey)}`);
+      const vodData = await fetchVodPlayJson(`https://apis.naver.com/neonplayer/vodplay/v1/playback/${encodeURIComponent(videoId)}?key=${encodeURIComponent(inKey)}`);
       const periods = (vodData && vodData.period) || [];
       if (!periods.length) {
         return { success: false, error: '비디오 스트림 트랙이 비어있습니다.' };
@@ -1761,7 +1779,7 @@
         }
 
         if (videoId && inKey) {
-          const neonData = await proxyFetchJson(`https://apis.naver.com/neonplayer/vodplay/v1/playback/${encodeURIComponent(videoId)}?key=${encodeURIComponent(inKey)}`);
+          const neonData = await fetchVodPlayJson(`https://apis.naver.com/neonplayer/vodplay/v1/playback/${encodeURIComponent(videoId)}?key=${encodeURIComponent(inKey)}`);
           const periods = (neonData && neonData.period) || [];
           if (periods.length) {
             const mp4Qualities = [];

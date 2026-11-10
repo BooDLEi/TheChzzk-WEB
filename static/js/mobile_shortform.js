@@ -1,9 +1,9 @@
 /* ============================================================
-   더치지직 (The Chzzk) - 모바일 웹 / APK 전용 숏폼 엔진 (mobile_shortform.js)
-   - 치지직 클립 피드 & 유튜브 쇼츠 세부탭 공용 세로/가로 숏폼 UI 컨트롤러
-   - 상단 접이식 채널/키워드 바, 터치 상하 스와이프 전환, 우하단 아이콘 전용 4버튼,
-     더보기 메뉴(4기능), 세로 바텀시트 / 가로 우측 분할 댓글창 지원
-   - GEMINI.md 준수: 이모지 0%, PC 데스크톱 환경 미노출
+   더치지직 (The Chzzk) - 통합 숏폼 엔진 (mobile_shortform.js)
+   - PC 클라이언트 / PC 웹 / 모바일 웹 / APK 공용 숏폼 컨트롤러
+   - 치지직 클립 피드 & 유튜브 쇼츠 세부탭 공용 세로/가로 숏폼 UI
+   - 상단 접이식 즐겨찾기 채널/키워드 바, 마우스 휠 & 터치 스와이프 전환,
+     우하단 아이콘 전용 4버튼, 더보기 메뉴(4기능), 우측 분할/바텀 댓글창
    ============================================================ */
 
 (function() {
@@ -375,7 +375,7 @@
         this.togglePlayPause();
       });
 
-      // Wheel navigation for tablets/foldables/trackpads
+      // Wheel navigation for desktop & trackpads
       this.stage.addEventListener('wheel', (e) => {
         if (e.target.closest('.sf-comments-panel, .sf-top-drawer, .sf-more-sheet')) return;
         if (Math.abs(e.deltaY) < 22) return;
@@ -385,6 +385,28 @@
         setTimeout(() => { this.wheelLock = false; }, 360);
         this.navigate(e.deltaY > 0 ? 1 : -1);
       }, { passive: false });
+
+      // Horizontal mouse-wheel scroll support for top channel avatar / keyword shelf
+      if (this.topScroll) {
+        this.topScroll.addEventListener('wheel', (e) => {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && this.topScroll.scrollWidth > this.topScroll.clientWidth) {
+            e.preventDefault();
+            this.topScroll.scrollLeft += e.deltaY;
+          }
+        }, { passive: false });
+      }
+    }
+
+    _getTargetAudio() {
+      const app = window.app;
+      if (this.mode === 'youtube_shorts') {
+        const vol = (app && typeof app.masterYTVolume === 'number') ? app.masterYTVolume : 1.0;
+        const muted = Boolean(app && app.masterYTMuted);
+        return { volume: Math.max(0, Math.min(1, vol)), muted };
+      }
+      const vol = (app && typeof app.masterChzzkVolume === 'number') ? app.masterChzzkVolume : 1.0;
+      const muted = Boolean(app && app.masterChzzkMuted);
+      return { volume: Math.max(0, Math.min(1, vol)), muted };
     }
 
     getCurrentItem() {
@@ -655,6 +677,7 @@
       }
 
       this.activeMediaMeta = details;
+      const audio = this._getTargetAudio();
       const video = document.createElement('video');
       video.className = 'sf-video-el';
       video.autoplay = true;
@@ -662,8 +685,8 @@
       video.playsInline = true;
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
-      video.muted = false;
-      video.volume = 1.0;
+      video.muted = audio.muted;
+      video.volume = audio.muted ? 0 : audio.volume;
       video.poster = item.thumbnailImageUrl || '';
 
       video.addEventListener('timeupdate', () => {
@@ -730,12 +753,13 @@
       if (e.source !== this.activeIframeEl.contentWindow && d.slotIndex !== this.slotMsgTag) return;
 
       if (d.type === 'yt_ready') {
+        const audio = this._getTargetAudio();
         this.postToActiveIframe({ action: 'setLoop', loop: true });
         if (this.paused) {
           this.postToActiveIframe({ action: 'pause' });
         } else {
-          this.postToActiveIframe({ action: 'unmute' });
-          this.postToActiveIframe({ action: 'setVolume', volume: 100 });
+          this.postToActiveIframe({ action: audio.muted ? 'mute' : 'unmute' });
+          this.postToActiveIframe({ action: 'setVolume', volume: audio.muted ? 0 : Math.round(audio.volume * 100) });
           this.postToActiveIframe({ action: 'play' });
         }
       } else if (d.type === 'yt_autoplay_muted') {
@@ -767,18 +791,19 @@
     }
 
     forceUnmute() {
+      const audio = this._getTargetAudio();
       this.autoplayMuted = false;
       if (this.unmutePill) this.unmutePill.style.display = 'none';
       if (this.activeVideoEl) {
         this.activeVideoEl.muted = false;
-        this.activeVideoEl.volume = 1.0;
+        this.activeVideoEl.volume = audio.volume > 0 ? audio.volume : 1.0;
         if (this.activeVideoEl.paused) {
           this.activeVideoEl.play().catch(() => {});
         }
       }
       if (this.activeIframeEl) {
         this.postToActiveIframe({ action: 'unmute' });
-        this.postToActiveIframe({ action: 'setVolume', volume: 100 });
+        this.postToActiveIframe({ action: 'setVolume', volume: audio.volume > 0 ? Math.round(audio.volume * 100) : 100 });
         this.postToActiveIframe({ action: 'play' });
       }
     }
@@ -792,10 +817,12 @@
     }
 
     togglePlayPause() {
+      const audio = this._getTargetAudio();
       if (this.activeVideoEl) {
         if (this.activeVideoEl.paused) {
           this.paused = false;
-          this.activeVideoEl.muted = false;
+          this.activeVideoEl.muted = audio.muted;
+          this.activeVideoEl.volume = audio.muted ? 0 : audio.volume;
           this.activeVideoEl.play().catch(() => {});
           this.flashCenterPulse(true);
         } else {
@@ -806,7 +833,10 @@
       } else if (this.activeIframeEl) {
         this.paused = !this.paused;
         this.postToActiveIframe({ action: this.paused ? 'pause' : 'play' });
-        if (!this.paused) this.postToActiveIframe({ action: 'unmute' });
+        if (!this.paused) {
+          this.postToActiveIframe({ action: audio.muted ? 'mute' : 'unmute' });
+          this.postToActiveIframe({ action: 'setVolume', volume: audio.muted ? 0 : Math.round(audio.volume * 100) });
+        }
         this.flashCenterPulse(!this.paused);
       }
     }
@@ -822,10 +852,11 @@
     }
 
     resume() {
+      const audio = this._getTargetAudio();
       this.paused = false;
       if (this.activeVideoEl) {
-        this.activeVideoEl.muted = false;
-        this.activeVideoEl.volume = 1.0;
+        this.activeVideoEl.muted = audio.muted;
+        this.activeVideoEl.volume = audio.muted ? 0 : audio.volume;
         this.activeVideoEl.play().catch(() => {
           if (this.activeVideoEl) {
             this.activeVideoEl.muted = true;
@@ -836,8 +867,8 @@
         });
       }
       if (this.activeIframeEl) {
-        this.postToActiveIframe({ action: 'unmute' });
-        this.postToActiveIframe({ action: 'setVolume', volume: 100 });
+        this.postToActiveIframe({ action: audio.muted ? 'mute' : 'unmute' });
+        this.postToActiveIframe({ action: 'setVolume', volume: audio.muted ? 0 : Math.round(audio.volume * 100) });
         this.postToActiveIframe({ action: 'play' });
       }
     }
