@@ -153,8 +153,85 @@
   const ytOembedCache = {};
   const webRecorderJobs = {};
   const webCompletedRecordings = []; // 브라우저 녹화 또는 폴더에서 불러온 비디오
+  const webCompletedClips = [];      // 웹 클립 다운로드 / 에디터 이동 클립
   const webLocalCaptures = [];       // 폴더에서 불러온 이미지 또는 캡처
   let selectedDirectoryHandle = null;
+
+  const androidClipDownloads = {};
+  window.__onAndroidClipDownload = function(reqId, jsonStr) {
+    const entry = androidClipDownloads[reqId];
+    if (!entry) return;
+    delete androidClipDownloads[reqId];
+    clearTimeout(entry.timer);
+    try {
+      entry.resolve(JSON.parse(jsonStr || '{}'));
+    } catch (e) {
+      entry.resolve({ success: false, error: '응답 파싱 오류' });
+    }
+  };
+
+  function androidDownloadClipAsync(fileUrl, filename, timeoutMs = 25000) {
+    if (!window.AndroidChzzk || typeof window.AndroidChzzk.downloadClipNative !== 'function') {
+      return Promise.resolve({ success: false, unsupported: true });
+    }
+    return new Promise((resolve) => {
+      const reqId = 'clipdl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+      const timer = setTimeout(() => {
+        delete androidClipDownloads[reqId];
+        resolve({ success: false, error: '다운로드 시간 초과' });
+      }, timeoutMs);
+      androidClipDownloads[reqId] = { resolve, timer };
+      try {
+        window.AndroidChzzk.downloadClipNative(reqId, fileUrl, filename);
+      } catch (e) {
+        clearTimeout(timer);
+        delete androidClipDownloads[reqId];
+        resolve({ success: false, error: e.message || '다운로드 호출 오류' });
+      }
+    });
+  }
+
+  function formatTrackQualityLabel(rep) {
+    const w = Number(rep && rep.width) || 0;
+    const h = Number(rep && rep.height) || 0;
+    const p = (w > 0 && h > 0) ? Math.min(w, h) : Math.max(w, h);
+    return p > 0 ? `${p}p` : '고화질';
+  }
+
+  async function proxyFetchJsonOrJsonp(targetUrl) {
+    if (window.AndroidChzzk) {
+      try {
+        const raw = await androidFetchTextAsync(targetUrl, 8500);
+        if (raw) {
+          const s = raw.indexOf('{');
+          const e = raw.lastIndexOf('}');
+          if (s !== -1 && e > s) return JSON.parse(raw.slice(s, e + 1));
+        }
+      } catch (e) {}
+    }
+    const candidates = [
+      `https://r.jina.ai/${targetUrl}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
+    ];
+    try {
+      return await firstResolved(candidates.map(async (u, idx) => {
+        const res = await fetchWithTimeout(u, { method: 'GET', credentials: 'omit', referrerPolicy: 'no-referrer' }, 5500);
+        if (!res.ok) throw new Error('status ' + res.status);
+        let txt = await res.text();
+        if (idx === 0) {
+          const mdMarker = txt.indexOf('Markdown Content:');
+          if (mdMarker !== -1) txt = txt.slice(mdMarker + 'Markdown Content:'.length);
+        }
+        const s = txt.indexOf('{');
+        const e = txt.lastIndexOf('}');
+        if (s === -1 || e <= s) throw new Error('not json/jsonp');
+        return JSON.parse(txt.slice(s, e + 1));
+      }));
+    } catch (e) {
+      return null;
+    }
+  }
 
   document.addEventListener('click', (e) => {
     if (e.target && typeof e.target.closest === 'function' && e.target.closest('#refreshLivesBtn')) {
@@ -563,11 +640,12 @@
   }
 
   // YouTube IFrame Embed HTML 생성기 (iframe_api 로드 레이스 방지 + 다중 미러 스트림 폴백 + 한국어 기본화)
-  function generateYoutubeEmbedHtml(videoId, slotIndex = 0, autoplay = true, startSeconds = 0) {
+  function generateYoutubeEmbedHtml(videoId, slotIndex = 0, autoplay = true, startSeconds = 0, options = {}) {
     const cleanVid = cleanYtId(videoId);
     const safeSlot = parseInt(slotIndex, 10) || 0;
     const autoplayVal = autoplay ? 1 : 0;
     const startSecVal = Math.max(0, parseInt(startSeconds, 10) || 0);
+    const initialLoop = Boolean(options && options.loop);
     const safeOrigin = (window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file:'))
       ? window.location.origin
       : 'https://www.youtube.com';
@@ -630,7 +708,7 @@
     var videoId = '${cleanVid}';
     var hlsJsUrl = ${JSON.stringify(hlsJsUrl)};
     var isReady = false;
-    var isLooping = false;
+    var isLooping = ${initialLoop ? 'true' : 'false'};
     var manualPaused = false;
     var playerInited = false;
     var errorTriggered = false;
@@ -1104,9 +1182,9 @@
 
     // 1. System / Status
     if (path === '/api/health') return jsonResp({ status: 'ok', webMode: true });
-    if (path === '/api/system/version') return jsonResp({ success: true, version: '1.3.2', webMode: true });
+    if (path === '/api/system/version') return jsonResp({ success: true, version: '1.4.0', webMode: true });
     if (path.startsWith('/api/system/update')) {
-      return jsonResp({ success: true, hasUpdate: false, has_update: false, localVersion: '1.3.2', remoteVersion: '1.3.2', current_version: '1.3.2', latest_version: '1.3.2', webMode: true });
+      return jsonResp({ success: true, hasUpdate: false, has_update: false, localVersion: '1.4.0', remoteVersion: '1.4.0', current_version: '1.4.0', latest_version: '1.4.0', webMode: true });
     }
     if (path === '/api/network/config') return jsonResp({ success: true, config: { use_cloudflare: false } });
     if (path.startsWith('/api/user/')) {
@@ -1252,33 +1330,121 @@
       }
     }
 
+    const normalizeClipItem = (item, fallbackChannel = null) => {
+      let thumb = (item && item.thumbnailImageUrl) || '';
+      if (thumb.includes('{type}')) thumb = thumb.replace('{type}', '720');
+      const ownerCh = (item && item.ownerChannel) || fallbackChannel || {};
+      const chId = (item && item.ownerChannelId) || ownerCh.channelId || (fallbackChannel && fallbackChannel.channelId) || '';
+      let chName = ownerCh.channelName || (item && item.channelName) || (item && item.streamerName) || '';
+      let chImg = ownerCh.channelImageUrl || (item && item.channelImageUrl) || '';
+      if (!chName && chId) {
+        const bmMatch = lsGet('bookmarks', []).find(b => b.channelId === chId);
+        if (bmMatch) {
+          chName = bmMatch.channelName || '';
+          if (!chImg) chImg = bmMatch.channelImageUrl || '';
+        }
+      }
+      return {
+        clipUID: item.clipUID,
+        videoId: item.videoId,
+        clipTitle: sanitizeText(item.clipTitle || '무제 클립'),
+        ownerChannelId: chId,
+        channelName: sanitizeText(chName || '치지직 스트리머'),
+        channelImageUrl: chImg || './static/img/favicon.png',
+        ownerChannel: {
+          channelId: chId,
+          channelName: sanitizeText(chName || '치지직 스트리머'),
+          channelImageUrl: chImg || './static/img/favicon.png'
+        },
+        thumbnailImageUrl: thumb || './static/img/favicon.png',
+        categoryType: item.categoryType || '',
+        clipCategory: sanitizeText(item.clipCategory || ''),
+        duration: item.duration || 0,
+        readCount: item.readCount || 0,
+        createdDate: item.createdDate || ''
+      };
+    };
+
+    if (path === '/api/clips/feed') {
+      const next = urlObj.searchParams.get('next') || '';
+      const filterType = urlObj.searchParams.get('filterType') || 'WITHIN_1_DAY';
+      const orderType = urlObj.searchParams.get('orderType') || 'POPULAR';
+      const includeBookmarks = urlObj.searchParams.get('includeBookmarks') !== '0';
+      try {
+        const recUrl = `https://api.chzzk.naver.com/service/v1/home/recommended/clips?next=${encodeURIComponent(next)}&filterType=${encodeURIComponent(filterType)}&orderType=${encodeURIComponent(orderType)}`;
+        const promises = [proxyFetchJson(recUrl).catch(() => null)];
+
+        const bms = lsGet('bookmarks', []);
+        if (!next && includeBookmarks && Array.isArray(bms) && bms.length > 0) {
+          const pickedBms = bms.slice().sort(() => 0.5 - Math.random()).slice(0, 4);
+          pickedBms.forEach(bm => {
+            if (!bm || !bm.channelId) return;
+            promises.push(
+              proxyFetchJson(`https://api.chzzk.naver.com/service/v1/channels/${encodeURIComponent(bm.channelId)}/clips?size=6&sortType=RECENT`)
+                .then(d => ({ bm, data: d }))
+                .catch(() => null)
+            );
+          });
+        }
+
+        const results = await Promise.all(promises);
+        const recRes = results[0];
+        const recContent = (recRes && recRes.content) || {};
+        const recRaw = Array.isArray(recContent.data) ? recContent.data : [];
+        const nextCursor = (recContent.page && recContent.page.next && (recContent.page.next.next || recContent.page.next.clipUID)) || '';
+
+        const bmClips = [];
+        for (let idx = 1; idx < results.length; idx++) {
+          const entry = results[idx];
+          const rawList = (entry && entry.data && entry.data.content && entry.data.content.data) || [];
+          rawList.slice(0, 3).forEach(c => bmClips.push(normalizeClipItem(c, entry.bm)));
+        }
+
+        const merged = [];
+        const seen = new Set();
+        const pushUnique = (c) => {
+          if (!c || !c.clipUID || seen.has(c.clipUID)) return;
+          seen.add(c.clipUID);
+          merged.push(c);
+        };
+
+        const recMapped = recRaw.map(c => normalizeClipItem(c));
+        // Interleave bookmarked streamer clips + global popular discovery clips on initial load
+        const maxLen = Math.max(recMapped.length, bmClips.length);
+        for (let k = 0; k < maxLen; k++) {
+          if (k < recMapped.length) pushUnique(recMapped[k]);
+          if (k % 3 === 1 && bmClips.length > 0) {
+            pushUnique(bmClips.shift());
+          }
+        }
+        bmClips.forEach(pushUnique);
+
+        return jsonResp({
+          success: true,
+          clips: merged,
+          nextCursor,
+          filterType
+        });
+      } catch (e) {
+        return jsonResp({ success: false, error: '추천 클립 피드를 불러오지 못했습니다.', clips: [], nextCursor: '' });
+      }
+    }
+
     if (path.startsWith('/api/channels/') && path.endsWith('/clips')) {
       const cid = decodeURIComponent(path.split('/')[3] || '');
       const sortType = urlObj.searchParams.get('sortType') || urlObj.searchParams.get('sort_type') || urlObj.searchParams.get('orderType') || 'POPULAR';
       const size = Math.min(50, Math.max(1, parseInt(urlObj.searchParams.get('size') || '24', 10) || 24));
+      const clipUIDCursor = urlObj.searchParams.get('clipUID') || '';
       try {
-        const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v1/channels/${cid}/clips?size=${size}&sortType=${sortType}`);
-        const raw = (data && data.content && data.content.data) || [];
-        const clips = raw.map(item => {
-          let thumb = item.thumbnailImageUrl || '';
-          if (thumb.includes('{type}')) thumb = thumb.replace('{type}', '720');
-          return {
-            clipUID: item.clipUID,
-            videoId: item.videoId,
-            clipTitle: sanitizeText(item.clipTitle || '무제 클립'),
-            ownerChannelId: item.ownerChannelId || cid,
-            ownerChannel: item.ownerChannel || {},
-            thumbnailImageUrl: thumb || './static/img/favicon.png',
-            categoryType: item.categoryType || '',
-            clipCategory: sanitizeText(item.clipCategory || ''),
-            duration: item.duration || 0,
-            readCount: item.readCount || 0,
-            createdDate: item.createdDate || ''
-          };
-        });
-        return jsonResp({ success: true, total: clips.length, clips });
+        const cursorQs = clipUIDCursor ? `&clipUID=${encodeURIComponent(clipUIDCursor)}` : '';
+        const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v1/channels/${cid}/clips?size=${size}&sortType=${sortType}${cursorQs}`);
+        const content = (data && data.content) || {};
+        const raw = content.data || [];
+        const clips = raw.map(item => normalizeClipItem(item, { channelId: cid }));
+        const nextCursor = (content.page && content.page.next && content.page.next.clipUID) || '';
+        return jsonResp({ success: true, total: clips.length, clips, nextCursor });
       } catch (e) {
-        return jsonResp({ success: false, error: '클립 목록을 불러올 수 없습니다.', clips: [] });
+        return jsonResp({ success: false, error: '클립 목록을 불러올 수 없습니다.', clips: [], nextCursor: '' });
       }
     }
 
@@ -1350,6 +1516,7 @@
             bandwidth: rep.bandwidth || 0,
             width: rep.width,
             height: rep.height,
+            label: formatTrackQualityLabel(rep),
             url: urlVal
           };
           if (mime.includes('video/mp4') || urlVal.endsWith('.mp4') || urlVal.includes('.mp4?')) {
@@ -1385,19 +1552,103 @@
       }
     }
 
+    if (path.startsWith('/api/clips/') && path.endsWith('/comments')) {
+      const clipUID = decodeURIComponent(path.split('/')[3] || '');
+      const pageNum = Math.max(1, parseInt(urlObj.searchParams.get('page') || '1', 10) || 1);
+      try {
+        const [detailRes, cboxRes] = await Promise.all([
+          proxyFetchJson(`https://api.chzzk.naver.com/service/v1/clips/${encodeURIComponent(clipUID)}/detail?optionalProperties=COMMENT&optionalProperties=OWNER_CHANNEL`).catch(() => null),
+          proxyFetchJsonOrJsonp(`https://apis.naver.com/commentBox/cbox/web_naver_list_jsonp.json?ticket=chzzkclip&pool=cbox12&objectId=clip_${encodeURIComponent(clipUID)}&lang=ko&pageSize=20&page=${pageNum}&templateId=main`).catch(() => null)
+        ]);
+        const det = (detailRes && detailRes.content) || {};
+        const opt = det.optionalProperty || {};
+        const ownerCh = opt.ownerChannel || null;
+
+        let rawList = (cboxRes && cboxRes.success && cboxRes.result && Array.isArray(cboxRes.result.commentList))
+          ? cboxRes.result.commentList
+          : null;
+        if (!rawList) {
+          const rollRes = await proxyFetchJsonOrJsonp(`https://apis.naver.com/clip-viewer-web/cbox/web_naver_rolling_cached_json?objectId=clip_${encodeURIComponent(clipUID)}&ticket=chzzkclip&pool=cbox12&templateId=main&lang=ko&rollingType=MANAGER_LIKE`).catch(() => null);
+          if (rollRes && rollRes.result && Array.isArray(rollRes.result.comments)) {
+            rawList = rollRes.result.comments;
+          }
+        }
+        const comments = (rawList || []).map(c => ({
+          commentNo: c.commentNo || '',
+          userName: sanitizeText(c.userName || c.maskedUserId || '익명'),
+          profileUrl: c.profileImageUrl || './static/img/favicon.png',
+          contents: sanitizeText(c.contents || ''),
+          regTime: c.regTime ? String(c.regTime).slice(0, 16).replace('T', ' ') : '',
+          likeCount: c.sympathyCount || 0,
+          replyCount: c.replyCount || 0
+        }));
+        const totalCount = (cboxRes && cboxRes.result && cboxRes.result.count && typeof cboxRes.result.count.comment === 'number')
+          ? cboxRes.result.count.comment
+          : (typeof opt.commentCount === 'number' ? opt.commentCount : comments.length);
+
+        return jsonResp({
+          success: true,
+          clipUID,
+          totalCount,
+          ownerChannel: ownerCh ? {
+            channelId: ownerCh.channelId || '',
+            channelName: sanitizeText(ownerCh.channelName || ''),
+            channelImageUrl: ownerCh.channelImageUrl || './static/img/favicon.png'
+          } : null,
+          comments,
+          cboxAuthRestricted: Boolean(cboxRes && cboxRes.code === '3999'),
+          commentUrl: `https://chzzk.naver.com/clips/${encodeURIComponent(clipUID)}`
+        });
+      } catch (e) {
+        return jsonResp({
+          success: false,
+          comments: [],
+          totalCount: 0,
+          commentUrl: `https://chzzk.naver.com/clips/${encodeURIComponent(clipUID)}`
+        });
+      }
+    }
+
     if (path === '/api/clips/download' && method === 'POST') {
       const clipUID = bodyObj.clip_uid || bodyObj.clipUID || '';
       if (!clipUID) return jsonResp({ success: false, error: '클립 ID가 없습니다.' });
       try {
         const pb = await resolveClipPlayback(clipUID);
-        if (!pb.success || !pb.primaryMp4Url) {
-          return jsonResp({ success: false, error: pb.error || '클립 다운로드 URL을 찾을 수 없습니다.' });
+        const dlUrl = bodyObj.url || (pb && pb.primaryMp4Url) || '';
+        if (!dlUrl) {
+          return jsonResp({ success: false, error: (pb && pb.error) || '클립 다운로드 URL을 찾을 수 없습니다.' });
         }
-        const safeTitle = (pb.clipTitle || clipUID).replace(/[\\/*?:"<>|]/g, '_').slice(0, 50);
+        const safeTitle = ((pb && pb.clipTitle) || bodyObj.title || clipUID).replace(/[\\/*?:"<>|]/g, '_').slice(0, 50);
         const filename = `clip_${safeTitle}_${clipUID}.mp4`;
+
+        if (window.AndroidChzzk && typeof window.AndroidChzzk.downloadClipNative === 'function') {
+          const nativeRes = await androidDownloadClipAsync(dlUrl, filename);
+          if (nativeRes && nativeRes.success) {
+            return jsonResp(nativeRes);
+          }
+          return jsonResp({ success: false, error: (nativeRes && nativeRes.error) || '안드로이드 클립 저장 실패' });
+        }
+
+        // Static Web: try direct Blob fetch for smooth Save As download, fallback to <a download>
+        try {
+          const blobRes = await fetchWithTimeout(dlUrl, { credentials: 'omit' }, 18000);
+          if (blobRes.ok) {
+            const blob = await blobRes.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => { try { URL.revokeObjectURL(blobUrl); } catch (_) {} }, 15000);
+            return jsonResp({ success: true, filename, filePath: blobUrl, fileSize: blob.size });
+          }
+        } catch (_) {}
+
         try {
           const a = document.createElement('a');
-          a.href = pb.primaryMp4Url;
+          a.href = dlUrl;
           a.download = filename;
           a.target = '_blank';
           a.rel = 'noopener noreferrer';
@@ -1408,11 +1659,61 @@
         return jsonResp({
           success: true,
           filename,
-          filePath: pb.primaryMp4Url,
+          filePath: dlUrl,
           fileSize: 0
         });
       } catch (e) {
         return jsonResp({ success: false, error: '클립 다운로드 중 오류가 발생했습니다.' });
+      }
+    }
+
+    if (path === '/api/clips/prepare-editor' && method === 'POST') {
+      const clipUID = bodyObj.clip_uid || bodyObj.clipUID || '';
+      const rawUrl = bodyObj.url || '';
+      const clipTitle = sanitizeText(bodyObj.title || clipUID || 'clip');
+      if (!clipUID && !rawUrl) return jsonResp({ success: false, error: '클립 정보가 없습니다.' });
+      try {
+        let targetUrl = rawUrl;
+        let resolvedTitle = clipTitle;
+        if (!targetUrl && clipUID) {
+          const pb = await resolveClipPlayback(clipUID);
+          if (!pb.success || !pb.primaryMp4Url) {
+            return jsonResp({ success: false, error: pb.error || '클립 스트림을 가져올 수 없습니다.' });
+          }
+          targetUrl = pb.primaryMp4Url;
+          if (pb.clipTitle) resolvedTitle = pb.clipTitle;
+        }
+        const safeName = `${resolvedTitle.replace(/[\\/*?:"<>|]/g, '_').slice(0, 48)}_${clipUID || 'clip'}.mp4`;
+
+        if (window.AndroidChzzk && typeof window.AndroidChzzk.downloadClipNative === 'function') {
+          const nativeRes = await androidDownloadClipAsync(targetUrl, safeName);
+          if (nativeRes && nativeRes.success) {
+            return jsonResp(nativeRes);
+          }
+        }
+
+        let finalPath = targetUrl;
+        let finalSize = 0;
+        try {
+          const blobRes = await fetchWithTimeout(targetUrl, { credentials: 'omit' }, 15000);
+          if (blobRes.ok) {
+            const blob = await blobRes.blob();
+            finalPath = URL.createObjectURL(blob);
+            finalSize = blob.size;
+          }
+        } catch (_) {}
+
+        if (!webCompletedClips.some(x => x.path === finalPath)) {
+          webCompletedClips.unshift({
+            name: safeName,
+            path: finalPath,
+            size: finalSize,
+            modified: Date.now() / 1000
+          });
+        }
+        return jsonResp({ success: true, filename: safeName, filePath: finalPath, fileSize: finalSize });
+      } catch (e) {
+        return jsonResp({ success: false, error: '에디터로 클립을 전달하지 못했습니다.' });
       }
     }
 
@@ -1761,6 +2062,75 @@
     }
 
     // 7. YouTube Data (한국어 기본화 oEmbed + Piped/Invidious 듀얼 + 댓글/답글/설명 완벽 보정)
+    if (path === '/api/youtube/shorts') {
+      const reqKw = (urlObj.searchParams.get('keyword') || '').trim();
+      const reqChannelId = cleanYtId(urlObj.searchParams.get('channelId') || '');
+      const pageNum = Math.max(0, parseInt(urlObj.searchParams.get('page') || '0', 10) || 0);
+      const kws = lsGet('yt_keywords', ['치지직', '스텔라이브', '게임']);
+      const hist = lsGet('yt_history', []);
+      const bms = lsGet('yt_bookmarks', []);
+
+      let shorts = [];
+      if (reqChannelId) {
+        const chData = await invidiousFetchJson(`/api/v1/channels/${reqChannelId}/shorts?hl=ko`);
+        const chRaw = (chData && Array.isArray(chData.videos)) ? chData.videos : (Array.isArray(chData) ? chData : []);
+        shorts = chRaw.map(mapInvidiousVideo).filter(v => v.videoId && (!v.lengthSeconds || v.lengthSeconds <= 90));
+        if (shorts.length === 0) {
+          const pCh = await pipedFetchJson(`/channel/${reqChannelId}`);
+          if (pCh && Array.isArray(pCh.relatedStreams)) {
+            shorts = pCh.relatedStreams.map(mapPipedVideo).filter(v => v.videoId && v.lengthSeconds > 0 && v.lengthSeconds <= 68);
+          }
+        }
+      } else {
+        const pool = [];
+        if (reqKw) {
+          pool.push(reqKw);
+        } else {
+          kws.forEach(k => { if (k) pool.push(k); });
+          hist.slice(0, 4).forEach(h => {
+            if (h && h.channelName && !pool.includes(h.channelName)) pool.push(h.channelName);
+          });
+          bms.slice(0, 3).forEach(b => {
+            if (b && b.channelName && !pool.includes(b.channelName)) pool.push(b.channelName);
+          });
+          if (pool.length === 0) pool.push('치지직', '게임');
+        }
+        const seedKw = pool[pageNum % pool.length] || '치지직';
+        const invPage = Math.floor(pageNum / pool.length) + 1;
+        const searchQ = seedKw.includes('shorts') ? seedKw : `${seedKw} shorts`;
+        const rawInv = await invidiousFetchJson(`/api/v1/search?q=${encodeURIComponent(searchQ)}&duration=short&type=video&region=KR&hl=ko&page=${invPage}`);
+        if (Array.isArray(rawInv) && rawInv.length > 0) {
+          shorts = rawInv
+            .filter(x => x.type === 'video' || x.videoId)
+            .map(mapInvidiousVideo)
+            .filter(v => v.videoId && v.lengthSeconds > 0 && v.lengthSeconds <= 68);
+        }
+        if (shorts.length === 0) {
+          const rawPiped = await pipedFetchJson(`/search?q=${encodeURIComponent(seedKw + ' #shorts')}&filter=videos&region=KR`);
+          if (rawPiped && Array.isArray(rawPiped.items)) {
+            shorts = rawPiped.items
+              .filter(x => x.url)
+              .map(mapPipedVideo)
+              .filter(v => v.videoId && v.lengthSeconds > 0 && v.lengthSeconds <= 68);
+          }
+        }
+      }
+
+      const uniqueShorts = [];
+      const seenVid = new Set();
+      for (const s of shorts) {
+        if (!s.videoId || seenVid.has(s.videoId)) continue;
+        seenVid.add(s.videoId);
+        uniqueShorts.push(s);
+      }
+      await localizeVideosWithOEmbed(uniqueShorts, 18);
+      return jsonResp({
+        success: true,
+        shorts: uniqueShorts,
+        nextPage: pageNum + 1
+      });
+    }
+
     if (path === '/api/youtube/recommendations') {
       const kws = lsGet('yt_keywords', ['치지직', '스텔라이브', '게임']);
       const q = kws[Math.floor(Math.random() * kws.length)] || '치지직';
@@ -2563,7 +2933,12 @@
     }
 
     if (path === '/api/clips/files') {
-      return jsonResp({ clips: [] });
+      if (window.AndroidChzzk && typeof window.AndroidChzzk.listNativeClips === 'function') {
+        try {
+          return jsonResp(JSON.parse(window.AndroidChzzk.listNativeClips()));
+        } catch (e) {}
+      }
+      return jsonResp({ clips: webCompletedClips });
     }
 
     if (path === '/api/utils/open-folder') {

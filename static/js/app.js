@@ -504,9 +504,22 @@ class ChzzkApp {
     return false;
   }
 
+  isMobileShortformMode() {
+    return Boolean(window.__IS_STATIC_WEB__ && this.isMobileUIMode());
+  }
+
+  isShortformTabActive(tabName = this.currentTab) {
+    if (!this.isMobileShortformMode()) return false;
+    if (tabName === 'clips') return true;
+    if (tabName === 'youtube' && window.youtubeUI && window.youtubeUI.currentSubTab === 'shorts') return true;
+    return false;
+  }
+
   syncResponsiveMobileLayout() {
     const isMobile = this.isMobileUIMode();
+    const isShortformMobile = this.isMobileShortformMode();
     document.documentElement.classList.toggle('is-mobile-ui', isMobile);
+    document.documentElement.classList.toggle('is-mobile-shortform', isShortformMobile);
 
     // 1. Explore layout: move category strip + bookmark filter + icon refresh below search bar on mobile
     const exploreLayout = document.getElementById('exploreLayout');
@@ -569,6 +582,9 @@ class ChzzkApp {
       window.multiview.updateGridLayout();
       window.multiview.applySlotLayoutStyles();
     }
+    if (window.multiview && typeof window.multiview.syncShortformPiP === 'function') {
+      window.multiview.syncShortformPiP();
+    }
   }
 
   updateMobileVaultHeaderState(activeTab) {
@@ -585,6 +601,7 @@ class ChzzkApp {
   }
 
   switchTab(tabName) {
+    const prevTab = this.currentTab;
     if (tabName === 'vault') {
       tabName = this.lastVaultSubtab || 'recorder';
     }
@@ -597,6 +614,16 @@ class ChzzkApp {
     }
     if (tabName === 'recorder' || tabName === 'editor' || tabName === 'settings') {
       this.lastVaultSubtab = tabName;
+    }
+
+    const wasShortform = this.isShortformTabActive(prevTab);
+    const willBeShortform = this.isShortformTabActive(tabName);
+
+    if (prevTab === 'clips' && tabName !== 'clips' && window.clipsUI && typeof window.clipsUI.pauseMobileFeed === 'function') {
+      window.clipsUI.pauseMobileFeed();
+    }
+    if (prevTab === 'youtube' && tabName !== 'youtube' && window.youtubeUI && typeof window.youtubeUI.pauseShortsFeed === 'function') {
+      window.youtubeUI.pauseShortsFeed();
     }
 
     this.currentTab = tabName;
@@ -615,9 +642,17 @@ class ChzzkApp {
       window.channelUI.destroyLivePlayer();
     }
 
-    // Floating PiP Mini Player handling
+    // Floating PiP Mini Player & Mobile Shortform Audio/Pause Isolation
     try {
-      if (tabName === 'multiview') {
+      if (willBeShortform) {
+        if (window.multiview && typeof window.multiview.enterShortformTab === 'function') {
+          window.multiview.enterShortformTab();
+        }
+      } else if (wasShortform) {
+        if (window.multiview && typeof window.multiview.leaveShortformTab === 'function') {
+          window.multiview.leaveShortformTab(tabName);
+        }
+      } else if (tabName === 'multiview') {
         if (window.multiview && typeof window.multiview.onEnterMultiviewTab === 'function') {
           window.multiview.onEnterMultiviewTab();
         }

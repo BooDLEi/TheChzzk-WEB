@@ -6663,11 +6663,17 @@ class MultiViewManager {
     let mvResizeTimer = null;
     const handleMvViewportChange = () => {
       this.syncPiPIframePosition();
+      if (this._inShortformSuspend) {
+        this.syncShortformPiP();
+      }
       clearTimeout(mvResizeTimer);
       mvResizeTimer = setTimeout(() => {
         if (this.layoutMode === 'focus' || this.layoutMode === 'auto') {
           this.updateGridLayout();
           this.applySlotLayoutStyles();
+        }
+        if (this._inShortformSuspend) {
+          this.syncShortformPiP();
         }
       }, 90);
     };
@@ -6771,12 +6777,103 @@ class MultiViewManager {
     }
   }
 
+  enterShortformTab() {
+    if (!this._inShortformSuspend) {
+      this._inShortformSuspend = true;
+      this.slots.forEach(s => {
+        if (!s || !s.active) return;
+        if (s.videoEl) {
+          s._preShortformWasPlaying = !s.videoEl.paused;
+          try { s.videoEl.pause(); } catch (_) {}
+        } else if (s.type === 'youtube' && s.iframeEl && s.iframeEl.contentWindow) {
+          s._preShortformWasPlaying = Boolean(s.isPlaying);
+          try {
+            s.iframeEl.contentWindow.postMessage({ action: 'pause', slotIndex: s.index }, '*');
+          } catch (_) {}
+        }
+      });
+    }
+    this.syncShortformPiP();
+  }
+
+  leaveShortformTab(nextTabName) {
+    this._inShortformSuspend = false;
+    const masterChzzkVol = (window.app && typeof window.app.masterChzzkVolume === 'number') ? window.app.masterChzzkVolume : 1.0;
+    const masterChzzkMuted = window.app ? Boolean(window.app.masterChzzkMuted) : false;
+
+    this.slots.forEach(s => {
+      if (!s || !s.active) return;
+      if (s.type === 'live') {
+        if (s.videoEl) {
+          const effMuted = Boolean(s.muted || masterChzzkMuted);
+          s.videoEl.muted = effMuted;
+          s.videoEl.volume = effMuted ? 0 : Math.max(0, Math.min(1, s.volume * masterChzzkVol));
+          if (s.hls && typeof s.hls.liveSyncPosition === 'number' && s.hls.liveSyncPosition > 0) {
+            if ((s.hls.liveSyncPosition - (s.videoEl.currentTime || 0)) > 2.5) {
+              try { s.videoEl.currentTime = s.hls.liveSyncPosition; } catch (_) {}
+            }
+          }
+          s.videoEl.play().catch(() => {});
+        }
+      } else {
+        // 비-라이브 슬롯(다시보기/클립/유튜브)은 클립·쇼츠 이탈 후에도 일시정지 상태 유지
+        s.isPlaying = false;
+        if (s.videoEl && !s.videoEl.paused) {
+          try { s.videoEl.pause(); } catch (_) {}
+        } else if (s.type === 'youtube' && s.iframeEl && s.iframeEl.contentWindow) {
+          try {
+            s.iframeEl.contentWindow.postMessage({ action: 'pause', slotIndex: s.index }, '*');
+          } catch (_) {}
+        }
+        const playBtn = document.getElementById(`slot-play-btn-${s.index}`);
+        if (playBtn && typeof ICONS !== 'undefined') {
+          playBtn.innerHTML = ICONS.play;
+        }
+      }
+    });
+
+    if (nextTabName === 'multiview') {
+      this.onEnterMultiviewTab();
+    } else {
+      this.onLeaveMultiviewTab();
+    }
+  }
+
+  syncShortformPiP() {
+    if (!this._inShortformSuspend) return;
+    if (this.isPiPClosedByUser) {
+      this.hidePiP();
+      return;
+    }
+    const isLandscape = window.innerWidth > window.innerHeight;
+    if (!isLandscape) {
+      // 클립/쇼츠 세로모드에서는 멀티뷰 PiP 미표시
+      this.hidePiP();
+      return;
+    }
+    const activeSlots = this.slots.filter(s => s.active && (s.videoEl || s.iframeEl));
+    if (activeSlots.length === 0) {
+      this.hidePiP();
+      return;
+    }
+    const unmuted = activeSlots.filter(s => !s.muted).sort((a, b) => a.index - b.index);
+    const target = unmuted.length > 0 ? unmuted[0] : activeSlots.sort((a, b) => a.index - b.index)[0];
+    if (this.pipMiniPlayer) {
+      this.pipMiniPlayer.classList.add('pip-shortform-landscape');
+    }
+    this.showPiP(target);
+  }
+
   onEnterMultiviewTab() {
     this.isPiPClosedByUser = false;
     this.hidePiP();
   }
 
   onLeaveMultiviewTab() {
+    if (this._inShortformSuspend) {
+      this.syncShortformPiP();
+      return;
+    }
     if (this.isPiPClosedByUser) return;
 
     const activeSlots = this.slots.filter(s => s.active && (s.videoEl || s.iframeEl));
@@ -6864,6 +6961,7 @@ class MultiViewManager {
     this.pipActiveSlot = null;
 
     if (this.pipMiniPlayer) {
+      this.pipMiniPlayer.classList.remove('pip-shortform-landscape');
       this.pipMiniPlayer.style.display = 'none';
     }
   }

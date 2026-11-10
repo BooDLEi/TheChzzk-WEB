@@ -43,6 +43,13 @@ class YouTubeUI {
     this._videoCache = {};
     this.currentChannelView = null; // When viewing a channel's uploads
 
+    // Mobile Web / APK Shorts Feed state
+    this.shortsPlayer = null;
+    this.shortsFeedSeed = '';
+    this.shortsFeedChannelId = '';
+    this.shortsFeedLabel = '맞춤 알고리즘 쇼츠';
+    this.shortsPage = 0;
+
     this.initElements();
     this.bindEvents();
     this.loadKeywords();
@@ -204,6 +211,9 @@ class YouTubeUI {
       if (this.recommendations.length === 0) {
         this.loadRecommendations();
       }
+    } else if (this.currentSubTab === 'shorts') {
+      const sp = this.ensureShortsShortformPlayer();
+      if (sp) sp.ensureInitialFeedLoaded();
     } else if (this.currentSubTab === 'bookmarks') {
       this.loadBookmarks();
       this.loadVideoBookmarks();
@@ -217,6 +227,7 @@ class YouTubeUI {
   }
 
   switchSubTab(subTabName, triggerAction = true) {
+    const prevSubTab = this.currentSubTab;
     this.currentSubTab = subTabName;
     this.closeChannelView();
 
@@ -228,6 +239,22 @@ class YouTubeUI {
       pane.classList.toggle('active', pane.id === `yt-${subTabName}-pane`);
     });
 
+    const ytTabPane = document.getElementById('youtube-tab');
+    const isMobileShorts = Boolean(subTabName === 'shorts' && window.app && typeof window.app.isMobileShortformMode === 'function' && window.app.isMobileShortformMode());
+    if (ytTabPane) {
+      ytTabPane.classList.toggle('shorts-mode-active', isMobileShorts);
+    }
+
+    // Pause Shorts feed & restore Multiview when leaving shorts subtab
+    if (prevSubTab === 'shorts' && subTabName !== 'shorts') {
+      this.pauseShortsFeed();
+      if (window.app && window.app.currentTab === 'youtube' && window.app.isMobileShortformMode() && window.multiview && typeof window.multiview.leaveShortformTab === 'function') {
+        window.multiview.leaveShortformTab('youtube');
+      }
+    } else if (isMobileShorts && window.app && window.app.currentTab === 'youtube' && window.multiview && typeof window.multiview.enterShortformTab === 'function') {
+      window.multiview.enterShortformTab();
+    }
+
     // Requirement 5: 알고리즘 키워드 설정 툴바는 오직 추천영상 탭에서만 노출
     const algoToolbar = document.getElementById('ytAlgorithmToolbar');
     if (algoToolbar) {
@@ -238,6 +265,9 @@ class YouTubeUI {
 
     if (subTabName === 'recommendations') {
       this.loadRecommendations();
+    } else if (subTabName === 'shorts') {
+      const sp = this.ensureShortsShortformPlayer();
+      if (sp) sp.ensureInitialFeedLoaded();
     } else if (subTabName === 'bookmarks') {
       this.loadBookmarks();
       this.loadVideoBookmarks();
@@ -253,6 +283,213 @@ class YouTubeUI {
       } else if (this.ytSearchInput) {
         this.ytSearchInput.focus();
       }
+    }
+  }
+
+  ensureShortsShortformPlayer() {
+    if (this.shortsPlayer) return this.shortsPlayer;
+    const host = document.getElementById('ytMobileShortsHost');
+    if (!host || !window.MobileShortformPlayer) return null;
+
+    this.shortsPlayer = new window.MobileShortformPlayer({
+      host,
+      mode: 'youtube_shorts',
+      onLoadInitial: async () => {
+        await this.loadYoutubeShortsFeed(false);
+      },
+      onLoadMore: async () => {
+        await this.loadYoutubeShortsFeed(true);
+      },
+      getTopDrawerItems: () => {
+        const chips = [
+          {
+            kind: 'pill',
+            id: '__algo__',
+            seedType: 'algo',
+            label: '내 알고리즘 쇼츠',
+            active: !this.shortsFeedSeed && !this.shortsFeedChannelId
+          }
+        ];
+        (this.activeKeywords || []).forEach(kw => {
+          chips.push({
+            kind: 'pill',
+            id: `kw:${kw}`,
+            seedType: 'keyword',
+            keyword: kw,
+            label: `#${kw}`,
+            active: this.shortsFeedSeed === kw && !this.shortsFeedChannelId
+          });
+        });
+        (this.bookmarks || []).forEach(ch => {
+          if (!ch || !ch.channelId) return;
+          chips.push({
+            kind: 'avatar',
+            id: `ch:${ch.channelId}`,
+            seedType: 'channel',
+            channelId: ch.channelId,
+            label: ch.channelName || '채널',
+            avatar: ch.thumbnail || './static/img/favicon.png',
+            active: this.shortsFeedChannelId === ch.channelId
+          });
+        });
+        return {
+          activeLabel: this.shortsFeedLabel || '맞춤 알고리즘 쇼츠',
+          chips
+        };
+      },
+      onSelectTopChip: async (chip) => {
+        if (!chip) return;
+        this.shortsPage = 0;
+        if (chip.seedType === 'algo') {
+          this.shortsFeedSeed = '';
+          this.shortsFeedChannelId = '';
+          this.shortsFeedLabel = '맞춤 알고리즘 쇼츠';
+        } else if (chip.seedType === 'keyword') {
+          this.shortsFeedSeed = chip.keyword;
+          this.shortsFeedChannelId = '';
+          this.shortsFeedLabel = `#${chip.keyword} 쇼츠`;
+        } else if (chip.seedType === 'channel') {
+          this.shortsFeedSeed = '';
+          this.shortsFeedChannelId = chip.channelId;
+          this.shortsFeedLabel = `${chip.label} 쇼츠`;
+        }
+        this.shortsPlayer.showStatus('쇼츠를 불러오는 중...', false);
+        await this.loadYoutubeShortsFeed(false);
+      },
+      onMultiviewInsert: (v) => {
+        this.pauseShortsFeed();
+        this.playInMultiview(v.videoId, v.title, v.channelName, v.channelId || '', v.thumbnail || '', v.duration || '', true, Boolean(v.isLive));
+      },
+      onToggleBookmark: async (v) => {
+        await this.toggleVideoBookmark(v.videoId, v.title, v.channelName, v.channelId || '', v.thumbnail || '', v.duration || '');
+      },
+      isBookmarked: (v) => Boolean(v && this.isVideoBookmarked(v.videoId)),
+      onLoadComments: async (v) => {
+        const res = await fetch(`/api/youtube/comments/${encodeURIComponent(v.videoId)}`);
+        const data = await res.json();
+        const comments = (data && Array.isArray(data.comments)) ? data.comments.map(c => ({
+          userName: c.author || '사용자',
+          profileUrl: c.authorThumbnail || './static/img/favicon.png',
+          contents: c.text || '',
+          regTime: c.publishedTime || '',
+          likeCount: c.likes || 0
+        })) : [];
+        return {
+          success: Boolean(data && data.success),
+          totalCount: comments.length,
+          comments,
+          commentUrl: `https://www.youtube.com/shorts/${encodeURIComponent(v.videoId)}`
+        };
+      },
+      onOpenChannel: (v) => {
+        if (v && (v.channelId || v.channelName)) {
+          this.pauseShortsFeed();
+          this.switchSubTab('recommendations', false);
+          this.openChannelView(v.channelId || '', v.channelName || '', '', '');
+        }
+      },
+      getMoreActions: (v, mediaMeta, player) => {
+        const curQ = (mediaMeta && mediaMeta.currentQuality) || 'auto';
+        const isWl = this.isWatchLater(v.videoId);
+        return [
+          {
+            icon: 'quality',
+            label: '화질 조정',
+            isQualityMenu: true,
+            getQualities: () => [
+              { label: '자동 (최적화)', val: 'default' },
+              { label: '1080p FHD', val: '1080' },
+              { label: '720p HD', val: '720' },
+              { label: '480p', val: '480' },
+              { label: '360p', val: '360' }
+            ].map(q => ({
+              label: q.label,
+              active: curQ === q.val,
+              onSelect: () => {
+                if (mediaMeta) mediaMeta.currentQuality = q.val;
+                player.postToActiveIframe({ action: 'setQuality', quality: q.val });
+                if (window.app) window.app.showToast(`화질 설정: ${q.label}`, 'success');
+                player.closeMoreMenu();
+              }
+            }))
+          },
+          {
+            icon: 'share',
+            label: '링크 공유',
+            onClick: () => this.shareShortsLink(v)
+          },
+          {
+            icon: 'clock',
+            label: isWl ? '나중에 볼 영상에서 제거' : '나중에 볼 영상 저장',
+            onClick: () => this.toggleWatchLater(v.videoId, v.title, v.channelName, v.channelId || '', v.thumbnail || '', v.duration || '')
+          },
+          {
+            icon: 'external',
+            label: '채널 영상 보기',
+            onClick: () => {
+              if (v.channelId || v.channelName) {
+                this.pauseShortsFeed();
+                this.switchSubTab('recommendations', false);
+                this.openChannelView(v.channelId || '', v.channelName || '', '', '');
+              } else {
+                window.open(`https://www.youtube.com/shorts/${encodeURIComponent(v.videoId)}`, '_blank', 'noopener,noreferrer');
+              }
+            }
+          }
+        ];
+      }
+    });
+    return this.shortsPlayer;
+  }
+
+  async loadYoutubeShortsFeed(append = false) {
+    if (!this.shortsPlayer) return;
+    if (!append) this.shortsPage = 0;
+    try {
+      const params = new URLSearchParams({ page: String(this.shortsPage) });
+      if (this.shortsFeedSeed) params.set('keyword', this.shortsFeedSeed);
+      if (this.shortsFeedChannelId) params.set('channelId', this.shortsFeedChannelId);
+      const res = await fetch(`/api/youtube/shorts?${params.toString()}`);
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.shorts) && data.shorts.length > 0) {
+        this.shortsPage = typeof data.nextPage === 'number' ? data.nextPage : (this.shortsPage + 1);
+        if (append) {
+          this.shortsPlayer.appendFeed(data.shorts);
+        } else {
+          this.shortsPlayer.setFeed(data.shorts, 0);
+        }
+      } else if (!append) {
+        this.shortsPlayer.showStatus('알고리즘에 맞는 쇼츠를 찾지 못했습니다.', true);
+      }
+    } catch (e) {
+      if (!append) this.shortsPlayer.showStatus('쇼츠 피드를 불러오지 못했습니다.', true);
+    }
+  }
+
+  pauseShortsFeed() {
+    if (this.shortsPlayer) {
+      this.shortsPlayer.pause();
+    }
+  }
+
+  async shareShortsLink(v) {
+    if (!v || !v.videoId) return;
+    const url = `https://www.youtube.com/shorts/${v.videoId}`;
+    const title = v.title || 'YouTube Shorts';
+    if (window.AndroidChzzk && typeof window.AndroidChzzk.shareTextUrl === 'function') {
+      if (window.AndroidChzzk.shareTextUrl(title, url)) return;
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+        return;
+      } catch (_) {}
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      if (window.app) window.app.showToast('쇼츠 링크가 클립보드에 복사되었습니다.', 'success');
+    } catch (_) {
+      if (window.app) window.app.showToast(url, 'info');
     }
   }
 

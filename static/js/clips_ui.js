@@ -14,6 +14,17 @@ class ClipsUI {
     this.cachedFollowings = [];
     this.cachedBookmarks = [];
 
+    // Mobile Web / APK Shortform Feed state
+    this.sfPlayer = null;
+    this.feedMode = 'discovery'; // 'discovery' | 'channel'
+    this.feedChannelId = null;
+    this.feedChannelName = '';
+    this.feedCursor = '';
+    this.feedFilterType = 'WITHIN_1_DAY';
+    this.feedChannelCursor = '';
+    this._pendingChannelFeedOpen = false;
+    this._playbackCache = {};
+
     this.initElements();
     this.bindEvents();
   }
@@ -234,8 +245,351 @@ class ClipsUI {
     this.updateStreamersBar();
   }
 
+  isMobileShortformEnabled() {
+    return Boolean(
+      window.app &&
+      typeof window.app.isMobileShortformMode === 'function' &&
+      window.app.isMobileShortformMode() &&
+      window.MobileShortformPlayer &&
+      document.getElementById('clipsMobileShortformHost')
+    );
+  }
+
+  ensureMobileShortformPlayer() {
+    if (this.sfPlayer) return this.sfPlayer;
+    const host = document.getElementById('clipsMobileShortformHost');
+    if (!host || !window.MobileShortformPlayer) return null;
+
+    this.sfPlayer = new window.MobileShortformPlayer({
+      host,
+      mode: 'clips',
+      onLoadInitial: async (player) => {
+        if (this.feedMode === 'channel' && this.feedChannelId) {
+          await this.loadChannelShortformFeed(this.feedChannelId, this.feedChannelName, 0);
+        } else {
+          await this.loadDiscoveryShortformFeed(false);
+        }
+      },
+      onLoadMore: async () => {
+        if (this.feedMode === 'channel' && this.feedChannelId) {
+          await this.loadMoreChannelShortformFeed();
+        } else {
+          await this.loadDiscoveryShortformFeed(true);
+        }
+      },
+      getTopDrawerItems: () => {
+        const bms = (window.app && Array.isArray(window.app.bookmarks)) ? window.app.bookmarks : (this.cachedBookmarks || []);
+        const chips = [
+          {
+            kind: 'pill',
+            id: '__discovery__',
+            label: '전체 인기 · 추천',
+            active: this.feedMode === 'discovery'
+          }
+        ];
+        bms.forEach(bm => {
+          if (!bm || !bm.channelId) return;
+          chips.push({
+            kind: 'avatar',
+            id: bm.channelId,
+            label: bm.channelName || '스트리머',
+            avatar: bm.channelImageUrl || './static/img/favicon.png',
+            isLive: Boolean(bm.openLive || bm.isOnline),
+            active: this.feedMode === 'channel' && this.feedChannelId === bm.channelId
+          });
+        });
+        const activeLabel = this.feedMode === 'channel'
+          ? `${this.feedChannelName || '채널'} 최신 클립`
+          : '추천 · 인기 클립';
+        return { activeLabel, chips };
+      },
+      onSelectTopChip: async (chip) => {
+        if (!chip) return;
+        if (chip.id === '__discovery__') {
+          this.feedMode = 'discovery';
+          this.feedChannelId = null;
+          this.feedChannelName = '';
+          this.feedCursor = '';
+          this.feedFilterType = 'WITHIN_1_DAY';
+          this.sfPlayer.showStatus('인기 추천 클립을 불러오는 중...', false);
+          await this.loadDiscoveryShortformFeed(false);
+        } else {
+          await this.loadChannelShortformFeed(chip.id, chip.label, 0);
+        }
+      },
+      onResolveMedia: async (clip) => {
+        if (!clip || !clip.clipUID) return null;
+        if (this._playbackCache[clip.clipUID]) {
+          this.prefetchNextClipPlayback();
+          return this._playbackCache[clip.clipUID];
+        }
+        const res = await fetch(`/api/clips/${encodeURIComponent(clip.clipUID)}/playback`);
+        const data = await res.json();
+        if (data && data.success && data.primaryMp4Url) {
+          this._playbackCache[clip.clipUID] = data;
+          this.prefetchNextClipPlayback();
+          return data;
+        }
+        return null;
+      },
+      onMultiviewInsert: (clip, allItems, idx) => {
+        this.currentClips = allItems || [];
+        if (clip.channelName) {
+          this.currentChannelInfo = { channelName: clip.channelName, channelId: clip.ownerChannelId };
+        }
+        this.sendClipToMultiview(clip.clipUID, clip.clipTitle);
+      },
+      onToggleBookmark: async (clip) => {
+        const chId = clip.ownerChannelId || (clip.ownerChannel && clip.ownerChannel.channelId) || '';
+        if (!chId) {
+          if (window.app) window.app.showToast('채널 정보를 찾을 수 없습니다.', 'warning');
+          return;
+        }
+        if (window.app && typeof window.app.toggleBookmark === 'function') {
+          await window.app.toggleBookmark(chId, clip.channelName || '스트리머', clip.channelImageUrl || './static/img/favicon.png');
+          if (this.sfPlayer) this.sfPlayer.refreshTopDrawer();
+        }
+      },
+      isBookmarked: (clip) => {
+        const chId = clip.ownerChannelId || (clip.ownerChannel && clip.ownerChannel.channelId) || '';
+        const bms = (window.app && window.app.bookmarks) ? window.app.bookmarks : (this.cachedBookmarks || []);
+        return Boolean(chId && bms.some(b => b.channelId === chId));
+      },
+      onLoadComments: async (clip) => {
+        const res = await fetch(`/api/clips/${encodeURIComponent(clip.clipUID)}/comments?page=1`);
+        return await res.json();
+      },
+      onOpenChannel: (clip) => {
+        const chId = clip.ownerChannelId || (clip.ownerChannel && clip.ownerChannel.channelId);
+        if (chId && window.channelUI) {
+          this.pauseMobileFeed();
+          window.channelUI.openChannel(chId, 'clips');
+        }
+      },
+      getMoreActions: (clip, mediaMeta, player) => [
+        {
+          icon: 'quality',
+          label: '화질 조정',
+          isQualityMenu: true,
+          getQualities: () => {
+            const tracks = (mediaMeta && Array.isArray(mediaMeta.mp4Tracks) && mediaMeta.mp4Tracks.length > 0)
+              ? mediaMeta.mp4Tracks
+              : ((mediaMeta && Array.isArray(mediaMeta.hlsTracks)) ? mediaMeta.hlsTracks : []);
+            const activeSrc = (player.activeVideoEl && player.activeVideoEl.src) || '';
+            return tracks.map((t, i) => ({
+              label: t.label || (i === 0 ? '최고 화질' : `트랙 ${i + 1}`),
+              active: activeSrc === t.url,
+              onSelect: () => player.switchClipQuality(t.url, t.label || '선택 화질')
+            }));
+          }
+        },
+        {
+          icon: 'share',
+          label: '링크 공유',
+          onClick: () => this.shareClipLink(clip)
+        },
+        {
+          icon: 'download',
+          label: '클립 다운로드',
+          onClick: () => this.downloadClip(clip.clipUID)
+        },
+        {
+          icon: 'editor',
+          label: '클립을 에디터로 이동',
+          onClick: () => this.moveClipToEditor(clip, mediaMeta)
+        }
+      ]
+    });
+    return this.sfPlayer;
+  }
+
+  prefetchNextClipPlayback() {
+    if (!this.sfPlayer) return;
+    const nextItem = this.sfPlayer.items[this.sfPlayer.currentIndex + 1];
+    if (!nextItem || !nextItem.clipUID || this._playbackCache[nextItem.clipUID]) return;
+    fetch(`/api/clips/${encodeURIComponent(nextItem.clipUID)}/playback`)
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.success && d.primaryMp4Url) {
+          this._playbackCache[nextItem.clipUID] = d;
+        }
+      })
+      .catch(() => {});
+  }
+
+  async loadDiscoveryShortformFeed(append = false) {
+    if (!this.sfPlayer) return;
+    if (append && !this.feedCursor) {
+      if (this.feedFilterType === 'WITHIN_1_DAY') {
+        this.feedFilterType = 'WITHIN_7_DAYS';
+      } else {
+        return;
+      }
+    }
+    try {
+      const qs = `next=${encodeURIComponent(this.feedCursor || '')}&filterType=${this.feedFilterType}&orderType=POPULAR&includeBookmarks=${append ? '0' : '1'}`;
+      const res = await fetch(`/api/clips/feed?${qs}`);
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.clips) && data.clips.length > 0) {
+        this.feedCursor = data.nextCursor || '';
+        this.currentClips = append ? this.sfPlayer.items.concat(data.clips) : data.clips;
+        if (append) {
+          this.sfPlayer.appendFeed(data.clips);
+        } else {
+          this.sfPlayer.setFeed(data.clips, 0);
+        }
+      } else if (!append) {
+        this.sfPlayer.showStatus('추천 클립을 불러오지 못했습니다.', true);
+      }
+    } catch (e) {
+      if (!append) this.sfPlayer.showStatus('네트워크 오류로 클립을 불러오지 못했습니다.', true);
+    }
+  }
+
+  async loadChannelShortformFeed(channelId, channelName = '', startIndex = 0) {
+    if (!channelId || !this.sfPlayer) return;
+    this.feedMode = 'channel';
+    this.feedChannelId = channelId;
+    this.feedChannelName = channelName || '채널';
+    this.feedChannelCursor = '';
+    this.sfPlayer.showStatus(`'${this.feedChannelName}' 최신 클립을 불러오는 중...`, false);
+    try {
+      const res = await fetch(`/api/channels/${encodeURIComponent(channelId)}/clips?size=36&sortType=RECENT`);
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.clips) && data.clips.length > 0) {
+        this.feedChannelCursor = data.nextCursor || '';
+        const enriched = data.clips.map(c => ({
+          ...c,
+          ownerChannelId: c.ownerChannelId || channelId,
+          channelName: (c.channelName && c.channelName !== '치지직 스트리머') ? c.channelName : this.feedChannelName
+        }));
+        this.currentClips = enriched;
+        this.sfPlayer.setFeed(enriched, startIndex);
+      } else {
+        this.sfPlayer.showStatus('이 채널에 등록된 클립이 없습니다.', true);
+      }
+    } catch (e) {
+      this.sfPlayer.showStatus('채널 클립을 불러오지 못했습니다.', true);
+    }
+  }
+
+  async loadMoreChannelShortformFeed() {
+    if (!this.feedChannelId || !this.feedChannelCursor || !this.sfPlayer) return;
+    try {
+      const res = await fetch(`/api/channels/${encodeURIComponent(this.feedChannelId)}/clips?size=36&sortType=RECENT&clipUID=${encodeURIComponent(this.feedChannelCursor)}`);
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.clips) && data.clips.length > 0) {
+        this.feedChannelCursor = data.nextCursor || '';
+        const enriched = data.clips.map(c => ({
+          ...c,
+          ownerChannelId: c.ownerChannelId || this.feedChannelId,
+          channelName: (c.channelName && c.channelName !== '치지직 스트리머') ? c.channelName : this.feedChannelName
+        }));
+        this.sfPlayer.appendFeed(enriched);
+      } else {
+        this.feedChannelCursor = '';
+      }
+    } catch (_) {}
+  }
+
+  openFeedFromChannelClips(channelId, channelInfo, clipsList, startIndex = 0) {
+    this.feedMode = 'channel';
+    this.feedChannelId = channelId;
+    this.feedChannelName = (channelInfo && channelInfo.channelName) || '채널';
+    this.feedChannelCursor = '';
+    this._pendingChannelFeedOpen = true;
+
+    if (window.app) {
+      window.app.switchTab('clips');
+    }
+
+    const player = this.ensureMobileShortformPlayer();
+    if (!player) return;
+
+    const chAvatar = (channelInfo && channelInfo.channelImageUrl) || './static/img/favicon.png';
+    const enriched = (Array.isArray(clipsList) ? clipsList : []).map(c => ({
+      ...c,
+      ownerChannelId: c.ownerChannelId || channelId,
+      channelName: (c.channelName && c.channelName !== '치지직 스트리머') ? c.channelName : this.feedChannelName,
+      channelImageUrl: c.channelImageUrl || chAvatar
+    }));
+    this.currentClips = enriched;
+    this._pendingChannelFeedOpen = false;
+    player.setFeed(enriched, startIndex);
+  }
+
+  pauseMobileFeed() {
+    if (this.sfPlayer) {
+      this.sfPlayer.pause();
+    }
+  }
+
+  async shareClipLink(clip) {
+    if (!clip || !clip.clipUID) return;
+    const url = `https://chzzk.naver.com/clips/${clip.clipUID}`;
+    const title = clip.clipTitle || '치지직 클립';
+    if (window.AndroidChzzk && typeof window.AndroidChzzk.shareTextUrl === 'function') {
+      if (window.AndroidChzzk.shareTextUrl(title, url)) return;
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+        return;
+      } catch (_) {}
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      if (window.app) window.app.showToast('클립 링크가 클립보드에 복사되었습니다.', 'success');
+    } catch (_) {
+      if (window.app) window.app.showToast(url, 'info');
+    }
+  }
+
+  async moveClipToEditor(clip, mediaMeta) {
+    if (!clip || !clip.clipUID) return;
+    if (window.app) window.app.showToast('클립을 에디터로 준비하는 중...', 'info');
+    try {
+      const targetUrl = (mediaMeta && mediaMeta.primaryMp4Url) || '';
+      const res = await fetch('/api/clips/prepare-editor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clip_uid: clip.clipUID,
+          title: clip.clipTitle || 'clip',
+          url: targetUrl
+        })
+      });
+      const data = await res.json();
+      if (data && data.success && data.filePath) {
+        this.pauseMobileFeed();
+        if (window.app) window.app.switchTab('editor');
+        if (window.editorUI) {
+          await window.editorUI.loadSources();
+          window.editorUI.loadVideo(data.filePath, data.filename || `${clip.clipTitle || 'clip'}.mp4`);
+          const sel = document.getElementById('editorSourceSelect');
+          if (sel) sel.value = data.filePath;
+        }
+        if (window.app) window.app.showToast('에디터에 클립을 불러왔습니다.', 'success');
+      } else {
+        if (window.app) window.app.showToast((data && data.error) || '에디터 이동 실패', 'error');
+      }
+    } catch (e) {
+      if (window.app) window.app.showToast('클립 에디터 이동 중 오류가 발생했습니다.', 'error');
+    }
+  }
+
   onTabActivated(lives, bookmarks) {
     this.cachedBookmarks = bookmarks || (window.app ? window.app.bookmarks : []) || [];
+    if (this.isMobileShortformEnabled()) {
+      const player = this.ensureMobileShortformPlayer();
+      if (player) {
+        player.refreshTopDrawer();
+        if (!this._pendingChannelFeedOpen) {
+          player.ensureInitialFeedLoaded();
+        }
+      }
+      return;
+    }
     this.updateStreamersBar();
     this.populateChannelSelect(lives, this.cachedBookmarks, []);
   }

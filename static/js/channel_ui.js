@@ -601,9 +601,13 @@ class ChannelUI {
       }
       card.addEventListener('click', () => {
         if (window.clipsUI) {
-          window.clipsUI.currentClips = this.currentClips;
           const idx = this.currentClips.findIndex(item => item.clipUID === c.clipUID);
-          window.clipsUI.playClip(c.clipUID, idx);
+          if (window.app && typeof window.app.isMobileShortformMode === 'function' && window.app.isMobileShortformMode() && typeof window.clipsUI.openFeedFromChannelClips === 'function') {
+            window.clipsUI.openFeedFromChannelClips(this.currentChannelId, this.currentChannelData, this.currentClips, Math.max(0, idx));
+          } else {
+            window.clipsUI.currentClips = this.currentClips;
+            window.clipsUI.playClip(c.clipUID, idx);
+          }
         }
       });
       this.channelClipsGrid.appendChild(card);

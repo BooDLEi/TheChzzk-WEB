@@ -134,6 +134,31 @@
     color: var(--accent-color) !important;
   }
 
+  /* 모바일 웹 / APK 전용: 멀티뷰 하단 탭 버튼 강조 (PC 스타일 포인트) */
+  .nav-btn[data-tab="multiview"] {
+    background: linear-gradient(135deg, rgba(0, 255, 163, 0.14), rgba(0, 180, 216, 0.11)) !important;
+    border: 1px solid rgba(0, 255, 163, 0.42) !important;
+    color: #e6fff5 !important;
+    box-shadow: 0 2px 10px rgba(0, 255, 163, 0.16) !important;
+  }
+
+  .nav-btn[data-tab="multiview"] svg {
+    color: var(--accent-color) !important;
+  }
+
+  .nav-btn[data-tab="multiview"].active {
+    background: linear-gradient(135deg, rgba(0, 255, 163, 0.28), rgba(0, 180, 216, 0.20)) !important;
+    border-color: var(--accent-color) !important;
+    color: var(--accent-color) !important;
+    box-shadow: 0 0 14px rgba(0, 255, 163, 0.32) !important;
+  }
+
+  .nav-btn[data-tab="multiview"] #multiview-badge {
+    background: var(--accent-color) !important;
+    color: #0b0e14 !important;
+    font-weight: 800 !important;
+  }
+
   .nav-btn svg {
     width: 15px !important;
     height: 15px !important;
@@ -1036,6 +1061,15 @@
     bottom: 58px !important;
   }
 
+  /* 숏폼(클립/쇼츠) 가로모드에서는 좌상단 빈 레터박스 영역으로 PiP 배치해 우하단 버튼/하단 정보와 겹치지 않음 */
+  .pip-mini-player.pip-shortform-landscape {
+    top: 46px !important;
+    left: 10px !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 172px !important;
+  }
+
   .channel-hero-banner {
     padding: 12px !important;
     margin-bottom: 14px !important;
@@ -1193,4 +1227,750 @@ html.is-android-apk .players-grid.mode-custom .resize-handle {
   z-index: 88;
   background: rgba(0, 255, 163, 0.04);
   touch-action: none;
+}
+
+/* ============================================================
+   모바일 웹 / Android APK 전용 숏폼 (클립 & 유튜브 쇼츠)
+   - PC 클라이언트 및 데스크톱 웹에는 미노출
+   ============================================================ */
+html.is-mobile-shortform .mobile-only-yt-subtab {
+  display: inline-flex !important;
+}
+
+html.is-mobile-shortform #clips-tab.active {
+  padding: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+html.is-mobile-shortform #clips-tab > :not(#clipsMobileShortformHost) {
+  display: none !important;
+}
+
+html.is-mobile-shortform #clipsMobileShortformHost,
+html.is-mobile-shortform #ytMobileShortsHost {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  position: relative !important;
+  overflow: hidden !important;
+  background: #000 !important;
+}
+
+/* 유튜브 쇼츠 세부탭 활성화 시 전체화면 확보 (상단 세부탭 바만 슬림하게 유지) */
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active {
+  padding: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .youtube-container {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  gap: 0 !important;
+}
+
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-search-bar-wrap,
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-algorithm-toolbar,
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active #ytChannelViewSection {
+  display: none !important;
+}
+
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .youtube-sticky-header {
+  margin: 0 !important;
+  padding: 5px 8px !important;
+  background: #0b0e14 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  flex-shrink: 0 !important;
+}
+
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-subtab-nav {
+  padding-top: 0 !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+  gap: 5px !important;
+}
+
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-subtab-nav::-webkit-scrollbar {
+  display: none;
+}
+
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active .yt-subtab-btn {
+  flex: 0 0 auto !important;
+  padding: 5px 10px !important;
+  white-space: nowrap !important;
+}
+
+html.is-mobile-shortform #youtube-tab.active.shorts-mode-active #yt-shorts-pane.active {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  padding: 0 !important;
+}
+
+.sf-shell {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
+
+.sf-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  user-select: none;
+}
+
+.sf-slide-viewport {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  will-change: transform;
+}
+
+.sf-slide-viewport.sf-anim-out-up {
+  transition: transform 0.16s ease-in, opacity 0.16s ease-in;
+  transform: translateY(-28%);
+  opacity: 0.2;
+}
+
+.sf-slide-viewport.sf-anim-out-down {
+  transition: transform 0.16s ease-in, opacity 0.16s ease-in;
+  transform: translateY(28%);
+  opacity: 0.2;
+}
+
+.sf-slide-viewport.sf-anim-prep-down {
+  transition: none !important;
+  transform: translateY(24%);
+  opacity: 0.35;
+}
+
+.sf-slide-viewport.sf-anim-prep-up {
+  transition: none !important;
+  transform: translateY(-24%);
+  opacity: 0.35;
+}
+
+.sf-media-layer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.sf-video-el {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.sf-yt-iframe {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  border: none;
+  background: #000;
+}
+
+.sf-iframe-touch-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: transparent;
+  touch-action: pan-x;
+}
+
+/* 상단 접이식 즐겨찾기 채널 / 알고리즘 핸들 + 드로어 */
+.sf-top-overlay {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  right: 10px;
+  z-index: 28;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.sf-top-handle {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(11, 14, 20, 0.72);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  max-width: min(84vw, 340px);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+.sf-top-handle-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-top-handle-chevron {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.85;
+}
+
+.sf-top-drawer {
+  pointer-events: auto;
+  width: 100%;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-top: 0;
+  background: rgba(11, 14, 20, 0.90);
+  backdrop-filter: blur(12px);
+  border-radius: 14px;
+  border: 1px solid transparent;
+  transition: max-height 0.22s ease, opacity 0.18s ease, margin-top 0.18s ease, border-color 0.18s ease;
+}
+
+.sf-top-drawer.open {
+  max-height: 112px;
+  opacity: 1;
+  margin-top: 8px;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.sf-top-scroll {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.sf-top-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.sf-top-pill {
+  flex: 0 0 auto;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sf-top-pill.active {
+  background: rgba(0, 255, 163, 0.22);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.sf-top-avatar-chip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 58px;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  color: #e2e8f0;
+}
+
+.sf-top-avatar-ring {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  padding: 2px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  overflow: visible;
+}
+
+.sf-top-avatar-chip.active .sf-top-avatar-ring {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 10px rgba(0, 255, 163, 0.45);
+}
+
+.sf-top-avatar-ring img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.sf-top-live-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid #0b0e14;
+}
+
+.sf-top-avatar-name {
+  width: 100%;
+  font-size: 10.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.sf-unmute-pill {
+  position: absolute;
+  top: 52px;
+  left: 12px;
+  z-index: 26;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: rgba(11, 14, 20, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sf-center-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.75);
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 24;
+}
+
+.sf-center-pulse.active {
+  animation: sfPulseFade 0.52s ease forwards;
+}
+
+@keyframes sfPulseFade {
+  0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.85); }
+  50% { opacity: 0.85; transform: translate(-50%, -50%) scale(1.06); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.18); }
+}
+
+/* 우하단 4개 아이콘 전용 버튼: 배경 없음, 색깔 없음, 텍스트 없음 */
+.sf-actions-col {
+  position: absolute;
+  right: 12px;
+  bottom: 42px;
+  z-index: 26;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.sf-actions-col .sf-icon-btn {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border-radius: 0 !important;
+  color: #ffffff !important;
+  padding: 4px !important;
+  margin: 0 !important;
+  width: 38px !important;
+  height: 38px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.9));
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.sf-actions-col .sf-icon-btn:active {
+  transform: scale(0.88);
+  opacity: 0.8;
+}
+
+/* 하단 좌측 스트리머/제목 정보 오버레이 */
+.sf-bottom-info {
+  position: absolute;
+  left: 12px;
+  right: 66px;
+  bottom: 18px;
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+.sf-author-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+  cursor: pointer;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.sf-author-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.sf-author-name {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-video-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #f8fafc;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sf-video-submeta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.sf-progress-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 12px;
+  z-index: 25;
+  display: flex;
+  align-items: flex-end;
+  cursor: pointer;
+}
+
+.sf-progress-track {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.24);
+  overflow: hidden;
+}
+
+.sf-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: #ffffff;
+  transition: width 0.12s linear;
+}
+
+/* 더보기 메뉴 */
+.sf-more-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 33;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.sf-more-sheet {
+  position: absolute;
+  right: 54px;
+  bottom: 42px;
+  z-index: 35;
+  min-width: 186px;
+  max-width: 78vw;
+  background: rgba(15, 20, 30, 0.96);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sf-more-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 8px;
+}
+
+.sf-more-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.sf-more-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
+
+.sf-more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sf-more-item:hover,
+.sf-more-item.active {
+  background: rgba(0, 255, 163, 0.14);
+  color: var(--accent-color);
+}
+
+/* 상태 오버레이 */
+.sf-status-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.sf-status-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  color: #e2e8f0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+/* 댓글 패널 (기본/세로모드: 하단 오버레이 드로어) */
+.sf-comments-panel {
+  display: none;
+  flex-direction: column;
+  background: rgba(15, 20, 30, 0.97);
+  backdrop-filter: blur(14px);
+  z-index: 40;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 58%;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.7);
+}
+
+.sf-shell.sf-comments-open .sf-comments-panel {
+  display: flex;
+}
+
+.sf-comments-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.sf-comments-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.sf-comments-count {
+  font-size: 12px;
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
+.sf-comments-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sf-comments-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sf-comments-empty {
+  text-align: center;
+  padding: 36px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.sf-comment-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.sf-comment-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.sf-comment-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sf-comment-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.sf-comment-author {
+  font-weight: 700;
+  color: #fff;
+}
+
+.sf-comment-time {
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+
+.sf-comment-text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sf-comment-likes {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* 가로모드(태블릿/폴더블/모바일 가로)에서는 댓글 버튼 시 오른쪽 분할 창으로 띄움 */
+@media (orientation: landscape) {
+  .sf-shell.sf-comments-open .sf-comments-panel {
+    position: static;
+    width: clamp(275px, 34vw, 390px);
+    height: 100%;
+    flex-shrink: 0;
+    border-radius: 0;
+    border-top: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+  }
+
+  .sf-actions-col {
+    bottom: 24px;
+    gap: 12px;
+  }
+
+  .sf-bottom-info {
+    bottom: 14px;
+  }
+
+  .sf-more-sheet {
+    bottom: 24px;
+  }
 }

@@ -25,10 +25,10 @@
   <link rel="icon" type="image/x-icon" href="./static/favicon.ico">
   <link rel="apple-touch-icon" href="./static/img/favicon.png">
   <link rel="manifest" href="./static/manifest.json">
-  <link rel="stylesheet" href="./static/css/style.css?v=1.3.2">
-  <link rel="stylesheet" href="./static/css/responsive.css?v=1.3.2">
-  <script src="./static/js/web_backend_polyfill.js?v=1.3.2"></script>
-  <script src="./static/js/hls.min.js?v=1.3.2"></script>
+  <link rel="stylesheet" href="./static/css/style.css?v=1.4.0">
+  <link rel="stylesheet" href="./static/css/responsive.css?v=1.4.0">
+  <script src="./static/js/web_backend_polyfill.js?v=1.4.0"></script>
+  <script src="./static/js/hls.min.js?v=1.4.0"></script>
 </head>
 <body>
 
@@ -370,6 +370,9 @@
                 <span>추천 영상</span>
                 <span class="yt-subtab-subtext">알고리즘 맞춤</span>
               </button>
+              <button class="yt-subtab-btn mobile-only-yt-subtab" data-subtab="shorts">
+                <span>쇼츠</span>
+              </button>
               <button class="yt-subtab-btn" data-subtab="search">
                 <span>영상 탐색</span>
               </button>
@@ -575,6 +578,11 @@
           </div>
           <div class="yt-history-list" id="ytHistoryGrid"></div>
         </div>
+
+        <!-- 7. Mobile Web / APK Dedicated Shorts Sub-Pane -->
+        <div class="yt-sub-pane" id="yt-shorts-pane">
+          <div id="ytMobileShortsHost" class="sf-host-root" style="display: none;"></div>
+        </div>
       </div>
     </section>
 
@@ -630,6 +638,8 @@
 
     <!-- 4. Channel Clips Tab -->
     <section class="tab-pane" id="clips-tab">
+      <!-- Mobile Web / APK Shortform Host (PC 클라이언트에서는 숨김) -->
+      <div id="clipsMobileShortformHost" class="sf-host-root" style="display: none;"></div>
       <!-- Priority Top: Streamers Chip Bar (Following & Bookmarks toggle) -->
       <div id="clipsFollowingBarSection" style="margin-bottom: 16px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 14px; display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
@@ -1568,12 +1578,13 @@
   <div id="liveNotificationContainer" class="live-notification-container"></div>
 
   <!-- Scripts -->
-  <script src="./static/js/multiview.js?v=1.3.2"></script>
-  <script src="./static/js/channel_ui.js?v=1.3.2"></script>
-  <script src="./static/js/clips_ui.js?v=1.3.2"></script>
-  <script src="./static/js/recorder_ui.js?v=1.3.2"></script>
-  <script src="./static/js/editor_ui.js?v=1.3.2"></script>
-  <script src="./static/js/youtube_ui.js?v=1.3.2"></script>
-  <script src="./static/js/app.js?v=1.3.2"></script>
+  <script src="./static/js/multiview.js?v=1.4.0"></script>
+  <script src="./static/js/mobile_shortform.js?v=1.4.0"></script>
+  <script src="./static/js/channel_ui.js?v=1.4.0"></script>
+  <script src="./static/js/clips_ui.js?v=1.4.0"></script>
+  <script src="./static/js/recorder_ui.js?v=1.4.0"></script>
+  <script src="./static/js/editor_ui.js?v=1.4.0"></script>
+  <script src="./static/js/youtube_ui.js?v=1.4.0"></script>
+  <script src="./static/js/app.js?v=1.4.0"></script>
 </body>
 </html>
