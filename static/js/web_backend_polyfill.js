@@ -562,7 +562,7 @@
     });
   }
 
-  // YouTube IFrame Embed HTML 생성기 (iframe srcdoc 용 - 한국어 기본화 + 자동재생/폴백 완비 + Multiview 메시지 규격 100% 일치)
+  // YouTube IFrame Embed HTML 생성기 (iframe_api 로드 레이스 방지 + 다중 미러 스트림 폴백 + 한국어 기본화)
   function generateYoutubeEmbedHtml(videoId, slotIndex = 0, autoplay = true, startSeconds = 0) {
     const cleanVid = cleanYtId(videoId);
     const safeSlot = parseInt(slotIndex, 10) || 0;
@@ -571,6 +571,15 @@
     const safeOrigin = (window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file:'))
       ? window.location.origin
       : 'https://www.youtube.com';
+    const hlsJsUrl = (() => {
+      try {
+        const sc = Array.from(document.scripts || []).find(s => s.src && s.src.includes('hls.min.js'));
+        if (sc && sc.src) return sc.src;
+        return new URL('./static/js/hls.min.js', window.location.href).href;
+      } catch (e) {
+        return '';
+      }
+    })();
 
     return `<!DOCTYPE html>
 <html lang="ko">
@@ -613,17 +622,22 @@
     </div>
   </div>
   <div id="ytFallbackBox"></div>
-  <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     var player = null;
     var fallbackVideo = null;
+    var fallbackHls = null;
     var slotIndex = ${safeSlot};
     var videoId = '${cleanVid}';
+    var hlsJsUrl = ${JSON.stringify(hlsJsUrl)};
     var isReady = false;
     var isLooping = false;
     var manualPaused = false;
+    var playerInited = false;
+    var errorTriggered = false;
     var timeTimer = null;
     var autoplayWatchdog = null;
+    var tapRevealTimer = null;
+    var initWatchdog = null;
     var tapOverlay = document.getElementById('tapToPlayOverlay');
 
     function postParent(payload) {
@@ -633,6 +647,12 @@
         if (!payload.videoId) payload.videoId = videoId;
         window.parent.postMessage(payload, '*');
       } catch(e) {}
+    }
+
+    function hideTapOverlay() {
+      if (autoplayWatchdog) { clearTimeout(autoplayWatchdog); autoplayWatchdog = null; }
+      if (tapRevealTimer) { clearTimeout(tapRevealTimer); tapRevealTimer = null; }
+      if (tapOverlay) tapOverlay.style.display = 'none';
     }
 
     function mapHeightToYTQuality(val) {
@@ -647,17 +667,21 @@
     if (tapOverlay) {
       tapOverlay.addEventListener('click', function() {
         manualPaused = false;
-        tapOverlay.style.display = 'none';
+        hideTapOverlay();
         if (player) {
           try {
+            if (typeof player.unMute === 'function') player.unMute();
             player.playVideo();
-          } catch(e) {}
+          } catch(e) {
+            try { player.mute(); player.playVideo(); postParent({ type: 'yt_autoplay_muted' }); } catch(e2) {}
+          }
         }
       });
     }
 
     function attemptAutoplay() {
-      if (!player || !${autoplayVal}) return;
+      if (!player || !${autoplayVal} || errorTriggered) return;
+      hideTapOverlay();
       try {
         var res = player.playVideo();
         if (res && typeof res.catch === 'function') {
@@ -677,28 +701,41 @@
         } catch(e2) {}
       }
 
-      if (autoplayWatchdog) clearTimeout(autoplayWatchdog);
       autoplayWatchdog = setTimeout(function() {
-        if (!player || manualPaused) return;
+        if (!player || manualPaused || errorTriggered) return;
         try {
-          var st = player.getPlayerState();
+          var st = (typeof player.getPlayerState === 'function') ? player.getPlayerState() : -1;
+          var cur = (typeof player.getCurrentTime === 'function') ? (player.getCurrentTime() || 0) : 0;
+          if (cur > 0.05 || st === 1 || st === 3) {
+            hideTapOverlay();
+            return;
+          }
           if (st === -1 || st === 5 || st === 2) {
             player.mute();
             player.playVideo();
             postParent({ type: 'yt_autoplay_muted' });
-            setTimeout(function() {
-              if (!player || manualPaused) return;
-              var st2 = player.getPlayerState();
-              if ((st2 === -1 || st2 === 5 || st2 === 2) && tapOverlay) {
-                tapOverlay.style.display = 'flex';
-              }
-            }, 1100);
+            tapRevealTimer = setTimeout(function() {
+              if (!player || manualPaused || errorTriggered) return;
+              try {
+                var st2 = (typeof player.getPlayerState === 'function') ? player.getPlayerState() : -1;
+                var cur2 = (typeof player.getCurrentTime === 'function') ? (player.getCurrentTime() || 0) : 0;
+                if (cur2 < 0.05 && st2 !== 1 && st2 !== 3 && tapOverlay) {
+                  tapOverlay.style.display = 'flex';
+                } else {
+                  hideTapOverlay();
+                }
+              } catch(e) {}
+            }, 1500);
           }
         } catch(e) {}
-      }, 650);
+      }, 800);
     }
 
-    function onYouTubeIframeAPIReady() {
+    function createYtPlayer() {
+      if (playerInited || !window.YT || typeof window.YT.Player !== 'function') return;
+      playerInited = true;
+      if (initWatchdog) { clearTimeout(initWatchdog); initWatchdog = null; }
+
       var pVars = {
         autoplay: ${autoplayVal},
         controls: 0,
@@ -734,12 +771,12 @@
             if (e.data === YT.PlayerState.PLAYING) {
               stateName = 'playing';
               manualPaused = false;
-              if (tapOverlay) tapOverlay.style.display = 'none';
+              hideTapOverlay();
             } else if (e.data === YT.PlayerState.PAUSED) {
               stateName = 'paused';
             } else if (e.data === YT.PlayerState.BUFFERING) {
               stateName = 'buffering';
-              if (tapOverlay) tapOverlay.style.display = 'none';
+              hideTapOverlay();
             } else if (e.data === YT.PlayerState.ENDED) {
               if (isLooping && player) {
                 try { player.seekTo(0, true); player.playVideo(); return; } catch(err) {}
@@ -752,37 +789,122 @@
             postParent({ type: 'yt_statechange', state: stateName, currentTime: cur, duration: dur });
           },
           onError: function(e) {
-            tryPipedStreamFallback(e.data);
+            errorTriggered = true;
+            hideTapOverlay();
+            tryDirectStreamFallback(e.data);
           }
         }
       });
     }
 
-    function tryPipedStreamFallback(errCode) {
+    function fetchJsonTimeout(url, ms) {
+      var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var t = ctrl ? setTimeout(function() { ctrl.abort(); }, ms || 5500) : null;
+      return fetch(url, { credentials: 'omit', signal: ctrl ? ctrl.signal : undefined })
+        .then(function(r) {
+          if (t) clearTimeout(t);
+          return r.ok ? r.json() : Promise.reject(r.status);
+        }, function(err) {
+          if (t) clearTimeout(t);
+          return Promise.reject(err);
+        });
+    }
+
+    async function resolveDirectStreamInfo(vid) {
+      var encVid = encodeURIComponent(vid);
+      var invBases = ['https://yt.chocolatemoo53.com'];
+      try {
+        var list = await fetchJsonTimeout('https://api.invidious.io/instances.json?sort_by=health', 3500);
+        if (Array.isArray(list)) {
+          for (var k = 0; k < list.length && invBases.length < 5; k++) {
+            var info = list[k] && list[k][1];
+            if (info && info.api && info.cors && info.uri && invBases.indexOf(info.uri) === -1) {
+              invBases.push(info.uri);
+            }
+          }
+        }
+      } catch(e) {}
+
+      for (var i = 0; i < invBases.length; i++) {
+        try {
+          var invData = await fetchJsonTimeout(invBases[i] + '/api/v1/videos/' + encVid, 4500);
+          if (invData) {
+            var fmts = Array.isArray(invData.formatStreams) ? invData.formatStreams : [];
+            var mp4Inv = fmts.find(function(x) { return x.url && (x.type || '').indexOf('mp4') !== -1; }) || fmts.find(function(x) { return x.url; });
+            if (mp4Inv && mp4Inv.url) return { url: mp4Inv.url, isHls: false };
+            if (invData.hlsUrl) return { url: invData.hlsUrl, isHls: true };
+          }
+        } catch(e) {}
+      }
+
+      var pipedBases = ['https://api.piped.private.coffee', 'https://pipedapi.kavin.rocks', 'https://pipedapi.adminforge.de'];
+      for (var j = 0; j < pipedBases.length; j++) {
+        try {
+          var pd = await fetchJsonTimeout(pipedBases[j] + '/streams/' + encVid, 4500);
+          if (pd) {
+            var vs = Array.isArray(pd.videoStreams) ? pd.videoStreams : [];
+            var mp4 = vs.find(function(x) { return !x.videoOnly && x.url && (x.mimeType || '').indexOf('mp4') !== -1; }) || vs.find(function(x) { return !x.videoOnly && x.url; });
+            if (mp4 && mp4.url) return { url: mp4.url, isHls: false };
+            if (pd.hls) return { url: pd.hls, isHls: true };
+          }
+        } catch(e) {}
+      }
+      return null;
+    }
+
+    function attachFallbackVideoPlayer(streamInfo) {
+      var hostEl = document.body;
+      hostEl.innerHTML = '<video id="fallback-video" autoplay playsinline controls style="width:100%;height:100%;object-fit:contain;background:#000;"></video>';
+      fallbackVideo = document.getElementById('fallback-video');
+      fallbackVideo.loop = isLooping;
+
+      var startPlay = function() {
+        fallbackVideo.play().catch(function() {
+          fallbackVideo.muted = true;
+          fallbackVideo.play().catch(function(){});
+          postParent({ type: 'yt_autoplay_muted' });
+        });
+      };
+
+      if (streamInfo.isHls && !fallbackVideo.canPlayType('application/vnd.apple.mpegurl') && hlsJsUrl) {
+        var sc = document.createElement('script');
+        sc.src = hlsJsUrl;
+        sc.onload = function() {
+          if (window.Hls && window.Hls.isSupported()) {
+            fallbackHls = new window.Hls({ enableWorker: false });
+            fallbackHls.loadSource(streamInfo.url);
+            fallbackHls.attachMedia(fallbackVideo);
+            fallbackHls.on(window.Hls.Events.MANIFEST_PARSED, startPlay);
+          } else {
+            fallbackVideo.src = streamInfo.url;
+            startPlay();
+          }
+        };
+        sc.onerror = function() {
+          fallbackVideo.src = streamInfo.url;
+          startPlay();
+        };
+        document.head.appendChild(sc);
+      } else {
+        fallbackVideo.src = streamInfo.url;
+        startPlay();
+      }
+
+      fallbackVideo.addEventListener('play', function() { postParent({ type: 'yt_statechange', state: 'playing', currentTime: fallbackVideo.currentTime || 0, duration: fallbackVideo.duration || 0 }); });
+      fallbackVideo.addEventListener('pause', function() { if (!fallbackVideo.ended) postParent({ type: 'yt_statechange', state: 'paused', currentTime: fallbackVideo.currentTime || 0, duration: fallbackVideo.duration || 0 }); });
+      fallbackVideo.addEventListener('ended', function() { postParent({ type: 'yt_statechange', state: 'ended', currentTime: fallbackVideo.duration || 0, duration: fallbackVideo.duration || 0 }); });
+      isReady = true;
+      startTimeTracker();
+      postParent({ type: 'yt_ready' });
+    }
+
+    function tryDirectStreamFallback(errCode) {
       if (fallbackVideo) return;
       var fbBox = document.getElementById('ytFallbackBox');
-      fetch('https://api.piped.private.coffee/streams/' + encodeURIComponent(videoId), { credentials: 'omit' })
-        .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
-        .then(function(d) {
-          var vs = Array.isArray(d.videoStreams) ? d.videoStreams : [];
-          var mp4 = vs.find(function(x) { return !x.videoOnly && x.url && (x.mimeType || '').indexOf('mp4') !== -1; }) || vs.find(function(x) { return !x.videoOnly && x.url; });
-          var srcUrl = (mp4 && mp4.url) || d.hls || '';
-          if (!srcUrl) throw new Error('no fallback stream');
-          document.body.innerHTML = '<video id="fallback-video" autoplay playsinline controls style="width:100%;height:100%;object-fit:contain;background:#000;"></video>';
-          fallbackVideo = document.getElementById('fallback-video');
-          fallbackVideo.src = srcUrl;
-          fallbackVideo.loop = isLooping;
-          fallbackVideo.play().catch(function() {
-            fallbackVideo.muted = true;
-            fallbackVideo.play().catch(function(){});
-            postParent({ type: 'yt_autoplay_muted' });
-          });
-          fallbackVideo.addEventListener('play', function() { postParent({ type: 'yt_statechange', state: 'playing', currentTime: fallbackVideo.currentTime || 0, duration: fallbackVideo.duration || 0 }); });
-          fallbackVideo.addEventListener('pause', function() { if (!fallbackVideo.ended) postParent({ type: 'yt_statechange', state: 'paused', currentTime: fallbackVideo.currentTime || 0, duration: fallbackVideo.duration || 0 }); });
-          fallbackVideo.addEventListener('ended', function() { postParent({ type: 'yt_statechange', state: 'ended', currentTime: fallbackVideo.duration || 0, duration: fallbackVideo.duration || 0 }); });
-          isReady = true;
-          startTimeTracker();
-          postParent({ type: 'yt_ready' });
+      resolveDirectStreamInfo(videoId)
+        .then(function(streamInfo) {
+          if (!streamInfo || !streamInfo.url) throw new Error('no fallback stream');
+          attachFallbackVideoPlayer(streamInfo);
         })
         .catch(function() {
           postParent({ type: 'yt_error', code: errCode, errorCode: errCode });
@@ -799,15 +921,19 @@
       if (timeTimer) clearInterval(timeTimer);
       timeTimer = setInterval(function() {
         try {
-          var cur = 0, dur = 0, isLive = false;
+          var cur = 0, dur = 0, isLive = false, st = -1;
           if (fallbackVideo) {
             cur = fallbackVideo.currentTime || 0;
             dur = fallbackVideo.duration || 0;
           } else if (player && typeof player.getCurrentTime === 'function') {
             cur = player.getCurrentTime() || 0;
             dur = player.getDuration() || 0;
+            st = (typeof player.getPlayerState === 'function') ? player.getPlayerState() : -1;
             var vData = (typeof player.getVideoData === 'function') ? player.getVideoData() : null;
-            isLive = Boolean(vData && vData.isLive) || (dur === 0 && player.getPlayerState() === 1);
+            isLive = Boolean(vData && vData.isLive) || (dur === 0 && st === 1);
+            if (cur > 0.05 || st === 1 || st === 3) {
+              hideTapOverlay();
+            }
           } else {
             return;
           }
@@ -815,7 +941,7 @@
             postParent({ type: 'yt_timeupdate', currentTime: cur, duration: isLive ? 0 : dur, isLive: isLive });
           }
         } catch(err) {}
-      }, 450);
+      }, 400);
     }
 
     window.addEventListener('mousemove', function() { postParent({ type: 'yt_mousemove' }); }, { passive: true });
@@ -877,10 +1003,42 @@
           if (typeof player.setPlaybackQuality === 'function') player.setPlaybackQuality(q);
         } else if (d.action === 'loadVideo' && d.videoId && typeof player.loadVideoById === 'function') {
           videoId = String(d.videoId);
+          manualPaused = false;
+          errorTriggered = false;
+          hideTapOverlay();
+          var fbBoxReset = document.getElementById('ytFallbackBox');
+          if (fbBoxReset) fbBoxReset.style.display = 'none';
           player.loadVideoById(videoId, d.startSeconds || 0);
         }
       } catch(e) {}
     });
+
+    // 반드시 onYouTubeIframeAPIReady 정의 후 IFrame API 로드 (캐시 히트 시 콜백 누락 레이스 원천 차단)
+    window.onYouTubeIframeAPIReady = function() {
+      createYtPlayer();
+    };
+    initWatchdog = setTimeout(function() {
+      if (!isReady && !errorTriggered) {
+        errorTriggered = true;
+        tryDirectStreamFallback('INIT_TIMEOUT');
+      }
+    }, 9000);
+
+    if (window.YT && typeof window.YT.Player === 'function') {
+      createYtPlayer();
+    } else if (window.YT && typeof window.YT.ready === 'function') {
+      window.YT.ready(createYtPlayer);
+    } else {
+      var ytApiScript = document.createElement('script');
+      ytApiScript.src = 'https://www.youtube.com/iframe_api';
+      ytApiScript.onerror = function() {
+        if (!errorTriggered) {
+          errorTriggered = true;
+          tryDirectStreamFallback('API_LOAD_FAIL');
+        }
+      };
+      document.head.appendChild(ytApiScript);
+    }
   </script>
 </body>
 </html>`;
@@ -903,9 +1061,9 @@
 
     // 1. System / Status
     if (path === '/api/health') return jsonResp({ status: 'ok', webMode: true });
-    if (path === '/api/system/version') return jsonResp({ version: '1.3.4', webMode: true });
+    if (path === '/api/system/version') return jsonResp({ version: '1.3.5', webMode: true });
     if (path.startsWith('/api/system/update')) {
-      return jsonResp({ success: true, has_update: false, current_version: '1.3.4', latest_version: '1.3.4', webMode: true });
+      return jsonResp({ success: true, has_update: false, current_version: '1.3.5', latest_version: '1.3.5', webMode: true });
     }
     if (path === '/api/network/config') return jsonResp({ success: true, config: { use_cloudflare: false } });
     if (path.startsWith('/api/user/')) {
@@ -1188,11 +1346,11 @@
       const kws = lsGet('yt_keywords', ['치지직', '스텔라이브', '게임']);
       const q = kws[Math.floor(Math.random() * kws.length)] || '치지직';
       let videos = [];
-      const rawInv = await invidiousFetchJson(`/api/v1/search?q=${encodeURIComponent(q)}&type=video`);
+      const rawInv = await invidiousFetchJson(`/api/v1/search?q=${encodeURIComponent(q)}&type=video&region=KR&hl=ko`);
       if (Array.isArray(rawInv) && rawInv.length > 0) {
         videos = rawInv.filter(x => x.type === 'video' || x.videoId).map(mapInvidiousVideo);
       } else {
-        const rawPiped = await pipedFetchJson(`/search?q=${encodeURIComponent(q)}&filter=videos`);
+        const rawPiped = await pipedFetchJson(`/search?q=${encodeURIComponent(q)}&filter=videos&region=KR`);
         if (rawPiped && Array.isArray(rawPiped.items)) {
           videos = rawPiped.items.filter(x => x.url).map(mapPipedVideo);
         } else {
@@ -1207,7 +1365,7 @@
     }
     if (path === '/api/youtube/search') {
       const q = urlObj.searchParams.get('query') || urlObj.searchParams.get('q') || '';
-      let raw = await invidiousFetchJson(`/api/v1/search?q=${encodeURIComponent(q)}`);
+      let raw = await invidiousFetchJson(`/api/v1/search?q=${encodeURIComponent(q)}&region=KR&hl=ko`);
       let videos = [];
       let channels = [];
       if (Array.isArray(raw) && raw.length > 0) {
@@ -1219,7 +1377,7 @@
           subscriberCount: c.subCount ? `${Number(c.subCount).toLocaleString()}명` : ''
         }));
       } else {
-        const pData = await pipedFetchJson(`/search?q=${encodeURIComponent(q)}&filter=all`);
+        const pData = await pipedFetchJson(`/search?q=${encodeURIComponent(q)}&filter=all&region=KR`);
         const pItems = (pData && Array.isArray(pData.items)) ? pData.items : [];
         videos = pItems.filter(x => x.type === 'stream' || (x.url && x.url.includes('watch?v='))).map(mapPipedVideo);
         channels = pItems.filter(x => x.type === 'channel').map(c => ({
@@ -1240,7 +1398,7 @@
         related = data.recommendedVideos.map(mapInvidiousVideo);
       } else {
         const kws = lsGet('yt_keywords', ['치지직', '게임']);
-        const fallbackRaw = await invidiousFetchJson(`/api/v1/search?q=${encodeURIComponent(kws[0] || '치지직')}&type=video`) || await pipedFetchJson('/trending?region=KR');
+        const fallbackRaw = await invidiousFetchJson(`/api/v1/search?q=${encodeURIComponent(kws[0] || '치지직')}&type=video&region=KR&hl=ko`) || await pipedFetchJson('/trending?region=KR');
         if (Array.isArray(fallbackRaw)) {
           related = fallbackRaw
             .map(x => x.videoId ? mapInvidiousVideo(x) : mapPipedVideo(x))

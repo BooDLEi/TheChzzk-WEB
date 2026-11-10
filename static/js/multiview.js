@@ -2321,10 +2321,13 @@ class MultiViewManager {
         <div style="font-size: 13.5px; font-weight: 800; color: #fff; margin-bottom: 4px;">슬롯 ${i + 1} 비어있음</div>
         <div style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 12px;">원하는 플랫폼 또는 콘텐츠를 선택해 추가하세요</div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;" onclick="event.stopPropagation()">
-          ${(slot.channelId || slot.lastChannelId) ? `
+          ${(slot.channelId || slot.lastChannelId || (slot.lastType === 'youtube' && slot.lastYtVideoId)) ? (slot.lastType === 'youtube' ? `
+          <button class="btn btn-sm" style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.6); color: #fff; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;" onclick="window.multiview.reconnectSlot(${i})" title="마지막으로 보던 유튜브 영상 다시 열기">
+            ${ICONS.refresh} '${escapeHtml(slot.lastTitle || slot.channelName || slot.lastChannelName || '이전 영상')}' 다시 열기
+          </button>` : `
           <button class="btn btn-sm" style="background: rgba(0, 255, 163, 0.2); border: 1px solid var(--accent-color); color: #fff; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;" onclick="window.multiview.reconnectSlot(${i})" title="마지막으로 보던 방송 다시 연결">
             ${ICONS.refresh} '${escapeHtml(slot.channelName || slot.lastChannelName || '이전 방송')}' 재접속
-          </button>` : ''}
+          </button>`) : ''}
           <button class="btn btn-sm btn-primary" onclick="window.multiview.promptAddStream(${i}, 'explore')">
             + 치지직 방송
           </button>
@@ -2449,6 +2452,16 @@ class MultiViewManager {
       <span class="slot-title is-secondary" title="${titleEsc}">${titleEsc}</span>
     `;
 
+    const isYt = slot.type === 'youtube';
+    const reconnectTitle = isYt ? '유튜브 영상 새로고침' : '방송 재접속 (새로고침)';
+    const reconnectLabel = isYt ? '영상 새로고침' : '방송 재접속';
+    const errTitle = isYt
+      ? `${escapeHtml(slot.title || slot.channelName || '유튜브 영상')} 재생 오류`
+      : `${escapeHtml(slot.channelName || '방송')} 연결 실패`;
+    const errDefaultMsg = isYt
+      ? '유튜브 영상을 불러오지 못했습니다. 새로고침해 주세요.'
+      : '스트림 연결에 실패했거나 일시적인 네트워크 오류가 발생했습니다.';
+
     return `
       <!-- Top Overlay: Streamer info & controls -->
       <div class="slot-overlay-top">
@@ -2460,8 +2473,8 @@ class MultiViewManager {
           ${streamInfoContentHtml}
         </div>
         <div class="slot-overlay-top-right" id="slot-top-right-${i}" style="display: flex; gap: 5px; align-items: center;">
-          <button class="slot-ctrl-btn slot-reconnect-btn" onclick="window.multiview.reconnectSlot(${i})" title="방송 재접속 (새로고침)">${ICONS.refresh}</button>
-          ${slot.type !== 'youtube' ? `<button class="slot-ctrl-btn" onclick="window.multiview.captureSlotScreenshot(${i})" title="현재 화면 캡처">${ICONS.camera}</button>` : ''}
+          <button class="slot-ctrl-btn slot-reconnect-btn" onclick="window.multiview.reconnectSlot(${i})" title="${reconnectTitle}">${ICONS.refresh}</button>
+          ${!isYt ? `<button class="slot-ctrl-btn" onclick="window.multiview.captureSlotScreenshot(${i})" title="현재 화면 캡처">${ICONS.camera}</button>` : ''}
           <span id="slot-rec-group-${i}" style="display: flex; gap: 5px; align-items: center;">
             ${recordBtnHtml}
           </span>
@@ -2479,11 +2492,11 @@ class MultiViewManager {
             <div class="slot-error-icon">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </div>
-            <div class="slot-error-title">${escapeHtml(slot.channelName || '방송')} 연결 실패</div>
-            <div class="slot-error-msg">${escapeHtml(slot.errorMessage || '스트림 연결에 실패했거나 일시적인 네트워크 오류가 발생했습니다.')}</div>
+            <div class="slot-error-title">${errTitle}</div>
+            <div class="slot-error-msg">${escapeHtml(slot.errorMessage || errDefaultMsg)}</div>
             <div class="slot-error-actions">
               <button class="btn btn-sm btn-primary slot-error-retry-btn" onclick="window.multiview.reconnectSlot(${i})">
-                ${ICONS.refresh} <span>방송 재접속</span>
+                ${ICONS.refresh} <span>${reconnectLabel}</span>
               </button>
               <button class="btn btn-sm btn-ghost" onclick="window.multiview.closeSlot(${i})">
                 슬롯 닫기
@@ -4187,6 +4200,7 @@ class MultiViewManager {
     if (slot.channelId) slot.lastChannelId = slot.channelId;
     if (slot.channelName) slot.lastChannelName = slot.channelName;
     if (slot.title) slot.lastTitle = slot.title;
+    if (slot.thumbnail) slot.lastThumbnail = slot.thumbnail;
     if (slot.type) slot.lastType = slot.type;
     if (slot.videoNo) slot.lastVodNo = slot.videoNo;
     if (slot.videoId || slot.ytVideoId) slot.lastYtVideoId = slot.videoId || slot.ytVideoId;
@@ -4465,17 +4479,23 @@ class MultiViewManager {
     const vodNo = slot.videoNo || slot.vodNo || slot.lastVodNo;
     const ytVideoId = slot.videoId || slot.ytVideoId || slot.lastYtVideoId;
     const clipData = slot.clipData || slot.lastClipData;
+    const isYt = Boolean(type === 'youtube' && ytVideoId);
 
     if (!channelId && !ytVideoId && !vodNo && !clipData) {
-      if (window.app) window.app.showToast('재접속할 방송 정보가 없습니다.', 'warning');
+      if (window.app) window.app.showToast('새로고침하거나 재접속할 영상·방송 정보가 없습니다.', 'warning');
       return;
     }
 
     const reloadBtns = document.querySelectorAll(`#slot-${slotIndex} .slot-reconnect-btn`);
     reloadBtns.forEach(b => b.classList.add('is-reconnecting'));
 
-    const targetName = slot.channelName || slot.lastChannelName || (type === 'youtube' ? '유튜브 영상' : (type === 'vod' ? '다시보기' : '방송'));
-    if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] '${targetName}' 방송 재접속 중...`, 'info');
+    if (isYt) {
+      const ytTitle = slot.title || slot.lastTitle || '유튜브 영상';
+      if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] '${ytTitle}' 유튜브 영상 새로고침 중...`, 'info');
+    } else {
+      const targetName = slot.channelName || slot.lastChannelName || (type === 'vod' ? '다시보기' : '방송');
+      if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] '${targetName}' 방송 재접속 중...`, 'info');
+    }
 
     // Preserve slot preferences
     const prevMuted = slot.muted;
@@ -4486,9 +4506,16 @@ class MultiViewManager {
     slot.errorMessage = null;
 
     try {
-      if (type === 'youtube' && ytVideoId) {
-        await this.loadYouTubeIntoSlot(slotIndex, ytVideoId, slot.title || slot.lastTitle, slot.channelName || slot.lastChannelName);
-        if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] 유튜브 영상에 재접속되었습니다.`, 'success');
+      if (isYt) {
+        await this.loadYouTubeIntoSlot(
+          slotIndex,
+          ytVideoId,
+          slot.title || slot.lastTitle,
+          slot.channelName || slot.lastChannelName,
+          channelId || '',
+          slot.thumbnail || slot.lastThumbnail || ''
+        );
+        if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] 유튜브 영상을 새로고침했습니다.`, 'success');
       } else if (type === 'vod' && vodNo) {
         await this.loadVodIntoSlot(slotIndex, vodNo, slot.title || slot.lastTitle, slot.channelName || slot.lastChannelName, channelId);
         if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] 다시보기에 재접속되었습니다.`, 'success');
@@ -4596,9 +4623,9 @@ class MultiViewManager {
     } catch (err) {
       console.error(`reconnectSlot(${slotIndex}) error:`, err);
       slot.hasError = true;
-      slot.errorMessage = err.message || '방송 재접속에 실패했습니다.';
+      slot.errorMessage = err.message || (isYt ? '유튜브 영상 새로고침에 실패했습니다.' : '방송 재접속에 실패했습니다.');
       this.renderSlots();
-      if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] 재접속 실패: ${err.message || err}`, 'error');
+      if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] ${isYt ? '새로고침 실패' : '재접속 실패'}: ${err.message || err}`, 'error');
     } finally {
       reloadBtns.forEach(b => b.classList.remove('is-reconnecting'));
     }

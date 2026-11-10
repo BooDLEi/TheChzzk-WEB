@@ -429,8 +429,8 @@ class YouTubeUI {
     // Auto-switch to search subtab visually
     this.switchSubTab('search', false);
 
-    // Detect direct YouTube Video URL
-    const ytUrlMatch = query.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/i);
+    // Detect direct YouTube Video URL (watch, short, embed, shorts, live)
+    const ytUrlMatch = query.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|v\/|shorts\/|live\/))([\w-]{11})/i);
     if (ytUrlMatch && ytUrlMatch[1]) {
       const extractedVid = ytUrlMatch[1];
       this.playInMultiview(extractedVid, `유튜브 영상 (${extractedVid})`, 'YouTube', '', `https://i.ytimg.com/vi/${extractedVid}/hqdefault.jpg`);
