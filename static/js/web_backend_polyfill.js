@@ -1104,9 +1104,9 @@
 
     // 1. System / Status
     if (path === '/api/health') return jsonResp({ status: 'ok', webMode: true });
-    if (path === '/api/system/version') return jsonResp({ success: true, version: '1.5.0', webMode: true });
+    if (path === '/api/system/version') return jsonResp({ success: true, version: '1.3.2', webMode: true });
     if (path.startsWith('/api/system/update')) {
-      return jsonResp({ success: true, hasUpdate: false, has_update: false, localVersion: '1.5.0', remoteVersion: '1.5.0', current_version: '1.5.0', latest_version: '1.5.0', webMode: true });
+      return jsonResp({ success: true, hasUpdate: false, has_update: false, localVersion: '1.3.2', remoteVersion: '1.3.2', current_version: '1.3.2', latest_version: '1.3.2', webMode: true });
     }
     if (path === '/api/network/config') return jsonResp({ success: true, config: { use_cloudflare: false } });
     if (path.startsWith('/api/user/')) {
