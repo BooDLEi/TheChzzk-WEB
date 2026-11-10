@@ -1,68 +1,156 @@
 /* ============================================================
-   더치지직 (The Chzzk) - 웹 / 모바일 반응형 보완 스타일 (responsive.css)
-   데스크톱 PC UI를 100% 원본 그대로 유지하면서,
-   모바일(아이폰 Safari 등 900px 이하) 화면에서도 깨지지 않도록 자동 최적화합니다.
+   더치지직 (The Chzzk) - 모바일 웹 & Android APK 세로 최적화 CSS (responsive.css)
+   - PC 데스크톱(901px 이상) UI에는 단 1px도 영향을 주지 않습니다.
+   - 900px 이하 모바일/태블릿 세로 화면에서 상단 메뉴 잘림, 좌우 오버플로우,
+     가로 분할 깨짐을 원천 차단하고 모바일 세로 비율(1열/2열)로 완벽히 재구성합니다.
    ============================================================ */
 
 @media (max-width: 900px) {
-  body {
-    overflow-x: hidden;
+  html, body {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
   }
 
-  /* Header Compact & Scrollable Nav */
+  /* ================= 1. 상단 헤더 & 8개 메뉴 탭 (4x2 풀 노출 - 잘림 0%) ================= */
   header {
     height: auto !important;
+    min-height: 0 !important;
+    padding: max(8px, env(safe-area-inset-top)) 10px 6px 10px !important;
     flex-wrap: wrap !important;
-    padding: 8px 10px !important;
-    gap: 8px !important;
+    gap: 6px !important;
   }
 
   .logo-area {
-    flex-shrink: 0;
+    order: 1;
+    gap: 6px !important;
+  }
+
+  .logo-title {
+    font-size: 14px !important;
   }
 
   .header-actions {
-    margin-left: auto;
+    order: 2;
+    margin-left: auto !important;
     gap: 6px !important;
   }
 
   .master-volume-dual-container {
-    display: none !important; /* 모바일에서는 기기 하드웨어 볼륨 사용, 공간 절약 */
+    display: none !important; /* 모바일은 기기 하드웨어 볼륨 사용, 헤더 공간 확보 */
   }
 
+  .header-recording-pill {
+    font-size: 10.5px !important;
+    padding: 3px 8px !important;
+  }
+
+  .header-recording-popup {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  /* 8개 메인 네비게이션 탭을 4열 x 2행 그리드로 깔끔히 배치 (가로 스크롤/잘림 완전 제거) */
   .nav-tabs {
     order: 3;
-    width: 100%;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    justify-content: flex-start !important;
-    padding-bottom: 4px;
+    flex-basis: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 2px 0 0 0 !important;
+    padding: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     gap: 4px !important;
-  }
-
-  .nav-tabs::-webkit-scrollbar {
-    display: none;
+    overflow: visible !important;
   }
 
   .nav-btn {
-    padding: 6px 10px !important;
-    font-size: 12px !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    padding: 6px 2px !important;
+    font-size: 10.5px !important;
+    line-height: 1.15 !important;
+    position: relative !important;
+    border-radius: 6px !important;
+    background: rgba(255, 255, 255, 0.03) !important;
   }
 
-  /* Explore Layout: Stack Category Bar Above Grid */
+  .nav-btn.active {
+    background: rgba(0, 255, 163, 0.14) !important;
+  }
+
+  .nav-btn svg {
+    width: 14px !important;
+    height: 14px !important;
+    flex-shrink: 0;
+  }
+
+  .nav-btn .badge {
+    position: absolute !important;
+    top: 2px !important;
+    right: 3px !important;
+    font-size: 8.5px !important;
+    padding: 1px 4px !important;
+    min-width: 14px !important;
+    text-align: center !important;
+  }
+
+  /* ================= 2. 공통 탭 컨테이너 & 가로 넘침 방지 ================= */
+  main {
+    flex: 1;
+    min-height: 0;
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow: hidden !important;
+  }
+
+  .tab-pane {
+    padding: 10px !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .section-header,
+  .explore-toolbar,
+  .recorder-filters-bar,
+  .editor-source-header,
+  .timecode-row,
+  .editor-controls-row,
+  .channel-subtabs {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* 인라인 고정 폭 무력화 */
+  .input-box,
+  #clipsChannelSelect,
+  #ytAddKeywordInput,
+  .explore-toolbar > div,
+  .editor-cur-file-info {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* ================= 3. 홈 / 탐색 탭 ================= */
   .explore-layout {
     flex-direction: column !important;
-    height: auto !important;
+    gap: 10px !important;
+    min-height: auto !important;
   }
 
   .category-sidebar {
     width: 100% !important;
+    min-width: 0 !important;
     max-width: 100% !important;
-    border-right: none !important;
-    border-bottom: 1px solid var(--border-color);
-    padding: 8px !important;
+    padding: 6px 8px !important;
   }
 
   .category-sidebar-header,
@@ -74,6 +162,7 @@
     display: flex !important;
     flex-direction: row !important;
     overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
     gap: 6px !important;
     padding: 2px 0 !important;
     max-height: none !important;
@@ -84,80 +173,313 @@
     white-space: nowrap !important;
     padding: 5px 10px !important;
     flex-shrink: 0 !important;
+    font-size: 11.5px !important;
   }
 
   .category-count {
     display: none !important;
   }
 
-  .lives-main-content {
+  /* 2열 세로 피드 카드 그리드 (절대 좌우 안 잘림) */
+  .lives-grid,
+  .vods-grid,
+  .clips-grid,
+  .recordings-grid,
+  .yt-videos-grid,
+  .yt-bookmarks-grid,
+  .yt-channel-videos-grid,
+  .channel-search-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .live-card,
+  .video-card,
+  .yt-video-card,
+  .recording-card {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .card-info,
+  .yt-card-info {
+    padding: 7px 8px !important;
+  }
+
+  .card-title,
+  .yt-card-title {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+  }
+
+  /* ================= 4. 유튜브 탭 ================= */
+  .youtube-sticky-header {
+    top: -10px !important;
+    margin: -10px -10px 10px -10px !important;
     padding: 10px !important;
+    width: calc(100% + 20px) !important;
+    gap: 8px !important;
   }
 
-  .lives-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
-    gap: 10px !important;
+  .yt-search-bar-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    gap: 6px !important;
   }
 
-  .search-controls {
+  .yt-subtab-nav {
+    gap: 5px !important;
+    padding-top: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .yt-subtab-btn {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+  }
+
+  .yt-algorithm-toolbar,
+  .yt-history-toolbar {
     flex-wrap: wrap !important;
     gap: 6px !important;
   }
 
-  /* Multiview Toolbar & Slots */
-  .multiview-toolbar {
-    flex-wrap: wrap !important;
-    gap: 6px !important;
-    padding: 6px 10px !important;
+  /* ================= 5. 멀티뷰 / 플레이어 (완벽 세로 스택 UI) ================= */
+  #multiview-tab.active {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  .multiview-container {
     height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    gap: 8px !important;
   }
 
-  .multiview-grid {
+  .multiview-toolbar {
+    padding: 6px 8px !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .layout-mode-group {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+
+  .layout-mode-btn {
+    flex: 1 1 auto !important;
+    font-size: 11px !important;
+    padding: 5px 6px !important;
+    text-align: center !important;
+  }
+
+  /* 그리드 레이아웃 모드(1x2, 2x2, 3x3, Focus 등 인라인 gridTemplateColumns)를 1열 세로 스택으로 강제 변환 */
+  .players-grid,
+  .players-grid.dynamic-grid,
+  .players-grid.mode-focus,
+  .players-grid.mode-auto,
+  .players-grid.mode-custom {
     display: flex !important;
     flex-direction: column !important;
-    gap: 8px !important;
-    height: auto !important;
-    min-height: 60vh;
-  }
-
-  .slot-card {
-    width: 100% !important;
-    min-height: 240px !important;
-    aspect-ratio: 16 / 9;
-  }
-
-  .slot-body {
-    flex-direction: column !important;
-  }
-
-  .slot-chat-col {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: 260px !important;
-    border-left: none !important;
-    border-top: 1px solid var(--border-color);
-  }
-
-  /* Youtube Layout */
-  .youtube-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important;
     gap: 10px !important;
+    height: auto !important;
+    flex: none !important;
+    width: 100% !important;
   }
 
-  /* Editor & Recorder Layout */
-  .editor-layout,
-  .recorder-layout {
+  /* 슬롯 내부: 비디오(위) + 채팅/댓글/관련영상(아래) 세로 전환! */
+  .player-slot {
+    display: flex !important;
     flex-direction: column !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    position: relative !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
   }
 
-  .editor-sidebar,
-  .recorder-sidebar {
+  .slot-video-area {
+    width: 100% !important;
+    aspect-ratio: 16 / 9 !important;
+    height: auto !important;
+    flex: none !important;
+  }
+
+  /* 슬롯 하단 오버레이 컨트롤바 반응형 압축 */
+  .slot-overlay-bottom {
+    padding: 4px 6px !important;
+    gap: 3px !important;
+  }
+
+  .slot-ctrls-row {
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+
+  .slot-ctrls-center {
+    display: none !important; /* 모바일에서는 상단 바에 이미 제목이 있으므로 하단 중앙 텍스트 숨겨 버튼 겹침 방지 */
+  }
+
+  .slot-btn {
+    padding: 3px 5px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+  }
+
+  .slot-quality-select {
+    max-width: 58px !important;
+    font-size: 10px !important;
+    padding: 2px 3px !important;
+  }
+
+  /* 사이드 도크(치지직 채팅, 유튜브 댓글, 재생목록, 관련영상)를 비디오 하단 세로 배치 */
+  .chat-dock-panel,
+  .slot-playlist-column,
+  .slot-related-column {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: 280px !important;
+    min-height: 240px !important;
+    max-height: 48vh !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border-color) !important;
+  }
+
+  .chat-dock-panel.closed,
+  .slot-playlist-column.collapsed,
+  .slot-related-column.collapsed {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+  }
+
+  .chat-dock-resizer,
+  .slot-playlist-resizer,
+  .slot-related-resizer {
+    display: none !important;
+  }
+
+  /* ================= 6. 편집기 & 녹화 & 설정 & 모달 ================= */
+  .editor-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    gap: 12px !important;
+  }
+
+  .editor-main {
+    width: 100% !important;
+  }
+
+  .preview-player-box {
+    width: 100% !important;
+    aspect-ratio: 16 / 9 !important;
+    flex: none !important;
+  }
+
+  .editor-sidebar {
     width: 100% !important;
     max-width: 100% !important;
   }
 
-  .editor-source-header {
+  .modal-content {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    max-height: 88vh !important;
+    margin: 0 auto !important;
+  }
+
+  .modal-body {
+    padding: 12px !important;
+  }
+
+  /* 모바일 전용 플로팅 PiP 크기 및 위치 안전 조정 */
+  .pip-mini-player {
+    width: 190px !important;
+    right: 8px !important;
+    bottom: 8px !important;
+  }
+
+  /* 채널 상세 & 배너 세로 최적화 */
+  .channel-hero-banner {
+    padding: 12px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .channel-hero-banner > div > div {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .channel-hero-avatar {
+    width: 56px !important;
+    height: 56px !important;
+  }
+
+  #channelLivePlayerSection > div:first-child {
     flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 8px 10px !important;
+  }
+
+  /* 유튜브 채널 탐색 sticky 패널 & 채널 리스트 */
+  .yt-channels-row {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .yt-channel-videos-wrap,
+  .panel-section,
+  .timeline-panel {
+    padding: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  /* 녹화 목록 테이블 가로 스크롤 격리 */
+  .recordings-table-wrap,
+  table {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* iOS/Android input 포커스 시 줌 방지 (최소 14px 또는 viewport user-scalable=no 보조) */
+  input, select, textarea {
+    font-size: 13px !important;
+    max-width: 100% !important;
+  }
+
+  /* 하단 여백 (Safe area) */
+  .tab-pane {
+    padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* 초소형 폰 화면 (380px 이하) 대응 */
+@media (max-width: 380px) {
+  .nav-btn {
+    font-size: 9.5px !important;
+    padding: 5px 1px !important;
+  }
+  .lives-grid,
+  .yt-videos-grid,
+  .clips-grid,
+  .recordings-grid {
     gap: 6px !important;
   }
 }
