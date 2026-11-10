@@ -1,22 +1,22 @@
 /* ============================================================
-   더치지직 (The Chzzk) - 모바일 웹 & Android APK 세로 최적화 CSS (responsive.css)
-   - PC 데스크톱(901px 이상) UI에는 단 1px도 영향을 주지 않습니다.
-   - 900px 이하 모바일/태블릿 세로 화면에서 상단 메뉴 잘림, 좌우 오버플로우,
-     가로 분할 깨짐을 원천 차단하고 모바일 세로 비율(1열/2열)로 완벽히 재구성합니다.
+   더치지직 (The Chzzk) - 모바일 웹 & Android APK 세로/가로 반응형 CSS (responsive.css)
+   - PC 데스크톱 마우스 환경(961px 이상, pointer: fine)에는 단 1px도 영향을 주지 않습니다.
+   - 모바일 세로 + 가로(landscape) 환경에서 상단 메뉴/멀티뷰 툴바 잘림, 좌우 오버플로우,
+     유튜브 댓글/채팅창 레이아웃 깨짐을 원천 차단하고, 자유모드 롱프레스 편집 UI를 제공합니다.
    ============================================================ */
 
-@media (max-width: 900px) {
+@media (max-width: 960px), ((hover: none) and (pointer: coarse) and (max-height: 620px)), ((hover: none) and (pointer: coarse) and (max-width: 1100px)) {
   html, body {
     width: 100% !important;
     max-width: 100vw !important;
     overflow-x: hidden !important;
   }
 
-  /* ================= 1. 상단 헤더 & 8개 메뉴 탭 (4x2 풀 노출 - 잘림 0%) ================= */
+  /* ================= 1. 상단 헤더 & 8개 메뉴 탭 (세로/가로 풀 노출 - 잘림 0%) ================= */
   header {
     height: auto !important;
     min-height: 0 !important;
-    padding: max(8px, env(safe-area-inset-top)) 10px 6px 10px !important;
+    padding: max(6px, env(safe-area-inset-top)) 10px 6px 10px !important;
     flex-wrap: wrap !important;
     gap: 6px !important;
   }
@@ -52,7 +52,7 @@
     max-width: none !important;
   }
 
-  /* 8개 메인 네비게이션 탭을 4열 x 2행 그리드로 깔끔히 배치 (가로 스크롤/잘림 완전 제거) */
+  /* 세로모드 기본: 8개 메인 네비게이션 탭을 4열 x 2행 그리드로 깔끔히 배치 */
   .nav-tabs {
     order: 3;
     flex-basis: 100% !important;
@@ -79,6 +79,42 @@
     position: relative !important;
     border-radius: 6px !important;
     background: rgba(255, 255, 255, 0.03) !important;
+  }
+
+  /* 가로모드 (Landscape: 높이 좁고 폭이 넓은 화면)에서는 헤더를 슬림하게 컴팩트 래핑 */
+  @media (orientation: landscape) and (max-height: 580px) {
+    header {
+      padding: max(4px, env(safe-area-inset-top)) 10px 4px 10px !important;
+      gap: 4px !important;
+    }
+    .logo-title {
+      font-size: 13px !important;
+    }
+    .logo-icon-img {
+      width: 22px !important;
+      height: 22px !important;
+    }
+    .nav-tabs {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      justify-content: flex-start !important;
+      gap: 4px !important;
+      margin-top: 2px !important;
+    }
+    .nav-btn {
+      width: auto !important;
+      flex: 1 1 auto !important;
+      min-width: 64px !important;
+      flex-direction: row !important;
+      gap: 4px !important;
+      padding: 4px 6px !important;
+      font-size: 11px !important;
+      white-space: nowrap !important;
+    }
+    .nav-btn .badge {
+      position: static !important;
+      margin-left: 2px !important;
+    }
   }
 
   .nav-btn.active {
@@ -248,7 +284,7 @@
     gap: 6px !important;
   }
 
-  /* ================= 5. 멀티뷰 / 플레이어 (완벽 세로 스택 UI) ================= */
+  /* ================= 5. 멀티뷰 / 플레이어 (완벽 세로/가로 반응형 + 자유모드 터치 편집) ================= */
   #multiview-tab.active {
     overflow-y: auto !important;
     overflow-x: hidden !important;
@@ -265,28 +301,47 @@
     padding: 6px 8px !important;
     gap: 6px !important;
     flex-wrap: wrap !important;
+    max-width: 100% !important;
+  }
+
+  /* 멀티뷰 툴바 내부 인라인 flex 행이 폭을 넘어 잘리는 현상 방지 */
+  .multiview-toolbar > div {
+    flex-wrap: wrap !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 4px !important;
+  }
+
+  .multiview-toolbar .btn-sm {
+    padding: 4px 7px !important;
+    font-size: 11px !important;
   }
 
   .layout-mode-group {
     width: 100% !important;
+    margin-left: 0 !important;
     display: flex !important;
     flex-wrap: wrap !important;
-    gap: 4px !important;
+    gap: 3px !important;
   }
 
   .layout-mode-btn {
     flex: 1 1 auto !important;
     font-size: 11px !important;
-    padding: 5px 6px !important;
+    padding: 4px 6px !important;
     text-align: center !important;
   }
 
-  /* 그리드 레이아웃 모드(1x2, 2x2, 3x3, Focus 등 인라인 gridTemplateColumns)를 1열 세로 스택으로 강제 변환 */
-  .players-grid,
-  .players-grid.dynamic-grid,
-  .players-grid.mode-focus,
-  .players-grid.mode-auto,
-  .players-grid.mode-custom {
+  #slotCountDisplay {
+    margin-left: 0 !important;
+    font-size: 11.5px !important;
+  }
+
+  /* 그리드 레이아웃 모드(정렬/메인1대형)만 1열 세로 스택으로 강제 변환, 자유모드(mode-custom)는 절대배치 유지! */
+  .players-grid:not(.mode-custom),
+  .players-grid.dynamic-grid:not(.mode-custom),
+  .players-grid.mode-focus:not(.mode-custom),
+  .players-grid.mode-auto:not(.mode-custom) {
     display: flex !important;
     flex-direction: column !important;
     gap: 10px !important;
@@ -295,8 +350,17 @@
     width: 100% !important;
   }
 
-  /* 슬롯 내부: 비디오(위) + 채팅/댓글/관련영상(아래) 세로 전환! */
-  .player-slot {
+  .players-grid.mode-custom {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    min-height: 70vh !important;
+    height: auto !important;
+    overflow: auto !important;
+  }
+
+  /* 슬롯 내부: 정렬/메인모드에서는 세로 스택, 자유모드에서는 지정 위치/크기 유지 */
+  .players-grid:not(.mode-custom) .player-slot {
     display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
@@ -309,10 +373,22 @@
     grid-row: auto !important;
   }
 
+  .players-grid.mode-custom .player-slot {
+    position: absolute !important;
+    display: flex !important;
+    flex-direction: column !important;
+    touch-action: none !important;
+  }
+
   .slot-video-area {
     width: 100% !important;
     aspect-ratio: 16 / 9 !important;
     height: auto !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+
+  .players-grid:not(.mode-custom) .slot-video-area {
     flex: none !important;
   }
 
@@ -345,19 +421,21 @@
 
   /* 사이드 도크(치지직 채팅, 유튜브 댓글, 재생목록, 관련영상)를 비디오 하단 세로 배치 */
   .chat-dock-panel,
+  .slot-chat-column,
   .slot-playlist-column,
   .slot-related-column {
     width: 100% !important;
     min-width: 100% !important;
     max-width: 100% !important;
     height: 280px !important;
-    min-height: 240px !important;
-    max-height: 48vh !important;
+    min-height: 220px !important;
+    max-height: 46vh !important;
     border-left: none !important;
     border-top: 1px solid var(--border-color) !important;
   }
 
   .chat-dock-panel.closed,
+  .slot-chat-column.collapsed,
   .slot-playlist-column.collapsed,
   .slot-related-column.collapsed {
     display: none !important;
@@ -366,6 +444,7 @@
   }
 
   .chat-dock-resizer,
+  .slot-chat-resizer,
   .slot-playlist-resizer,
   .slot-related-resizer {
     display: none !important;
@@ -482,4 +561,97 @@
   .recordings-grid {
     gap: 6px !important;
   }
+}
+
+/* ============================================================
+   터치 / Android APK 자유모드(mode-custom) 전용 슬롯 이동 & 롱프레스 편집 UI
+   - 기본 상태: 실수로 크기조절되지 않도록 모든 resize-handle 비활성화
+   - 260ms 누르고 드래그: 슬롯 자유 이동
+   - 720ms 이상 정지 상태로 꾹 누르기: 해당 슬롯만 '슬롯 편집 모드' 진입 (리사이즈 핸들 활성화)
+   - 슬롯 한 번 탭: 슬롯 편집 모드 종료
+   ============================================================ */
+html.is-touch-mobile .players-grid.mode-custom .resize-handle,
+html.is-android-apk .players-grid.mode-custom .resize-handle {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .players-grid.mode-custom .resize-handle {
+    display: none !important;
+    pointer-events: none !important;
+  }
+  .players-grid.mode-custom .player-slot.touch-slot-edit-mode .resize-handle {
+    display: block !important;
+    pointer-events: auto !important;
+  }
+}
+
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode {
+  box-shadow: 0 0 0 2.5px #00ffa3, 0 0 24px rgba(0, 255, 163, 0.4) !important;
+  z-index: 80 !important;
+}
+
+.players-grid.mode-custom .player-slot.touch-slot-holding-move {
+  box-shadow: 0 0 0 2px #38bdf8, 0 12px 30px rgba(0, 0, 0, 0.65) !important;
+  transform: scale(1.01);
+  transition: transform 0.12s ease;
+  z-index: 75 !important;
+}
+
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode .resize-handle {
+  display: block !important;
+  pointer-events: auto !important;
+  z-index: 95 !important;
+}
+
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode .rh-tl,
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode .rh-tr,
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode .rh-bl,
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode .rh-br {
+  width: 24px !important;
+  height: 24px !important;
+  background: radial-gradient(circle, #00ffa3 42%, rgba(0, 255, 163, 0.25) 70%, transparent 72%) !important;
+  border-radius: 50%;
+}
+
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode .rh-top,
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode .rh-bottom {
+  height: 14px !important;
+  background: rgba(0, 255, 163, 0.16);
+}
+
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode .rh-left,
+.players-grid.mode-custom .player-slot.touch-slot-edit-mode .rh-right {
+  width: 14px !important;
+  background: rgba(0, 255, 163, 0.16);
+}
+
+.slot-touch-edit-badge {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 98;
+  background: rgba(11, 14, 20, 0.92);
+  border: 1.5px solid #00ffa3;
+  color: #00ffa3;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: auto;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.slot-touch-edit-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 88;
+  background: rgba(0, 255, 163, 0.04);
+  touch-action: none;
 }

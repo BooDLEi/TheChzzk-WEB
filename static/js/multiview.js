@@ -335,6 +335,9 @@ class MultiViewManager {
 
   // ================= Layout Mode & Dynamic Grid =================
   setLayoutMode(mode) {
+    if (mode !== 'custom' && typeof this.exitTouchSlotEditMode === 'function') {
+      this.exitTouchSlotEditMode();
+    }
     this.layoutMode = mode;
     [this.layoutAutoBtn, this.layoutFocusBtn, this.layoutCustomBtn].forEach(btn => {
       if (btn) btn.classList.remove('active');
@@ -376,7 +379,8 @@ class MultiViewManager {
 
       const spanClass = slot.spanMode && slot.spanMode !== '1x1' ? `slot-span-${slot.spanMode}` : '';
       const pipClass = (this.pipActiveSlot === slot && slot.type === 'youtube') ? 'pip-hosted-slot' : '';
-      slotEl.className = `player-slot ${slot.active ? 'active-stream' : ''} ${spanClass} ${pipClass}`.trim();
+      const editClass = (this.layoutMode === 'custom' && this.touchEditingSlotIndex === i) ? 'touch-slot-edit-mode' : '';
+      slotEl.className = `player-slot ${slot.active ? 'active-stream' : ''} ${spanClass} ${pipClass} ${editClass}`.trim();
       slotEl.id = `slot-${i}`;
       slotEl.style.order = `${i}`;
 
@@ -421,24 +425,35 @@ class MultiViewManager {
   initCustomPositionsFromCurrent() {
     if (!this.playersGrid) return;
     const gridRect = this.playersGrid.getBoundingClientRect();
+    const isTouchOrMobile = document.documentElement.classList.contains('is-touch-mobile') || document.documentElement.classList.contains('is-android-apk') || window.innerWidth <= 960;
+    const availW = Math.max(260, Math.round((this.playersGrid.clientWidth || window.innerWidth) - 24));
     for (let i = 0; i < this.slotCount; i++) {
       const slot = this.slots[i];
       const slotEl = slot.slotEl || document.getElementById(`slot-${i}`);
-      if (slotEl) {
+      if (slotEl && slot.w === null && slot.h === null) {
         const rect = slotEl.getBoundingClientRect();
         if (rect.width > 20 && rect.height > 20) {
           slot.w = Math.round(rect.width);
           slot.h = Math.round(rect.height);
-          slot.x = Math.round(rect.left - gridRect.left);
-          slot.y = Math.round(rect.top - gridRect.top);
+          slot.x = Math.max(10, Math.round(rect.left - gridRect.left + this.playersGrid.scrollLeft));
+          slot.y = Math.max(10, Math.round(rect.top - gridRect.top + this.playersGrid.scrollTop));
           continue;
         }
       }
       if (slot.w === null || slot.h === null) {
-        slot.w = 380;
-        slot.h = 240;
-        slot.x = (i % 3) * 392 + 14;
-        slot.y = Math.floor(i / 3) * 252 + 14;
+        if (isTouchOrMobile) {
+          const w = Math.min(420, availW);
+          const h = Math.max(160, Math.round(w * 9 / 16));
+          slot.w = w;
+          slot.h = h;
+          slot.x = 12;
+          slot.y = 12 + i * (h + 12);
+        } else {
+          slot.w = 380;
+          slot.h = 240;
+          slot.x = (i % 3) * 392 + 14;
+          slot.y = Math.floor(i / 3) * 252 + 14;
+        }
       }
     }
   }
@@ -1027,6 +1042,7 @@ class MultiViewManager {
 
         // Pointer-based live dragging & center swap / edge dock / freeform move
         this.setupSlotPointerDrag(slotEl, slot);
+        this.setupSlotTouchGestures(slotEl, slot);
 
         this.playersGrid.appendChild(slotEl);
         slot.slotEl = slotEl;
@@ -1034,7 +1050,8 @@ class MultiViewManager {
 
       const spanClass = slot.spanMode && slot.spanMode !== '1x1' ? `slot-span-${slot.spanMode}` : '';
       const pipClass = (this.pipActiveSlot === slot && slot.type === 'youtube') ? 'pip-hosted-slot' : '';
-      slotEl.className = `player-slot ${slot.active ? 'active-stream' : ''} ${spanClass} ${pipClass}`.trim();
+      const editClass = (this.layoutMode === 'custom' && this.touchEditingSlotIndex === i) ? 'touch-slot-edit-mode' : '';
+      slotEl.className = `player-slot ${slot.active ? 'active-stream' : ''} ${spanClass} ${pipClass} ${editClass}`.trim();
       slotEl.id = `slot-${i}`;
       slotEl.style.order = `${i}`;
 
@@ -1221,21 +1238,32 @@ class MultiViewManager {
   }
 
   initMultiDirectionResize(handleEl, slotOrIndex, dir) {
-    handleEl.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
+    const startResizeSession = (startClientX, startClientY, isTouch) => {
       document.body.classList.add('is-slot-resizing');
 
       const slot = typeof slotOrIndex === 'object' ? slotOrIndex : this.slots[slotOrIndex];
-      if (!slot) return;
+      if (!slot) {
+        document.body.classList.remove('is-slot-resizing');
+        return;
+      }
       const slotIndex = this.slots.indexOf(slot);
-      if (slotIndex === -1) return;
+      if (slotIndex === -1) {
+        document.body.classList.remove('is-slot-resizing');
+        return;
+      }
       let slotEl = slot.slotEl || document.getElementById(`slot-${slotIndex}`);
-      if (!slotEl) return;
+      if (!slotEl) {
+        document.body.classList.remove('is-slot-resizing');
+        return;
+      }
+
+      const moveEvt = isTouch ? 'touchmove' : 'mousemove';
+      const endEvt = isTouch ? 'touchend' : 'mouseup';
+      const cancelEvt = isTouch ? 'touchcancel' : null;
+      const getPt = (ev) => isTouch ? ((ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0])) : ev;
 
       // Requirement 1: In Auto/Grid (정렬 모드), resize adjacent columns and rows proportionally while strictly keeping slots attached together and inside one screen
-      if (this.layoutMode === 'auto') {
+      if (!isTouch && this.layoutMode === 'auto') {
         const count = this.slotCount;
         let cols = 1;
         if (count === 1) cols = 1;
@@ -1254,8 +1282,8 @@ class MultiViewManager {
           this.gridRowFractions = new Array(rows).fill(1.0);
         }
 
-        const startX = e.clientX;
-        const startY = e.clientY;
+        const startX = startClientX;
+        const startY = startClientY;
         const initColFr = [...this.gridColFractions];
         const initRowFr = [...this.gridRowFractions];
         const gridW = this.playersGrid.clientWidth || 1000;
@@ -1325,7 +1353,10 @@ class MultiViewManager {
       if (this.layoutMode !== 'custom') {
         this.setLayoutMode('custom');
         slotEl = slot.slotEl || document.getElementById(`slot-${slotIndex}`);
-        if (!slotEl) return;
+        if (!slotEl) {
+          document.body.classList.remove('is-slot-resizing');
+          return;
+        }
       }
 
       const gridRect = this.playersGrid.getBoundingClientRect();
@@ -1342,15 +1373,15 @@ class MultiViewManager {
         }
       }
 
-      const startX = e.clientX;
-      const startY = e.clientY;
+      const startX = startClientX;
+      const startY = startClientY;
       const initialW = slot.w || slotEl.offsetWidth || 380;
       const initialH = slot.h || slotEl.offsetHeight || 240;
       const initialX = slot.x !== null ? slot.x : Math.max(14, Math.round(slotEl.getBoundingClientRect().left - gridRect.left + this.playersGrid.scrollLeft));
       const initialY = slot.y !== null ? slot.y : Math.max(14, Math.round(slotEl.getBoundingClientRect().top - gridRect.top + this.playersGrid.scrollTop));
 
-      const minW = 240;
-      const minH = 150;
+      const minW = isTouch ? 150 : 240;
+      const minH = isTouch ? 95 : 150;
       const snapDist = 14;
       const tolerance = 36;
       const minGapTol = -32;
@@ -1437,10 +1468,12 @@ class MultiViewManager {
       ghostBadge.innerHTML = `<span class="ghost-text">${Math.round(initialW)} × ${Math.round(initialH)}px</span>`;
       ghostBadge.style.display = 'flex';
 
-      const onMouseMove = (ev) => {
-        ev.preventDefault();
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
+      const onPointerMove = (ev) => {
+        const pt = getPt(ev);
+        if (!pt) return;
+        if (ev.cancelable) ev.preventDefault();
+        const dx = pt.clientX - startX;
+        const dy = pt.clientY - startY;
 
         let newW = initialW;
         let newH = initialH;
@@ -1452,7 +1485,6 @@ class MultiViewManager {
         // 1. Horizontal axis resizing
         if (dir.includes('e')) {
           if (linkedSlotsE.length > 0) {
-            // Synchronized linked resize: Slot A expands/shrinks, adjacent Slot B adjusts its left edge and size while keeping a 12px gap
             const minAllowed = minW - initialW;
             const maxAllowed = Math.min(...linkedSlotsE.map(item => (item.initX + item.initW) - (initialX + initialW + 12) - minW));
             const delta = Math.max(minAllowed, Math.min(maxAllowed, dx));
@@ -1468,7 +1500,6 @@ class MultiViewManager {
               }
             });
           } else {
-            // Unlinked horizontal resize with magnetic snap & neighbor collision clamp
             newW = Math.max(minW, Math.round(initialW + dx));
             const candRight = initialX + newW;
             for (let k = 0; k < this.slotCount; k++) {
@@ -1491,7 +1522,6 @@ class MultiViewManager {
           }
         } else if (dir.includes('w')) {
           if (linkedSlotsW.length > 0) {
-            // Synchronized linked resize: dragging left boundary alters Slot A's x & w and expands/shrinks Slot B while keeping a 12px gap
             const maxAllowed = initialW - minW;
             const minAllowed = Math.max(...linkedSlotsW.map(item => (item.initX + minW + 12) - initialX));
             const delta = Math.max(minAllowed, Math.min(maxAllowed, dx));
@@ -1539,7 +1569,6 @@ class MultiViewManager {
         // 2. Vertical axis resizing
         if (dir.includes('s')) {
           if (linkedSlotsS.length > 0) {
-            // Synchronized linked resize: Slot A expands/shrinks vertically, adjacent bottom Slot B adjusts its top edge and height
             const minAllowed = minH - initialH;
             const maxAllowed = Math.min(...linkedSlotsS.map(item => (item.initY + item.initH) - (initialY + initialH + 12) - minH));
             const delta = Math.max(minAllowed, Math.min(maxAllowed, dy));
@@ -1577,7 +1606,6 @@ class MultiViewManager {
           }
         } else if (dir.includes('n')) {
           if (linkedSlotsN.length > 0) {
-            // Synchronized linked resize: dragging top boundary alters Slot A's y & h and expands/shrinks top Slot B
             const maxAllowed = initialH - minH;
             const minAllowed = Math.max(...linkedSlotsN.map(item => (item.initY + minH + 12) - initialY));
             const delta = Math.max(minAllowed, Math.min(maxAllowed, dy));
@@ -1648,9 +1676,10 @@ class MultiViewManager {
         }
       };
 
-      const onMouseUp = () => {
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
+      const onPointerUp = () => {
+        document.removeEventListener(moveEvt, onPointerMove, isTouch ? { passive: false } : undefined);
+        document.removeEventListener(endEvt, onPointerUp);
+        if (cancelEvt) document.removeEventListener(cancelEvt, onPointerUp);
         document.body.classList.remove('is-slot-resizing');
         if (ghostBadge) ghostBadge.remove();
         this.clearMagneticGuides();
@@ -1660,9 +1689,29 @@ class MultiViewManager {
         this.updateGridLayout();
       };
 
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
+      document.addEventListener(moveEvt, onPointerMove, isTouch ? { passive: false } : undefined);
+      document.addEventListener(endEvt, onPointerUp);
+      if (cancelEvt) document.addEventListener(cancelEvt, onPointerUp);
+    };
+
+    handleEl.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      startResizeSession(e.clientX, e.clientY, false);
     });
+
+    handleEl.addEventListener('touchstart', (e) => {
+      const slot = typeof slotOrIndex === 'object' ? slotOrIndex : this.slots[slotOrIndex];
+      const slotIndex = slot ? this.slots.indexOf(slot) : -1;
+      const slotEl = slot ? (slot.slotEl || document.getElementById(`slot-${slotIndex}`)) : null;
+      if (this.layoutMode !== 'custom' || !slotEl || !slotEl.classList.contains('touch-slot-edit-mode')) {
+        return;
+      }
+      if (!e.touches || e.touches.length !== 1) return;
+      e.preventDefault();
+      e.stopPropagation();
+      startResizeSession(e.touches[0].clientX, e.touches[0].clientY, true);
+    }, { passive: false });
   }
 
   initSlotChatResize(e, slotIndex) {
@@ -1913,6 +1962,197 @@ class MultiViewManager {
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     });
+  }
+
+  enterTouchSlotEditMode(slotIndex) {
+    this.exitTouchSlotEditMode();
+    const slotEl = document.getElementById(`slot-${slotIndex}`);
+    if (!slotEl || this.layoutMode !== 'custom') return;
+    this.touchEditingSlotIndex = slotIndex;
+    slotEl.classList.add('touch-slot-edit-mode');
+
+    const shield = document.createElement('div');
+    shield.className = 'slot-touch-edit-shield';
+    shield.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.exitTouchSlotEditMode();
+    });
+    shield.addEventListener('touchend', (ev) => {
+      if (this._justEnteredTouchEditAt && (Date.now() - this._justEnteredTouchEditAt) < 450) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.exitTouchSlotEditMode();
+    }, { passive: false });
+    slotEl.appendChild(shield);
+
+    const badge = document.createElement('div');
+    badge.className = 'slot-touch-edit-badge';
+    badge.innerHTML = `${ICONS.expandSize} <span>크기 조절 모드 · 슬롯 탭 시 완료</span>`;
+    badge.addEventListener('touchend', (ev) => {
+      if (this._justEnteredTouchEditAt && (Date.now() - this._justEnteredTouchEditAt) < 450) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.exitTouchSlotEditMode();
+    }, { passive: false });
+    badge.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.exitTouchSlotEditMode();
+    });
+    slotEl.appendChild(badge);
+    this._justEnteredTouchEditAt = Date.now();
+  }
+
+  exitTouchSlotEditMode() {
+    this.touchEditingSlotIndex = null;
+    document.querySelectorAll('.player-slot.touch-slot-edit-mode').forEach(el => {
+      el.classList.remove('touch-slot-edit-mode');
+    });
+    document.querySelectorAll('.slot-touch-edit-badge, .slot-touch-edit-shield').forEach(el => el.remove());
+  }
+
+  setupSlotTouchGestures(slotEl, slotOrIndex) {
+    let moveTimer = null;
+    let editTimer = null;
+    let gesturePhase = 'idle'; // idle | pending | move_ready | dragging | edit_mode | cancelled
+    let startX = 0;
+    let startY = 0;
+    let initSlotX = 0;
+    let initSlotY = 0;
+    let tapCheckX = 0;
+    let tapCheckY = 0;
+    let tapStartMs = 0;
+
+    const clearTimers = () => {
+      if (moveTimer) { clearTimeout(moveTimer); moveTimer = null; }
+      if (editTimer) { clearTimeout(editTimer); editTimer = null; }
+    };
+
+    slotEl.addEventListener('touchstart', (e) => {
+      if (this.layoutMode !== 'custom') return;
+      if (!e.touches || e.touches.length !== 1) {
+        clearTimers();
+        gesturePhase = 'cancelled';
+        return;
+      }
+
+      const slot = typeof slotOrIndex === 'object' ? slotOrIndex : this.slots[slotOrIndex];
+      if (!slot) return;
+      const index = this.slots.indexOf(slot);
+      if (index === -1) return;
+
+      // 편집 모드 중에는 크기 조절 핸들 우선 허용, 그 외 슬롯 내 1회 탭으로 편집 종료 준비
+      if (slotEl.classList.contains('touch-slot-edit-mode')) {
+        if (e.target.closest('.resize-handle')) return;
+        gesturePhase = 'edit_tap_exit';
+        tapCheckX = e.touches[0].clientX;
+        tapCheckY = e.touches[0].clientY;
+        tapStartMs = Date.now();
+        return;
+      }
+
+      if (e.target.closest('button, input, select, a, .slot-chat-messages, .slot-related-list, .slot-playlist-list, .resize-handle')) {
+        return;
+      }
+
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      initSlotX = (slot.x !== null) ? slot.x : Math.max(8, slotEl.offsetLeft || 12);
+      initSlotY = (slot.y !== null) ? slot.y : Math.max(8, slotEl.offsetTop || 12);
+      gesturePhase = 'pending';
+
+      moveTimer = setTimeout(() => {
+        if (gesturePhase !== 'pending') return;
+        gesturePhase = 'move_ready';
+        slotEl.classList.add('touch-slot-holding-move');
+        if (navigator.vibrate) try { navigator.vibrate(18); } catch (_) {}
+      }, 240);
+
+      editTimer = setTimeout(() => {
+        if (gesturePhase !== 'pending' && gesturePhase !== 'move_ready') return;
+        gesturePhase = 'edit_mode';
+        slotEl.classList.remove('touch-slot-holding-move');
+        this.enterTouchSlotEditMode(index);
+        if (navigator.vibrate) try { navigator.vibrate([25, 35, 25]); } catch (_) {}
+      }, 720);
+    }, { passive: true });
+
+    slotEl.addEventListener('touchmove', (e) => {
+      if (this.layoutMode !== 'custom' || !e.touches || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dist = Math.hypot(t.clientX - startX, t.clientY - startY);
+
+      if (gesturePhase === 'edit_tap_exit') {
+        if (Math.hypot(t.clientX - tapCheckX, t.clientY - tapCheckY) > 12) {
+          gesturePhase = 'cancelled';
+        }
+        return;
+      }
+
+      if (gesturePhase === 'pending' && dist > 12) {
+        clearTimers();
+        gesturePhase = 'cancelled';
+        return;
+      }
+
+      if (gesturePhase === 'move_ready' && dist >= 8) {
+        if (editTimer) { clearTimeout(editTimer); editTimer = null; }
+        gesturePhase = 'dragging';
+      }
+
+      if (gesturePhase === 'dragging') {
+        if (e.cancelable) e.preventDefault();
+        const slot = typeof slotOrIndex === 'object' ? slotOrIndex : this.slots[slotOrIndex];
+        if (!slot) return;
+        const nx = Math.max(8, Math.round(initSlotX + (t.clientX - startX)));
+        const ny = Math.max(8, Math.round(initSlotY + (t.clientY - startY)));
+        slot.x = nx;
+        slot.y = ny;
+        slotEl.style.left = `${nx}px`;
+        slotEl.style.top = `${ny}px`;
+
+        if (this.playersGrid) {
+          const curW = slot.w || slotEl.offsetWidth || 300;
+          const curH = slot.h || slotEl.offsetHeight || 180;
+          if (parseFloat(this.playersGrid.style.minWidth || 0) < nx + curW + 30) {
+            this.playersGrid.style.minWidth = `${nx + curW + 30}px`;
+          }
+          if (parseFloat(this.playersGrid.style.minHeight || 0) < ny + curH + 30) {
+            this.playersGrid.style.minHeight = `${ny + curH + 30}px`;
+          }
+        }
+      }
+    }, { passive: false });
+
+    const finishTouch = (e) => {
+      clearTimers();
+      slotEl.classList.remove('touch-slot-holding-move');
+
+      if (gesturePhase === 'edit_tap_exit') {
+        const dt = Date.now() - tapStartMs;
+        const pt = e.changedTouches && e.changedTouches[0];
+        const moveD = pt ? Math.hypot(pt.clientX - tapCheckX, pt.clientY - tapCheckY) : 0;
+        if (dt < 450 && moveD < 14 && !(this._justEnteredTouchEditAt && (Date.now() - this._justEnteredTouchEditAt) < 450)) {
+          if (e.cancelable) e.preventDefault();
+          this.exitTouchSlotEditMode();
+        }
+      } else if (gesturePhase === 'dragging') {
+        const slot = typeof slotOrIndex === 'object' ? slotOrIndex : this.slots[slotOrIndex];
+        const idx = slot ? this.slots.indexOf(slot) : -1;
+        if (idx !== -1) {
+          this.preventOverlap(idx);
+          slotEl.style.left = `${slot.x}px`;
+          slotEl.style.top = `${slot.y}px`;
+          this.updateGridLayout();
+        }
+      }
+
+      gesturePhase = 'idle';
+    };
+
+    slotEl.addEventListener('touchend', finishTouch, { passive: false });
+    slotEl.addEventListener('touchcancel', finishTouch, { passive: true });
   }
 
   dockSlotToEdge(fromIndex, toIndex, edge) {
@@ -3792,31 +4032,37 @@ class MultiViewManager {
       const safeName = (slot.channelName || 'stream').replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
       const filename = `[캡처]_${safeName}_${timeStr}.png`;
 
-      // Direct download in browser
-      const dataUrl = canvas.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      // Direct download in browser (Android APK saves directly via /api/recordings/save-capture)
+      if (!window.AndroidChzzk) {
+        const dataUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
 
-      // Store in backend recordings/captures/ directory
+      // Store in backend/native recordings/captures/ directory
       canvas.toBlob(async (blob) => {
         if (blob) {
           try {
-            await fetch(`/api/recordings/save-capture?filename=${encodeURIComponent(filename)}`, {
+            const capRes = await fetch(`/api/recordings/save-capture?filename=${encodeURIComponent(filename)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'image/png' },
               body: blob
             });
+            const capData = await capRes.json();
+            if (window.AndroidChzzk && capData && !capData.success && window.app) {
+              window.app.showToast(`캡처 저장 실패: ${capData.error || '권한을 확인해주세요.'}`, 'error');
+            }
           } catch (e) {
             console.warn('Capture save error:', e);
           }
         }
       }, 'image/png');
 
-      if (window.app) window.app.showToast(`📸 '${slot.channelName || '방송'}' 현재 화면 캡처 완료! (${filename})`, 'success');
+      if (window.app) window.app.showToast(`'${slot.channelName || '방송'}' 현재 화면 캡처 완료! (${filename})`, 'success');
     } catch (err) {
       console.error('Screenshot capture failed:', err);
       if (window.app) window.app.showToast('화면 캡처 실패 (보안 제한 또는 캔버스 오류)', 'error');
@@ -6082,6 +6328,12 @@ class MultiViewManager {
       return;
     }
 
+    if (slot.recordJobId || slot._isStartingRecord) {
+      if (window.app) window.app.showToast(`'${slot.channelName}' 방송은 이미 녹화 중입니다.`, 'info');
+      return;
+    }
+
+    slot._isStartingRecord = true;
     if (window.app) window.app.showToast(`'${slot.channelName}' 녹화 시작 중...`, 'info');
     try {
       const res = await fetch('/api/recorder/start', {
@@ -6092,7 +6344,7 @@ class MultiViewManager {
           channel_name: slot.channelName,
           title: slot.title,
           quality_name: 'Original',
-          stream_url: slot.streamUrl
+          stream_url: slot.hlsUrl || slot.streamUrl
         })
       });
       const data = await res.json();
@@ -6101,17 +6353,25 @@ class MultiViewManager {
           if (window.app) window.app.showToast(`녹화 시작 실패: ${data.job.errorMessage || '스트림 접근 불가'}`, 'error');
           return;
         }
-        slot.recordJobId = data.job.jobId;
-        slot.recordStatus = 'recording';
+        slot.recordJobId = data.job.jobId || data.job.job_id || data.job_id;
+        slot.recordStatus = data.job.status || 'recording';
         this.updateSlotRecordUI(slotIndex);
         if (window.recorderUI) window.recorderUI.loadJobs();
         if (window.app) window.app.showToast(`'${slot.channelName}' 실시간 녹화 시작! (슬롯에서 제어 가능)`, 'success');
+      } else if (data.alreadyRecording && data.job) {
+        slot.recordJobId = data.job.jobId || data.job.job_id || data.job_id;
+        slot.recordStatus = data.job.status || 'recording';
+        this.updateSlotRecordUI(slotIndex);
+        if (window.recorderUI) window.recorderUI.loadJobs();
+        if (window.app) window.app.showToast(data.error || '이미 해당 방송을 녹화 중입니다.', 'info');
       } else {
         if (window.app) window.app.showToast(data.error || '녹화 시작 요청 실패', 'error');
       }
     } catch (err) {
       console.error(err);
       if (window.app) window.app.showToast('녹화 시작 오류', 'error');
+    } finally {
+      slot._isStartingRecord = false;
     }
   }
 
