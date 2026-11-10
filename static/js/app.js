@@ -865,7 +865,7 @@ class ChzzkApp {
         const followingIds = this.followingChannelIds || new Set();
 
         this.channelSearchResultsGrid.innerHTML = channels.map(ch => {
-          const avatar = escapeHtml(ch.channelImageUrl || '/static/img/default_avatar.png');
+          const avatar = escapeHtml(ch.channelImageUrl || './static/img/default_avatar.png');
           const nameEsc = escapeHtml(ch.channelName || ch.channelId);
           const followers = Number(ch.followerCount || 0).toLocaleString();
           const isLive = Boolean(ch.openLive);
@@ -1429,7 +1429,7 @@ class ChzzkApp {
     const chId = live.channelId;
     const name = live.channelName || '스트리머';
     const title = live.liveTitle || live.title || '새 방송을 시작했습니다.';
-    const avatar = live.channelImageUrl || '/static/img/favicon.png';
+    const avatar = live.channelImageUrl || './static/img/favicon.png';
 
     // 1. Play soft chime
     this.playNotificationSound();
@@ -1461,7 +1461,7 @@ class ChzzkApp {
     const chId = live.channelId;
     const name = escapeHtml(live.channelName || '스트리머');
     const title = escapeHtml(live.liveTitle || live.title || '새 방송을 시작했습니다.');
-    const avatar = escapeHtml(live.channelImageUrl || '/static/img/favicon.png');
+    const avatar = escapeHtml(live.channelImageUrl || './static/img/favicon.png');
 
     const item = document.createElement('div');
     item.className = 'live-notify-toast';

@@ -202,7 +202,7 @@ class ClipsUI {
     bookmarks.forEach(item => {
       const chId = item.channelId;
       const chName = item.channelName || '스트리머';
-      const imgUrl = item.channelImageUrl || '/static/img/default_avatar.png';
+      const imgUrl = item.channelImageUrl || './static/img/default_avatar.png';
       const isLive = Boolean(item.openLive || item.isOnline);
 
       const chip = document.createElement('div');
@@ -211,7 +211,7 @@ class ClipsUI {
 
       chip.innerHTML = `
         <div class="following-chip-avatar-wrap">
-          <img src="${imgUrl}" loading="lazy" alt="${chName}" onerror="this.src='/static/img/default_avatar.png'">
+          <img src="${imgUrl}" loading="lazy" alt="${chName}" onerror="this.src='./static/img/default_avatar.png'">
           ${isLive ? '<span class="following-chip-live-dot"></span>' : ''}
         </div>
         <div class="following-chip-name">${chName}</div>

@@ -1,18 +1,17 @@
 /**
- * 더치지직 (The Chzzk) 무백엔드 / 퍼블릭 정적 웹용 가상 백엔드 폴리필
- * - 프로그램 UI(index.html) 100% 그대로 GitHub Pages(퍼블릭) 및 아이폰/타 PC 브라우저에서 실행
- * - 모든 개인 데이터(즐겨찾기, 재생목록, 나중에 볼 영상, 키워드, 시청기록)는 브라우저 localStorage에 독립 저장 (토큰 불필요)
- * - 실시간 치지직/유튜브 API CORS 프록시 자동 처리
- * - 브라우저 MediaRecorder 기반 실시간 방송 녹화 및 파일 다운로드 지원
+ * 더치지직 (The Chzzk) 무백엔드 웹버전 & 안드로이드 APK 네이티브 브릿지 전용 폴리필
+ * - GEMINI.md 격리 규칙: 이 파일 내 웹 전용 UI/동작은 오직 window.__IS_STATIC_WEB__ === true 일 때만 활성화되며
+ *   PC 클라이언트(TheChzzk.exe) 실행 시에는 단 1픽셀도 영향을 주지 않습니다.
  */
 
 (function() {
   const originalFetch = window.fetch.bind(window);
   const host = window.location.hostname;
   const isLocalHost = (host === '127.0.0.1' || host === 'localhost') && window.location.protocol !== 'file:';
+  const hasAndroidBridge = Boolean(window.AndroidChzzk);
 
-  // 정적 호스팅(github.io, netlify, vercel, file:) 이거나 강제 플래그가 있으면 즉시 정적 웹 모드 활성화
-  window.__IS_STATIC_WEB__ = Boolean(window.__FORCE_STATIC_WEB__ || !isLocalHost);
+  // 정적 호스팅(GitHub Pages 등), file:, Android WebView, 또는 강제 플래그 시 정적 웹/앱 모드 활성화
+  window.__IS_STATIC_WEB__ = Boolean(window.__FORCE_STATIC_WEB__ || hasAndroidBridge || !isLocalHost);
 
   const LS_PREFIX = 'thechzzk_web_';
   function lsGet(k, def) {
@@ -27,51 +26,119 @@
     } catch (e) {}
   }
 
-  // CORS 프록시 목록 (실시간 200 OK 검증된 프록시 우선순위)
-  const CORS_PROXIES = [
-    (u) => `https://api.cors.lol/?url=${encodeURIComponent(u)}`,
-    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
-  ];
+  // XSS 방어용 텍스트 정제 헬퍼 (외부 API 응답 내 악성 HTML/스크립트 차단)
+  function sanitizeText(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, '');
+  }
 
+  // 안전한 YouTube ID 정제
+  function cleanYtId(id) {
+    return String(id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  }
+
+  // 캐시 및 상태 저장소
   let cachedLivesList = [];
   let cachedLivesTs = 0;
   const channelChatIdMap = {};
-
-  // Live Web MediaRecorder Jobs Map
   const webRecorderJobs = {};
-  const webCompletedRecordings = [];
+  const webCompletedRecordings = []; // 브라우저 녹화 또는 폴더에서 불러온 비디오
+  const webLocalCaptures = [];       // 폴더에서 불러온 이미지
+  let selectedDirectoryHandle = null;
 
+  // ================= CORS 프록시 & Android Native Fetch =================
   async function proxyFetchJson(targetUrl) {
-    for (let i = 0; i < CORS_PROXIES.length; i++) {
+    // 0순위: Android APK 네이티브 자바 HTTP 인터셉터 (CORS 0%, Rate Limit 0%)
+    if (window.AndroidChzzk && typeof window.AndroidChzzk.nativeFetch === 'function') {
       try {
-        const res = await originalFetch(CORS_PROXIES[i](targetUrl), {
-          headers: { 'Accept': 'application/json' },
-          signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
-        });
-        if (res.ok) {
-          const text = await res.text();
-          if (text && text.trim().startsWith('{')) {
-            return JSON.parse(text);
-          }
+        const raw = window.AndroidChzzk.nativeFetch(targetUrl);
+        if (raw && raw.trim().startsWith('{')) {
+          return JSON.parse(raw);
         }
       } catch (e) {}
     }
+
+    // 1순위: r.jina.ai (Simple GET, no custom headers -> no CORS preflight, 200 OK)
+    const proxyList = [
+      {
+        name: 'jina',
+        url: `https://r.jina.ai/${targetUrl}`,
+        parse: (txt) => {
+          const idx = txt.indexOf('{');
+          if (idx === -1) return null;
+          const parsed = JSON.parse(txt.slice(idx));
+          if (parsed && parsed.data && typeof parsed.data.content === 'string') {
+            return JSON.parse(parsed.data.content);
+          }
+          return parsed;
+        }
+      },
+      {
+        name: 'cors.lol',
+        url: `https://api.cors.lol/?url=${encodeURIComponent(targetUrl)}`,
+        parse: (txt) => JSON.parse(txt)
+      },
+      {
+        name: 'codetabs',
+        url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+        parse: (txt) => JSON.parse(txt)
+      },
+      {
+        name: 'allorigins',
+        url: `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+        parse: (txt) => JSON.parse(txt)
+      }
+    ];
+
+    for (const p of proxyList) {
+      try {
+        const res = await originalFetch(p.url, {
+          method: 'GET',
+          credentials: 'omit',
+          signal: AbortSignal.timeout ? AbortSignal.timeout(9000) : undefined
+        });
+        if (!res.ok) continue;
+        const txt = await res.text();
+        if (!txt) continue;
+        const parsed = p.parse(txt);
+        if (parsed && (parsed.code === 200 || parsed.content)) {
+          return parsed;
+        }
+      } catch (e) {
+        // Fallback to next proxy
+      }
+    }
+
     throw new Error('프록시를 통한 데이터 수신 실패: ' + targetUrl);
   }
 
-  // Invidious CORS 인스턴스 관리 (유튜브 검색, 추천, 댓글)
+  // Invidious CORS-enabled API
   let invidiousBase = 'https://yt.chocolatemoo53.com';
   async function invidiousFetchJson(ep) {
+    // Android 네이티브 브릿지 우선
+    if (window.AndroidChzzk && typeof window.AndroidChzzk.nativeFetch === 'function') {
+      try {
+        const raw = window.AndroidChzzk.nativeFetch(`${invidiousBase}${ep}`);
+        if (raw && (raw.trim().startsWith('{') || raw.trim().startsWith('['))) {
+          return JSON.parse(raw);
+        }
+      } catch (e) {}
+    }
+
     try {
       const res = await originalFetch(`${invidiousBase}${ep}`, {
+        credentials: 'omit',
         signal: AbortSignal.timeout ? AbortSignal.timeout(7000) : undefined
       });
       if (res.ok) return await res.json();
     } catch (e) {}
-    // Fallback: instance list lookup
+
+    // Live instance fallback
     try {
       const listRes = await originalFetch('https://api.invidious.io/instances.json?sort_by=health', {
+        credentials: 'omit',
         signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined
       });
       if (listRes.ok) {
@@ -80,6 +147,7 @@
           if (info && info.api && info.cors && info.uri && info.uri !== invidiousBase) {
             try {
               const r = await originalFetch(`${info.uri}${ep}`, {
+                credentials: 'omit',
                 signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined
               });
               if (r.ok) {
@@ -105,26 +173,39 @@
   }
 
   function mapInvidiousVideo(item) {
-    const vid = item.videoId;
-    const thumb = (item.videoThumbnails && item.videoThumbnails.length > 0)
-      ? (item.videoThumbnails.find(t => t.quality === 'medium' || t.quality === 'high')?.url || item.videoThumbnails[0].url)
-      : `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
+    const vid = cleanYtId(item.videoId);
+    // 썸네일은 깨지는 Invidious 프록시 URL 대신 항상 공식 YouTube i.ytimg.com CDN 사용!
+    const officialThumb = vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : './static/img/favicon.png';
     return {
       videoId: vid,
       id: vid,
-      title: item.title || '',
-      channelName: item.author || 'YouTube',
-      channelTitle: item.author || 'YouTube',
-      channelId: item.authorId || '',
+      title: sanitizeText(item.title || ''),
+      channelName: sanitizeText(item.author || 'YouTube'),
+      channelTitle: sanitizeText(item.author || 'YouTube'),
+      channelId: cleanYtId(item.authorId || ''),
       channelUrl: item.authorUrl || '',
-      thumbnail: thumb,
-      thumbnails: [{ url: thumb }],
+      thumbnail: officialThumb,
+      thumbnails: [{ url: officialThumb }],
       duration: formatDuration(item.lengthSeconds),
       lengthSeconds: item.lengthSeconds || 0,
-      viewCount: item.viewCount ? `${Number(item.viewCount).toLocaleString()}회` : (item.viewCountText || ''),
-      publishedTime: item.publishedText || '',
+      viewCount: item.viewCount ? `${Number(item.viewCount).toLocaleString()}회` : sanitizeText(item.viewCountText || ''),
+      publishedTime: sanitizeText(item.publishedText || ''),
       isLive: Boolean(item.liveNow)
     };
+  }
+
+  function resolveAvatarUrl(c) {
+    let rawUrl = '';
+    if (Array.isArray(c.authorThumbnails) && c.authorThumbnails.length > 0) {
+      rawUrl = c.authorThumbnails[0].url || '';
+    } else if (c.authorThumbnail) {
+      rawUrl = c.authorThumbnail;
+    }
+    if (!rawUrl) return './static/img/favicon.png';
+    if (rawUrl.startsWith('//')) return 'https:' + rawUrl;
+    if (rawUrl.startsWith('/')) return invidiousBase + rawUrl;
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) return rawUrl;
+    return './static/img/favicon.png';
   }
 
   function jsonResp(obj, status = 200) {
@@ -134,12 +215,15 @@
     });
   }
 
-  // YouTube Ad-Free Embed HTML 생성기 (iframe srcdoc 용)
+  // YouTube IFrame Embed HTML 생성기 (iframe srcdoc 용 - Strict Sanitization)
   function generateYoutubeEmbedHtml(videoId, slotIndex = 0, autoplay = true, startSeconds = 0) {
-    const cleanVid = String(videoId).replace(/[^a-zA-Z0-9_-]/g, '');
+    const cleanVid = cleanYtId(videoId);
+    const safeSlot = parseInt(slotIndex, 10) || 0;
     const autoplayVal = autoplay ? 1 : 0;
-    const startSecVal = (startSeconds && startSeconds > 0) ? parseInt(startSeconds, 10) : 0;
-    const origin = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'https://www.youtube.com';
+    const startSecVal = Math.max(0, parseInt(startSeconds, 10) || 0);
+    const safeOrigin = (window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file:'))
+      ? window.location.origin
+      : 'https://www.youtube.com';
 
     return `<!DOCTYPE html>
 <html lang="ko">
@@ -156,7 +240,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     var player = null;
-    var slotIndex = ${slotIndex};
+    var slotIndex = ${safeSlot};
     var timeTimer = null;
 
     function onYouTubeIframeAPIReady() {
@@ -176,7 +260,7 @@
           playsinline: 1,
           enablejsapi: 1,
           start: ${startSecVal},
-          origin: '${origin}'
+          origin: '${safeOrigin}'
         },
         events: {
           onReady: function(e) {
@@ -235,7 +319,7 @@
 </html>`;
   }
 
-  // API Virtual Router
+  // ================= API Virtual Router =================
   async function handleVirtualApi(urlStr, options = {}) {
     const urlObj = new URL(urlStr, window.location.origin);
     const path = urlObj.pathname;
@@ -246,18 +330,12 @@
     }
 
     // 1. System / Status
-    if (path === '/api/health') {
-      return jsonResp({ status: 'ok', webMode: true });
-    }
-    if (path === '/api/system/version') {
-      return jsonResp({ version: '1.3.1', webMode: true });
-    }
+    if (path === '/api/health') return jsonResp({ status: 'ok', webMode: true });
+    if (path === '/api/system/version') return jsonResp({ version: '1.3.1', webMode: true });
     if (path.startsWith('/api/system/update')) {
       return jsonResp({ success: true, has_update: false, current_version: '1.3.1', latest_version: '1.3.1', webMode: true });
     }
-    if (path === '/api/network/config') {
-      return jsonResp({ success: true, config: { use_cloudflare: false } });
-    }
+    if (path === '/api/network/config') return jsonResp({ success: true, config: { use_cloudflare: false } });
     if (path.startsWith('/api/user/')) {
       if (path === '/api/user/status') return jsonResp({ loggedIn: false, webMode: true });
       if (path === '/api/user/following-lives') return jsonResp({ success: true, lives: [] });
@@ -266,34 +344,22 @@
       if (path === '/api/user/logpower/status') return jsonResp({ success: false, has_cookies: false });
       return jsonResp({ success: true });
     }
-    if (path.startsWith('/api/diagnostics')) {
-      return jsonResp({ success: true, logs: [] });
-    }
+    if (path.startsWith('/api/diagnostics')) return jsonResp({ success: true, logs: [] });
 
-    // 2. Chzzk Lives List
+    // 2. Chzzk Lives List (1회 50개 요청 + 30초 캐싱으로 Rate Limit 원천 차단)
     if (path === '/api/lives') {
       const sortType = urlObj.searchParams.get('sortType') || 'POPULAR';
       const keyword = (urlObj.searchParams.get('keyword') || '').toLowerCase();
       const now = Date.now();
-      if (cachedLivesList.length > 0 && (now - cachedLivesTs) < 15000 && !keyword) {
+      if (cachedLivesList.length > 0 && (now - cachedLivesTs) < 30000 && !keyword) {
         return jsonResp({ success: true, total: cachedLivesList.length, lives: cachedLivesList });
       }
       try {
-        let allRaw = [];
-        let nextParams = `size=50&sortType=${sortType}`;
-        // Fetch up to 3 pages (150 streams) for rapid response in browser
-        for (let p = 0; p < 3; p++) {
-          const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v1/lives?${nextParams}`);
-          if (!data || data.code !== 200 || !data.content) break;
-          const items = data.content.data || [];
-          allRaw = allRaw.concat(items);
-          const nextObj = data.content.page && data.content.page.next;
-          if (!nextObj || items.length < 50) break;
-          nextParams = `size=50&sortType=${sortType}&concurrentUserCount=${nextObj.concurrentUserCount}&liveId=${nextObj.liveId}`;
-        }
+        const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v1/lives?size=50&sortType=${sortType}`);
+        const items = (data && data.content && data.content.data) ? data.content.data : [];
         const seen = new Set();
         let lives = [];
-        for (const item of allRaw) {
+        for (const item of items) {
           const ch = item.channel || {};
           if (!ch.channelId || seen.has(ch.channelId)) continue;
           seen.add(ch.channelId);
@@ -302,19 +368,21 @@
           lives.push({
             liveId: item.liveId,
             channelId: ch.channelId,
-            channelName: ch.channelName || '스트리머',
-            channelImageUrl: ch.channelImageUrl || '',
+            channelName: sanitizeText(ch.channelName || '스트리머'),
+            channelImageUrl: ch.channelImageUrl || './static/img/favicon.png',
             verifiedMark: Boolean(ch.verifiedMark),
-            liveTitle: item.liveTitle || '',
+            liveTitle: sanitizeText(item.liveTitle || ''),
             categoryType: item.liveCategory,
-            categoryValue: item.liveCategoryValue || '기타',
+            categoryValue: sanitizeText(item.liveCategoryValue || '기타'),
             userCount: item.concurrentUserCount || 0,
             thumbUrl: thumb,
             openDate: item.openDate || ''
           });
         }
-        cachedLivesList = lives;
-        cachedLivesTs = now;
+        if (lives.length > 0) {
+          cachedLivesList = lives;
+          cachedLivesTs = now;
+        }
         if (keyword) {
           lives = lives.filter(l =>
             l.channelName.toLowerCase().includes(keyword) ||
@@ -324,6 +392,9 @@
         }
         return jsonResp({ success: true, total: lives.length, lives });
       } catch (e) {
+        if (cachedLivesList.length > 0) {
+          return jsonResp({ success: true, total: cachedLivesList.length, lives: cachedLivesList });
+        }
         return jsonResp({ success: false, error: '치지직 방송 목록을 불러오지 못했습니다.', lives: [] });
       }
     }
@@ -351,10 +422,10 @@
           success: true,
           isOnline: true,
           channelId,
-          channelName: ch.channelName || channelId,
-          channelImageUrl: ch.channelImageUrl || '',
-          title: content.liveTitle || '',
-          categoryValue: content.liveCategoryValue || '기타',
+          channelName: sanitizeText(ch.channelName || channelId),
+          channelImageUrl: ch.channelImageUrl || './static/img/favicon.png',
+          title: sanitizeText(content.liveTitle || ''),
+          categoryValue: sanitizeText(content.liveCategoryValue || '기타'),
           userCount: content.concurrentUserCount || 0,
           thumbUrl: thumb,
           masterUrl: primary.path,
@@ -368,7 +439,7 @@
       }
     }
 
-    // 4. Chzzk Channel Search & Info
+    // 4. Chzzk Channel Search & Info & Clips & Videos
     if (path === '/api/channels/search') {
       const kw = urlObj.searchParams.get('keyword') || '';
       const size = urlObj.searchParams.get('size') || 25;
@@ -379,8 +450,8 @@
           const ch = item.channel || {};
           return {
             channelId: ch.channelId,
-            channelName: ch.channelName,
-            channelImageUrl: ch.channelImageUrl,
+            channelName: sanitizeText(ch.channelName),
+            channelImageUrl: ch.channelImageUrl || './static/img/favicon.png',
             verifiedMark: Boolean(ch.verifiedMark),
             followerCount: ch.followerCount || 0,
             openLive: Boolean(ch.openLive)
@@ -398,8 +469,7 @@
       const size = urlObj.searchParams.get('size') || 24;
       try {
         const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v1/channels/${cid}/clips?size=${size}&orderType=${orderType}`);
-        const list = (data && data.content && data.content.data) || [];
-        return jsonResp({ success: true, clips: list });
+        return jsonResp({ success: true, clips: (data && data.content && data.content.data) || [] });
       } catch (e) {
         return jsonResp({ success: false, clips: [] });
       }
@@ -410,8 +480,7 @@
       const size = urlObj.searchParams.get('size') || 24;
       try {
         const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v1/channels/${cid}/videos?size=${size}`);
-        const list = (data && data.content && data.content.data) || [];
-        return jsonResp({ success: true, videos: list });
+        return jsonResp({ success: true, videos: (data && data.content && data.content.data) || [] });
       } catch (e) {
         return jsonResp({ success: false, videos: [] });
       }
@@ -425,11 +494,11 @@
         return jsonResp({
           success: true,
           channelId: c.channelId,
-          channelName: c.channelName,
-          channelImageUrl: c.channelImageUrl,
+          channelName: sanitizeText(c.channelName),
+          channelImageUrl: c.channelImageUrl || './static/img/favicon.png',
           followerCount: c.followerCount || 0,
           openLive: Boolean(c.openLive),
-          description: c.channelDescription || ''
+          description: sanitizeText(c.channelDescription || '')
         });
       } catch (e) {
         return jsonResp({ success: false });
@@ -468,8 +537,7 @@
         const c = (data && data.content) || {};
         const emojiMap = {};
         for (const key of ['emojiPacks', 'subscriptionEmojiPacks', 'officialEmojiPacks']) {
-          const packs = c[key] || [];
-          for (const p of packs) {
+          for (const p of (c[key] || [])) {
             for (const em of (p.emojis || [])) {
               if (em.emojiId && em.imageUrl) emojiMap[em.emojiId] = em.imageUrl;
             }
@@ -508,7 +576,7 @@
         if (cid && !bms.some(b => (b.channel_id || b.channelId) === cid)) {
           bms.unshift({
             channel_id: cid,
-            channel_name: bodyObj.channel_name || cid,
+            channel_name: sanitizeText(bodyObj.channel_name || cid),
             channel_image_url: bodyObj.channel_image_url || '',
             notify_enabled: true,
             added_at: new Date().toISOString()
@@ -519,8 +587,7 @@
       }
     }
     if (path.startsWith('/api/bookmarks/')) {
-      const parts = path.split('/');
-      const cid = parts[3];
+      const cid = path.split('/')[3];
       if (method === 'DELETE') {
         let bms = lsGet('bookmarks', []);
         bms = bms.filter(b => (b.channel_id || b.channelId) !== cid);
@@ -530,7 +597,7 @@
       return jsonResp({ success: true, notify: true });
     }
 
-    // 7. YouTube Data & Personal LocalStorage
+    // 7. YouTube Data (Related Thumbnails & Comments 스키마 100% 일치 + 라이브 폴백!)
     if (path === '/api/youtube/recommendations') {
       const kws = lsGet('yt_keywords', ['치지직', '스텔라이브', '게임']);
       const q = kws[Math.floor(Math.random() * kws.length)] || '치지직';
@@ -543,42 +610,83 @@
       const raw = await invidiousFetchJson(`/api/v1/search?q=${encodeURIComponent(q)}`);
       const videos = Array.isArray(raw) ? raw.filter(x => x.type === 'video' || x.videoId).map(mapInvidiousVideo) : [];
       const channels = Array.isArray(raw) ? raw.filter(x => x.type === 'channel').map(c => ({
-        channelId: c.authorId,
-        channelName: c.author,
-        thumbnail: (c.authorThumbnails && c.authorThumbnails[0]) ? c.authorThumbnails[0].url : '',
+        channelId: cleanYtId(c.authorId),
+        channelName: sanitizeText(c.author),
+        thumbnail: (c.authorThumbnails && c.authorThumbnails[0]) ? c.authorThumbnails[0].url : './static/img/favicon.png',
         subscriberCount: c.subCount ? `${Number(c.subCount).toLocaleString()}명` : ''
       })) : [];
       return jsonResp({ success: true, query: q, videos, channels, total: videos.length });
     }
     if (path.startsWith('/api/youtube/related/')) {
-      const vid = path.split('/').pop();
+      const vid = cleanYtId(path.split('/').pop());
+      let related = [];
       const data = await invidiousFetchJson(`/api/v1/videos/${vid}`);
-      const related = (data && Array.isArray(data.recommendedVideos)) ? data.recommendedVideos.map(mapInvidiousVideo) : [];
+      if (data && Array.isArray(data.recommendedVideos) && data.recommendedVideos.length > 0) {
+        related = data.recommendedVideos.map(mapInvidiousVideo);
+      } else {
+        // Fallback when Invidious video detail fails (e.g. live stream)
+        const kws = lsGet('yt_keywords', ['치지직', '게임']);
+        const fallbackRaw = await invidiousFetchJson(`/api/v1/search?q=${encodeURIComponent(kws[0] || '치지직')}&type=video`) || await invidiousFetchJson('/api/v1/trending?region=KR');
+        if (Array.isArray(fallbackRaw)) {
+          related = fallbackRaw.filter(x => (x.type === 'video' || x.videoId) && x.videoId !== vid).map(mapInvidiousVideo);
+        }
+      }
       return jsonResp({ success: true, videos: related });
     }
+    if (path.startsWith('/api/youtube/comments/replies')) {
+      const token = urlObj.searchParams.get('continuation') || urlObj.searchParams.get('token') || '';
+      const vid = cleanYtId(urlObj.searchParams.get('video_id') || '');
+      if (!token || !vid) return jsonResp({ success: false, replies: [] });
+      const data = await invidiousFetchJson(`/api/v1/comments/${vid}?continuation=${encodeURIComponent(token)}`);
+      const replies = (data && Array.isArray(data.comments)) ? data.comments.map(c => ({
+        id: c.commentId,
+        author: sanitizeText(c.author || '익명'),
+        avatar: resolveAvatarUrl(c),
+        published: sanitizeText(c.publishedText || ''),
+        content: sanitizeText(c.content || ''),
+        likeCount: c.likeCount > 0 ? String(c.likeCount) : ''
+      })) : [];
+      return jsonResp({ success: true, replies, continuationToken: data ? data.continuation : null });
+    }
     if (path.startsWith('/api/youtube/comments/')) {
-      const vid = path.split('/').pop();
+      const vid = cleanYtId(path.split('/').pop());
       const cont = urlObj.searchParams.get('continuation') || '';
       const ep = `/api/v1/comments/${vid}` + (cont ? `?continuation=${encodeURIComponent(cont)}` : '');
-      const data = await invidiousFetchJson(ep);
-      const comments = (data && Array.isArray(data.comments)) ? data.comments.map(c => ({
+      const [cData, vData] = await Promise.all([
+        invidiousFetchJson(ep),
+        cont ? Promise.resolve(null) : invidiousFetchJson(`/api/v1/videos/${vid}`)
+      ]);
+      const comments = (cData && Array.isArray(cData.comments)) ? cData.comments.map(c => ({
         id: c.commentId,
-        author: c.author,
-        authorThumb: (c.authorThumbnails && c.authorThumbnails[0]) ? c.authorThumbnails[0].url : '',
-        text: c.contentHtml || c.content || '',
-        publishedTime: c.publishedText || '',
-        likeCount: c.likeCount || 0,
-        repliesContinuation: c.replies ? c.replies.continuation : null
+        author: sanitizeText(c.author || '익명'),
+        avatar: resolveAvatarUrl(c),
+        published: sanitizeText(c.publishedText || ''),
+        content: sanitizeText(c.content || ''),
+        likeCount: c.likeCount > 0 ? String(c.likeCount) : '',
+        replyToken: c.replies ? c.replies.continuation : '',
+        replyCount: c.replies ? (c.replies.replyCount || 0) : 0,
+        replyLabel: c.replies && c.replies.replyCount ? `답글 ${c.replies.replyCount}개` : '답글'
       })) : [];
-      return jsonResp({ success: true, comments, continuation: data ? data.continuation : null });
+      const videoInfo = vData ? {
+        description: sanitizeText(vData.description || ''),
+        viewCount: vData.viewCount ? `조회수 ${Number(vData.viewCount).toLocaleString()}회` : '',
+        dateText: sanitizeText(vData.publishedText || '')
+      } : {};
+      return jsonResp({
+        success: true,
+        comments,
+        continuationToken: cData ? (cData.continuation || null) : null,
+        hasMore: Boolean(cData && cData.continuation),
+        videoInfo
+      });
     }
     if (path.startsWith('/api/youtube/channel/')) {
-      const cid = path.split('/').pop();
+      const cid = cleanYtId(path.split('/').pop());
       const data = await invidiousFetchJson(`/api/v1/channels/${cid}/videos`);
       const videos = (data && Array.isArray(data.videos)) ? data.videos.map(mapInvidiousVideo) : [];
       return jsonResp({ success: true, videos });
     }
-    if (path === '/api/youtube/subtitles/' || path.startsWith('/api/youtube/subtitles/')) {
+    if (path.startsWith('/api/youtube/subtitles/')) {
       return jsonResp({ success: false, cues: [] });
     }
 
@@ -595,8 +703,7 @@
       }
       if (method === 'DELETE') {
         const cid = path.split('/').pop();
-        let list = lsGet('yt_bookmarks', []);
-        list = list.filter(x => x.channelId !== cid);
+        let list = lsGet('yt_bookmarks', []).filter(x => x.channelId !== cid);
         lsSet('yt_bookmarks', list);
         return jsonResp({ success: true });
       }
@@ -613,8 +720,7 @@
       }
       if (method === 'DELETE') {
         const vid = path.split('/').pop();
-        let list = lsGet('yt_video_bookmarks', []);
-        list = list.filter(x => x.videoId !== vid);
+        let list = lsGet('yt_video_bookmarks', []).filter(x => x.videoId !== vid);
         lsSet('yt_video_bookmarks', list);
         return jsonResp({ success: true });
       }
@@ -632,8 +738,7 @@
       }
       if (method === 'DELETE') {
         const vid = path.split('/').pop();
-        let list = lsGet('yt_watch_later', []);
-        list = list.filter(x => x.videoId !== vid);
+        let list = lsGet('yt_watch_later', []).filter(x => x.videoId !== vid);
         lsSet('yt_watch_later', list);
         return jsonResp({ success: true });
       }
@@ -643,7 +748,7 @@
       if (method === 'POST') {
         const list = lsGet('yt_playlists', [{ id: 'pl_default', name: '내가 좋아하는 영상', items: [] }]);
         if (bodyObj.name) {
-          list.push({ id: 'pl_' + Date.now(), name: bodyObj.name, items: [] });
+          list.push({ id: 'pl_' + Date.now(), name: sanitizeText(bodyObj.name), items: [] });
         } else if (bodyObj.videoId) {
           const pid = path.split('/')[4];
           const pl = list.find(p => p.id === pid);
@@ -675,7 +780,7 @@
       if (method === 'GET') return jsonResp({ success: true, keywords: lsGet('yt_keywords', ['치지직', '스텔라이브', '게임']) });
       if (method === 'POST') {
         const kws = lsGet('yt_keywords', []);
-        if (bodyObj.keyword && !kws.includes(bodyObj.keyword)) kws.push(bodyObj.keyword);
+        if (bodyObj.keyword && !kws.includes(bodyObj.keyword)) kws.push(sanitizeText(bodyObj.keyword));
         lsSet('yt_keywords', kws);
         return jsonResp({ success: true, keywords: kws });
       }
@@ -700,15 +805,36 @@
       }
     }
 
-    // 8. Web MediaRecorder Virtual Backend
+    // 8. 녹화 엔진 (Android 네이티브 HLS 다운로더 우선 + 웹 브라우저 MediaRecorder 폴백)
     if (path === '/api/recorder/start') {
       const chId = bodyObj.channel_id;
       const chName = bodyObj.channel_name || chId;
-      let targetVideo = null;
+      let targetSlot = null;
       if (window.multiview && window.multiview.slots) {
-        const slot = window.multiview.slots.find(s => s.active && s.channelId === chId && s.videoEl);
-        if (slot) targetVideo = slot.videoEl;
+        targetSlot = window.multiview.slots.find(s => s.active && s.channelId === chId);
       }
+
+      // Case A: Android APK Native HLS Segment Recorder
+      if (window.AndroidChzzk && typeof window.AndroidChzzk.startNativeRecord === 'function') {
+        const hlsUrl = (targetSlot && targetSlot.streamUrl) ? targetSlot.streamUrl : '';
+        if (!hlsUrl) {
+          return jsonResp({ success: false, error: '스트림 주소를 확인할 수 없습니다. 방송 재생 중 녹화를 눌러주세요.' });
+        }
+        try {
+          const resStr = window.AndroidChzzk.startNativeRecord(hlsUrl, chName, chId);
+          const resObj = JSON.parse(resStr);
+          if (resObj && resObj.success) {
+            webRecorderJobs[resObj.job_id] = resObj.job;
+            return jsonResp(resObj);
+          }
+          return jsonResp({ success: false, error: resObj.error || '네이티브 녹화 시작 실패' });
+        } catch (e) {
+          return jsonResp({ success: false, error: '안드로이드 녹화 브릿지 오류: ' + e.message });
+        }
+      }
+
+      // Case B: Browser Web MediaRecorder
+      const targetVideo = targetSlot ? targetSlot.videoEl : null;
       if (!targetVideo) {
         return jsonResp({ success: false, error: '웹버전에서는 현재 멀티뷰 슬롯에서 재생 중인 방송만 녹화할 수 있습니다.' });
       }
@@ -728,7 +854,7 @@
       const jobObj = {
         job_id: jobId,
         channel_id: chId,
-        channel_name: chName,
+        channel_name: sanitizeText(chName),
         status: 'recording',
         start_time: Date.now() / 1000,
         elapsed_seconds: 0,
@@ -745,17 +871,31 @@
         }
       };
 
-      rec.onstop = () => {
+      rec.onstop = async () => {
         jobObj.status = 'completed';
         const blob = new Blob(chunks, { type: mimeType });
         const blobUrl = URL.createObjectURL(blob);
-        // Trigger immediate browser download
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = jobObj.filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+
+        // 만약 사용자가 웹에서 쓰기 가능한 로컬 녹화 폴더를 지정했다면 폴더 안에 직접 저장 시도
+        let savedToDir = false;
+        if (selectedDirectoryHandle && typeof selectedDirectoryHandle.getFileHandle === 'function') {
+          try {
+            const fh = await selectedDirectoryHandle.getFileHandle(jobObj.filename, { create: true });
+            const writable = await fh.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            savedToDir = true;
+          } catch (err) {}
+        }
+
+        if (!savedToDir) {
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = jobObj.filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
 
         webCompletedRecordings.unshift({
           name: jobObj.filename,
@@ -764,7 +904,8 @@
           modified: Date.now() / 1000,
           isBlob: true
         });
-        if (window.app) window.app.showToast(`녹화 완료! 다운로드되었습니다: ${jobObj.filename}`, 'success');
+        if (window.recorderUI) window.recorderUI.loadData();
+        if (window.app) window.app.showToast(savedToDir ? `지정 폴더에 저장됨: ${jobObj.filename}` : `녹화 완료! 다운로드되었습니다: ${jobObj.filename}`, 'success');
       };
 
       rec.start(1000);
@@ -773,6 +914,11 @@
     }
 
     if (path === '/api/recorder/jobs') {
+      if (window.AndroidChzzk && typeof window.AndroidChzzk.getNativeJobs === 'function') {
+        try {
+          return jsonResp(JSON.parse(window.AndroidChzzk.getNativeJobs()));
+        } catch (e) {}
+      }
       const now = Date.now() / 1000;
       const list = Object.values(webRecorderJobs).map(j => ({
         job_id: j.job_id,
@@ -788,6 +934,11 @@
 
     if (path.startsWith('/api/recorder/stop/')) {
       const jid = path.split('/').pop();
+      if (window.AndroidChzzk && typeof window.AndroidChzzk.stopNativeRecord === 'function') {
+        try {
+          return jsonResp(JSON.parse(window.AndroidChzzk.stopNativeRecord(jid)));
+        } catch (e) {}
+      }
       const job = webRecorderJobs[jid];
       if (job && job.recorder && job.recorder.state === 'recording') {
         job.elapsed_seconds = Math.floor(Date.now() / 1000 - job.start_time);
@@ -805,16 +956,222 @@
     }
 
     if (path === '/api/recordings') {
+      if (window.AndroidChzzk && typeof window.AndroidChzzk.listNativeRecordings === 'function') {
+        try {
+          return jsonResp(JSON.parse(window.AndroidChzzk.listNativeRecordings()));
+        } catch (e) {}
+      }
       return jsonResp({ recordings: webCompletedRecordings });
     }
 
-    if (path === '/api/clips/files' || path === '/api/captures') {
-      return jsonResp({ clips: [], captures: [] });
+    if (path === '/api/captures') {
+      return jsonResp({ captures: webLocalCaptures });
     }
 
-    // Default fallback response for unhandled virtual APIs
+    if (path === '/api/clips/files') {
+      return jsonResp({ clips: [] });
+    }
+
+    if (path === '/api/utils/open-folder') {
+      // 웹버전에서는 폴더 선택기 다이얼로그 트리거
+      if (window.__IS_STATIC_WEB__) {
+        pickWebRecordingFolder();
+      }
+      return jsonResp({ success: true });
+    }
+
     return jsonResp({ success: true, webMode: true });
   }
+
+  // ================= 웹버전 전용: 로컬 녹화 폴더 지정 & 스캔 (PC 클라이언트에 미노출) =================
+  async function pickWebRecordingFolder() {
+    if (!window.__IS_STATIC_WEB__) return;
+
+    // 1. Chrome/Edge File System Access API
+    if (typeof window.showDirectoryPicker === 'function') {
+      try {
+        const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        selectedDirectoryHandle = dirHandle;
+        await scanDirectoryHandle(dirHandle);
+        if (window.app) window.app.showToast(`녹화 폴더('${dirHandle.name}')를 연결하고 영상을 불러왔습니다.`, 'success');
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+      }
+    }
+
+    // 2. Fallback for Safari / Mobile / Unsupported browsers
+    let fileInput = document.getElementById('webPolyfillFilePicker');
+    if (!fileInput) {
+      fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.id = 'webPolyfillFilePicker';
+      fileInput.multiple = true;
+      fileInput.accept = 'video/*,image/*';
+      fileInput.style.display = 'none';
+      fileInput.onchange = (ev) => {
+        const files = Array.from(ev.target.files || []);
+        ingestLocalFiles(files);
+      };
+      document.body.appendChild(fileInput);
+    }
+    fileInput.click();
+  }
+
+  async function scanDirectoryHandle(dirHandle) {
+    const files = [];
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === 'file') {
+        const f = await entry.getFile();
+        files.push(f);
+      }
+    }
+    ingestLocalFiles(files);
+  }
+
+  function ingestLocalFiles(files) {
+    const videoExts = /\.(mp4|webm|mkv|ts|mov|m4v|avi)$/i;
+    const imgExts = /\.(png|jpg|jpeg|webp|gif)$/i;
+
+    let addedVideos = 0;
+    let addedImgs = 0;
+
+    files.forEach(f => {
+      const blobUrl = URL.createObjectURL(f);
+      if (videoExts.test(f.name) || f.type.startsWith('video/')) {
+        if (!webCompletedRecordings.some(r => r.name === f.name && r.size === f.size)) {
+          webCompletedRecordings.unshift({
+            name: sanitizeText(f.name),
+            path: blobUrl,
+            size: f.size,
+            modified: (f.lastModified || Date.now()) / 1000,
+            isBlob: true
+          });
+          addedVideos++;
+        }
+      } else if (imgExts.test(f.name) || f.type.startsWith('image/')) {
+        if (!webLocalCaptures.some(c => c.name === f.name && c.size === f.size)) {
+          webLocalCaptures.unshift({
+            name: sanitizeText(f.name),
+            path: blobUrl,
+            size: f.size,
+            modified: (f.lastModified || Date.now()) / 1000,
+            isBlob: true
+          });
+          addedImgs++;
+        }
+      }
+    });
+
+    if (window.recorderUI) window.recorderUI.loadData();
+    if (window.editorUI) window.editorUI.loadSources();
+    if (window.app && (addedVideos > 0 || addedImgs > 0)) {
+      window.app.showToast(`로컬 영상 ${addedVideos}개, 이미지 ${addedImgs}개를 불러왔습니다.`, 'success');
+    }
+  }
+
+  // 웹버전 전용 DOM 및 프로토타입 패치 (PC 클라이언트에는 전혀 실행되지 않음!)
+  function applyWebOnlyEnhancements() {
+    if (!window.__IS_STATIC_WEB__) return;
+
+    // 1. 설정 탭 내 민감 UI (네이버 쿠키 / GitHub 토큰 입력란) 숨김 처리 (보안 강화)
+    const settingsTab = document.getElementById('settings-tab');
+    if (settingsTab) {
+      const cookieBox = document.getElementById('cookieInput');
+      if (cookieBox && cookieBox.closest('.settings-card, .panel-section')) {
+        const card = cookieBox.closest('.settings-card, .panel-section');
+        card.innerHTML = `
+          <div style="padding: 14px; background: rgba(0,255,163,0.06); border: 1px solid rgba(0,255,163,0.2); border-radius: 8px;">
+            <div style="font-weight: 700; color: var(--accent-color); margin-bottom: 6px;">퍼블릭 웹 독립 보안 모드 동작 중</div>
+            <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5;">
+              웹버전은 보안상 네이버 계정 쿠키나 GitHub 토큰을 요구하거나 서버에 저장하지 않습니다.<br>
+              즐겨찾기, 재생목록, 알고리즘 키워드 등 모든 개인 데이터는 현재 사용 중인 브라우저 내부(LocalStorage)에만 안전하게 보관됩니다.
+            </div>
+          </div>
+        `;
+      }
+      const tokenBox = document.getElementById('updateGithubTokenInput');
+      if (tokenBox && tokenBox.closest('.settings-card, .panel-section')) {
+        tokenBox.closest('.settings-card, .panel-section').style.display = 'none';
+      }
+    }
+
+    // 2. 녹화 보관함 상단: 웹버전 전용 [녹화 폴더 지정 / 로컬 영상 불러오기] 버튼 안내 적용
+    const openFolderBtn = document.getElementById('openRecordingsFolderBtn');
+    if (openFolderBtn) {
+      openFolderBtn.title = '내 기기에서 녹화 폴더 지정 또는 로컬 영상 파일 스캔하기 (웹 전용)';
+      const spanEl = openFolderBtn.querySelector('span');
+      if (spanEl) spanEl.textContent = '녹화 폴더 지정 / 불러오기';
+    }
+
+    // 3. 편집기 상단: 웹버전 전용 [탐색기에서 열기] 버튼 동적 주입
+    const editorOpenRecBtn = document.getElementById('openRecorderToSelectBtn');
+    if (editorOpenRecBtn && editorOpenRecBtn.parentElement && !document.getElementById('webOnlyEditorUploadBtn')) {
+      const uploadBtn = document.createElement('button');
+      uploadBtn.id = 'webOnlyEditorUploadBtn';
+      uploadBtn.className = 'btn btn-sm btn-secondary';
+      uploadBtn.style.cssText = 'display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 12px;';
+      uploadBtn.title = '내 기기 탐색기에서 영상 파일 직접 불러오기 (웹 전용)';
+      uploadBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span>탐색기에서 열기</span>`;
+      uploadBtn.onclick = () => {
+        let inp = document.getElementById('webOnlyEditorFileInput');
+        if (!inp) {
+          inp = document.createElement('input');
+          inp.type = 'file';
+          inp.id = 'webOnlyEditorFileInput';
+          inp.accept = 'video/*';
+          inp.style.display = 'none';
+          inp.onchange = (e) => {
+            if (window.editorUI && typeof window.editorUI.handleLocalFileUpload === 'function') {
+              window.editorUI.handleLocalFileUpload(e);
+            }
+          };
+          document.body.appendChild(inp);
+        }
+        inp.click();
+      };
+      editorOpenRecBtn.parentElement.insertBefore(uploadBtn, editorOpenRecBtn.nextSibling);
+    }
+
+    // 4. RecorderUI 미리보기 & 썸네일: blob: URL 또는 안드로이드 로컬 파일 URL 안전 처리
+    if (window.RecorderUI && !window.RecorderUI.prototype._webPatched) {
+      const origPreview = window.RecorderUI.prototype.previewFile;
+      window.RecorderUI.prototype.previewFile = function(encPath, escName) {
+        const filePath = decodeURIComponent(encPath);
+        if (filePath.startsWith('blob:') || filePath.startsWith('http') || filePath.startsWith('file://')) {
+          this.currentPreviewPath = filePath;
+          if (this.recordPreviewFileName) this.recordPreviewFileName.textContent = decodeURIComponent(escName);
+          if (this.recordPreviewVideo) {
+            this.recordPreviewVideo.src = filePath;
+            this.recordPreviewVideo.play().catch(() => {});
+          }
+          if (this.recordPreviewModal) this.recordPreviewModal.classList.add('active');
+          return;
+        }
+        return origPreview.call(this, encPath, escName);
+      };
+
+      const origCapture = window.RecorderUI.prototype.openCaptureModal;
+      window.RecorderUI.prototype.openCaptureModal = function(filePath, fileName, size, modified) {
+        if (filePath.startsWith('blob:') || filePath.startsWith('http')) {
+          if (this.capturePreviewImg) this.capturePreviewImg.src = filePath;
+          if (this.capturePreviewDownloadLink) {
+            this.capturePreviewDownloadLink.href = filePath;
+            this.capturePreviewDownloadLink.download = fileName;
+          }
+          if (this.capturePreviewModal) this.capturePreviewModal.classList.add('active');
+          return;
+        }
+        return origCapture.call(this, filePath, fileName, size, modified);
+      };
+
+      window.RecorderUI.prototype._webPatched = true;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(applyWebOnlyEnhancements, 200);
+  });
 
   // Override window.fetch cleanly
   window.fetch = async function(input, init) {
@@ -826,14 +1183,15 @@
       }
       try {
         const res = await originalFetch(input, init);
-        // python -m http.server 로 열었을 때 /api/ 요청이 404 or 501 리턴 시 자동 정적 웹 모드로 폴백
         if (res.status === 404 || res.status === 501) {
           window.__IS_STATIC_WEB__ = true;
+          applyWebOnlyEnhancements();
           return handleVirtualApi(urlStr, init);
         }
         return res;
       } catch (e) {
         window.__IS_STATIC_WEB__ = true;
+        applyWebOnlyEnhancements();
         return handleVirtualApi(urlStr, init);
       }
     }
@@ -844,6 +1202,7 @@
   window.webBackendPolyfill = {
     generateYoutubeEmbedHtml,
     isStaticWeb: () => window.__IS_STATIC_WEB__,
-    getWebRecordings: () => webCompletedRecordings
+    getWebRecordings: () => webCompletedRecordings,
+    pickWebRecordingFolder
   };
 })();

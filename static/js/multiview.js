@@ -2388,7 +2388,7 @@ class MultiViewManager {
       return `
         <div class="slot-pl-item ${isActive ? 'active' : ''}" onclick="window.multiview.playPlaylistItem(${slot.index}, ${idx})" title="${escapeHtml(title)}">
           <div class="slot-pl-thumb-wrap">
-            <img class="slot-pl-thumb" src="${escapeHtml(thumb)}" onerror="this.src='/static/img/favicon.png'" alt="">
+            <img class="slot-pl-thumb" src="${escapeHtml(thumb)}" onerror="this.src='./static/img/favicon.png'" alt="">
             ${dur ? `<span class="slot-pl-dur">${escapeHtml(dur)}</span>` : ''}
           </div>
           <div class="slot-pl-info">
@@ -2716,7 +2716,7 @@ class MultiViewManager {
       return `
         <div class="slot-related-item" onclick="window.multiview.playRelatedFromSidebar(${i}, '${vid}')" title="${title}">
           <div class="slot-related-item-thumb">
-            <img src="${thumb}" onerror="this.src='/static/img/favicon.png'" alt="${title}" loading="lazy">
+            <img src="${thumb}" onerror="this.src='./static/img/favicon.png'" alt="${title}" loading="lazy">
             ${dur ? `<span class="slot-related-item-dur">${dur}</span>` : ''}
           </div>
           <div class="slot-related-item-info">
@@ -5028,14 +5028,14 @@ class MultiViewManager {
     const author = escapeHtml(c.author || '익명');
     const pub = escapeHtml(c.published || '');
     const contentHtml = this.formatYouTubeRichText(c.content || '', slotIndex);
-    const avatar = c.avatar || '/static/img/favicon.png';
+    const avatar = c.avatar || './static/img/favicon.png';
     const likeCount = escapeHtml(c.likeCount || '');
     const replyToken = c.replyToken || '';
     const replyLabel = c.replyLabel || (c.replyCount ? `답글 ${c.replyCount}개` : '답글');
 
     return `
       <div class="yt-comment-item">
-        <img class="yt-comment-avatar" src="${avatar}" onerror="this.src='/static/img/favicon.png'" alt="">
+        <img class="yt-comment-avatar" src="${avatar}" onerror="this.src='./static/img/favicon.png'" alt="">
         <div class="yt-comment-body">
           <div class="yt-comment-author-row">
             <span class="yt-comment-author">${author}</span>
@@ -5220,12 +5220,12 @@ class MultiViewManager {
       const author = escapeHtml(r.author || '익명');
       const pub = escapeHtml(r.published || '');
       const contentHtml = this.formatYouTubeRichText(r.content || '', slotIndex);
-      const avatar = r.avatar || '/static/img/favicon.png';
+      const avatar = r.avatar || './static/img/favicon.png';
       const likeCount = escapeHtml(r.likeCount || '');
 
       html += `
         <div class="yt-comment-reply-item">
-          <img class="yt-comment-reply-avatar" src="${avatar}" onerror="this.src='/static/img/favicon.png'" alt="">
+          <img class="yt-comment-reply-avatar" src="${avatar}" onerror="this.src='./static/img/favicon.png'" alt="">
           <div class="yt-comment-body">
             <div class="yt-comment-author-row">
               <span class="yt-comment-author">${author}</span>

@@ -635,7 +635,7 @@ class RecorderUI {
       return `
         <div class="recording-card">
           <div class="card-thumb-wrap" onclick="window.recorderUI.previewFile('${encPath}', '${escName}')" title="클릭하여 미리보기">
-            <img src="${thumbUrl}" alt="${escName}" onerror="this.onerror=null; this.src='/static/img/video_placeholder.png';" loading="lazy">
+            <img src="${thumbUrl}" alt="${escName}" onerror="this.onerror=null; this.src='./static/img/video_placeholder.png';" loading="lazy">
             <span class="card-type-badge video">MP4</span>
             ${durStr ? `<span class="card-thumb-duration">${durStr}</span>` : ''}
           </div>

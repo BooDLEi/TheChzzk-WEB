@@ -491,7 +491,7 @@ class YouTubeUI {
 
       html += `
         <div class="yt-channel-card" onclick="window.youtubeUI.openChannelView('${idEsc}', '${nameEsc}', '${ch.thumbnail || ''}', '${ch.subscriberCount || ''}')">
-          <img class="yt-channel-avatar" src="${ch.thumbnail || '/static/img/favicon.png'}" onerror="this.src='/static/img/favicon.png'" alt="${nameEsc}">
+          <img class="yt-channel-avatar" src="${ch.thumbnail || './static/img/favicon.png'}" onerror="this.src='./static/img/favicon.png'" alt="${nameEsc}">
           <div class="yt-channel-info">
             <div class="yt-channel-title" title="${nameEsc}">${nameEsc}</div>
             <div class="yt-channel-subs">${escapeHtml(ch.subscriberCount || '채널')}</div>
@@ -517,7 +517,7 @@ class YouTubeUI {
     this.ytChannelViewSection.style.display = 'flex';
     if (this.ytChannelBannerTitle) this.ytChannelBannerTitle.textContent = channelName || '채널';
     if (this.ytChannelBannerSubs) this.ytChannelBannerSubs.textContent = subs || '';
-    if (this.ytChannelBannerAvatar) this.ytChannelBannerAvatar.src = avatarUrl || '/static/img/favicon.png';
+    if (this.ytChannelBannerAvatar) this.ytChannelBannerAvatar.src = avatarUrl || './static/img/favicon.png';
 
     // Smooth scroll page to top to ensure channel drawer is clearly visible (Requirement 7)
     const ytContainer = document.querySelector('.yt-page-container') || document.querySelector('.main-content') || window;
@@ -794,7 +794,7 @@ class YouTubeUI {
 
       html += `
         <div class="yt-bookmark-card" onclick="window.youtubeUI.openChannelView('${idEsc}', '${nameEsc}', '${bm.thumbnail || ''}', '${bm.subscriberCount || ''}')">
-          <img class="yt-bookmark-avatar" src="${bm.thumbnail || '/static/img/favicon.png'}" onerror="this.src='/static/img/favicon.png'" alt="${nameEsc}">
+          <img class="yt-bookmark-avatar" src="${bm.thumbnail || './static/img/favicon.png'}" onerror="this.src='./static/img/favicon.png'" alt="${nameEsc}">
           <div class="yt-bookmark-body">
             <div class="yt-bookmark-name" title="${nameEsc}">${nameEsc}</div>
             <div class="yt-bookmark-subs">${escapeHtml(bm.subscriberCount || '즐겨찾기 채널')}</div>
@@ -1043,12 +1043,12 @@ class YouTubeUI {
       const titleEsc = escapeHtml(pl.title);
       const descEsc = escapeHtml(pl.description || '');
       const count = pl.videos ? pl.videos.length : 0;
-      const thumb = (pl.videos && pl.videos[0] && pl.videos[0].thumbnail) ? pl.videos[0].thumbnail : '/static/img/favicon.png';
+      const thumb = (pl.videos && pl.videos[0] && pl.videos[0].thumbnail) ? pl.videos[0].thumbnail : './static/img/favicon.png';
 
       html += `
         <div class="yt-playlist-card" onclick="window.youtubeUI.playPlaylistInSlot('${plIdEsc}', true)">
           <div class="yt-pl-card-thumb-wrap">
-            <img class="yt-pl-card-thumb" src="${escapeHtml(thumb)}" onerror="this.src='/static/img/favicon.png'" alt="">
+            <img class="yt-pl-card-thumb" src="${escapeHtml(thumb)}" onerror="this.src='./static/img/favicon.png'" alt="">
             <div class="yt-pl-count-badge">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
               <span>${count}개</span>
@@ -1386,7 +1386,7 @@ class YouTubeUI {
       html += `
         <div class="yt-history-card">
           <div class="yt-history-thumb" onclick="window.youtubeUI.playHistoryItem('${vKey}')">
-            <img src="${h.thumbnail || `https://i.ytimg.com/vi/${vidEsc}/hqdefault.jpg`}" onerror="this.src='/static/img/favicon.png'" alt="${titleEsc}">
+            <img src="${h.thumbnail || `https://i.ytimg.com/vi/${vidEsc}/hqdefault.jpg`}" onerror="this.src='./static/img/favicon.png'" alt="${titleEsc}">
             ${h.duration ? `<span class="yt-badge-duration">${escapeHtml(h.duration)}</span>` : ''}
             <div class="yt-thumb-hover-overlay">
               <span class="yt-play-icon">▶</span>
@@ -1464,7 +1464,7 @@ class YouTubeUI {
              oncontextmenu="window.youtubeUI.onCardRightClick(event, '${vKey}')"
              title="${isPl ? '클릭 시 재생목록을 슬롯에 연속 재생' : '좌클릭: 멀티뷰 이동 후 재생 | 우클릭: 백그라운드 슬롯 추가'}">
           <div class="yt-video-thumb-wrap">
-            <img class="yt-video-thumb" src="${thumbEsc}" onerror="this.src='/static/img/favicon.png'" alt="${titleEsc}" loading="lazy">
+            <img class="yt-video-thumb" src="${thumbEsc}" onerror="this.src='./static/img/favicon.png'" alt="${titleEsc}" loading="lazy">
             ${durEsc ? `<span class="yt-badge-duration">${durEsc}</span>` : ''}
             ${v.isWatched ? `<span class="yt-badge-watched">시청함</span>` : ''}
             ${v.isLive ? `<span class="card-badge-live" style="position: absolute; top: 6px; left: 6px; padding: 2px 6px;">LIVE</span>` : ''}

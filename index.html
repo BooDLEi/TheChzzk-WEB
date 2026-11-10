@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: wss: blob: data: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';">
+  <meta name="referrer" content="no-referrer">
   <script>window.__FORCE_STATIC_WEB__ = true;</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -797,12 +799,7 @@
           <div class="editor-source-header">
             <button class="btn btn-primary" id="openRecorderToSelectBtn" onclick="window.app.switchTab('recorder')" style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 6px 14px;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              <span>녹화 보관함에서 영상 선택</span>
-            </button>
-            <input type="file" id="editorLocalFileUpload" accept="video/*" style="display: none;" onchange="if(window.editorUI) window.editorUI.handleLocalFileUpload(event)">
-            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('editorLocalFileUpload').click()" title="내 기기 탐색기에서 영상 파일 직접 불러오기" style="display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 12px;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span>탐색기에서 열기</span>
+              <span>녹화 보관함에서 영상 선택하기</span>
             </button>
             <div class="editor-cur-file-info">
               <span class="editor-file-label">현재 편집 영상:</span>

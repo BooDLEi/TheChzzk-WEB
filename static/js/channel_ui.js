@@ -235,7 +235,7 @@ class ChannelUI {
         const name = data.channelName || '스트리머';
         this.channelHeroName.textContent = name;
         if (this.channelNavTitle) this.channelNavTitle.textContent = name;
-        this.channelHeroAvatar.src = data.channelImageUrl || '/static/img/default_avatar.png';
+        this.channelHeroAvatar.src = data.channelImageUrl || './static/img/default_avatar.png';
         this.channelFollowerCount.textContent = `팔로워 ${(data.followerCount || 0).toLocaleString()}명`;
         this.channelHeroDesc.textContent = data.description || '스트리머 채널 소개가 없습니다.';
         this.channelVerifiedBadge.style.display = data.verifiedMark ? 'inline' : 'none';
@@ -415,7 +415,7 @@ class ChannelUI {
 
       card.innerHTML = `
         <div class="vod-thumb-wrap">
-          <img src="${v.thumbnailImageUrl || '/static/img/default_thumb.png'}" loading="lazy" alt="${v.videoTitle}">
+          <img src="${v.thumbnailImageUrl || './static/img/default_thumb.png'}" loading="lazy" alt="${v.videoTitle}">
           <span class="vod-type-badge">${typeLabel}</span>
           <span class="vod-duration-badge">${v.durationText}</span>
         </div>
@@ -554,7 +554,7 @@ class ChannelUI {
 
       card.innerHTML = `
         <div class="clip-thumb-wrap">
-          <img src="${c.thumbnailImageUrl || '/static/img/default_thumb.png'}" loading="lazy" alt="${c.clipTitle}">
+          <img src="${c.thumbnailImageUrl || './static/img/default_thumb.png'}" loading="lazy" alt="${c.clipTitle}">
           <div class="clip-play-overlay">
             <div class="clip-play-btn-circle">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
