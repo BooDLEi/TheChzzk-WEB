@@ -138,10 +138,16 @@
     });
   }
 
-  // 캐시 및 상태 저장소
+  // 캐시 및 상태 저장소 (인플라이트 중복 차단 + SWR + 라이브 상세/채팅 캐시)
   const initCachedLives = lsGet('cached_lives', { ts: 0, lives: [] });
   let cachedLivesList = Array.isArray(initCachedLives.lives) ? initCachedLives.lives : [];
   let cachedLivesTs = initCachedLives.ts || 0;
+  let lastManualRefreshClickTs = 0;
+  let bgLivesRefreshInFlight = false;
+  const inflightProxyMap = {};
+  const liveDetailCache = {};
+  const chatAccessCache = {};
+  const emojiPackCache = {};
   const channelChatIdMap = {};
   const commentTokenVideoMap = {};
   const ytOembedCache = {};
@@ -149,6 +155,12 @@
   const webCompletedRecordings = []; // 브라우저 녹화 또는 폴더에서 불러온 비디오
   const webLocalCaptures = [];       // 폴더에서 불러온 이미지 또는 캡처
   let selectedDirectoryHandle = null;
+
+  document.addEventListener('click', (e) => {
+    if (e.target && typeof e.target.closest === 'function' && e.target.closest('#refreshLivesBtn')) {
+      lastManualRefreshClickTs = Date.now();
+    }
+  }, true);
 
   function parseJinaJson(txt) {
     if (!txt) return null;
@@ -174,7 +186,7 @@
     return parsed;
   }
 
-  // ================= CORS 프록시 & Android Native Fetch =================
+  // ================= CORS 프록시 & Android Native Fetch (고속 병렬 헤지 레이스) =================
   async function proxyFetchJson(targetUrl) {
     // 0순위: Android APK 네이티브 자바 HTTP 인터셉터 (CORS 0%, Rate Limit 0%)
     if (window.AndroidChzzk && typeof window.AndroidChzzk.nativeFetch === 'function') {
@@ -186,57 +198,155 @@
       } catch (e) {}
     }
 
-    // 1순위: r.jina.ai (일시적 429/5xx 시 짧은 재시도 1회 포함)
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
+    // 동일 URL 중복 동시 요청 방지
+    if (inflightProxyMap[targetUrl]) {
+      return inflightProxyMap[targetUrl];
+    }
+
+    const reqPromise = (async () => {
+      const tryJina = async () => {
         const res = await fetchWithTimeout(`https://r.jina.ai/${targetUrl}`, {
           method: 'GET',
           credentials: 'omit',
           referrerPolicy: 'no-referrer'
-        }, 9000);
-        if (res.ok) {
-          const txt = await res.text();
-          const parsed = parseJinaJson(txt);
-          if (parsed && (parsed.code === 200 || parsed.content)) {
-            return parsed;
-          }
-        } else if (res.status === 429 || res.status >= 500) {
-          await new Promise(r => setTimeout(r, 850));
-          continue;
-        }
-        break;
-      } catch (e) {
-        if (attempt === 0) await new Promise(r => setTimeout(r, 500));
-      }
-    }
-
-    // 2순위: 백업 CORS 프록시 병렬 경합 (순차 타임아웃 대기 방지)
-    const enc = encodeURIComponent(targetUrl);
-    const backupProxies = [
-      { url: `https://api.allorigins.win/raw?url=${enc}`, isGetWrap: false },
-      { url: `https://api.allorigins.win/get?url=${enc}`, isGetWrap: true },
-      { url: `https://api.codetabs.com/v1/proxy?quest=${enc}`, isGetWrap: false },
-      { url: `https://corsproxy.org/?url=${enc}`, isGetWrap: false }
-    ];
-
-    try {
-      return await firstResolved(backupProxies.map(async (bp) => {
-        const res = await fetchWithTimeout(bp.url, { method: 'GET', credentials: 'omit' }, 10000);
-        if (!res.ok) throw new Error('status ' + res.status);
+        }, 5500);
+        if (!res.ok) throw new Error('jina status ' + res.status);
         const txt = await res.text();
-        let parsed = JSON.parse(txt);
-        if (bp.isGetWrap && parsed && typeof parsed.contents === 'string') {
-          parsed = JSON.parse(parsed.contents);
-        }
+        const parsed = parseJinaJson(txt);
         if (parsed && (parsed.code === 200 || parsed.content)) {
           return parsed;
         }
-        throw new Error('invalid payload');
-      }));
-    } catch (e) {
-      throw new Error('프록시를 통한 데이터 수신 실패: ' + targetUrl);
+        throw new Error('jina invalid payload');
+      };
+
+      const enc = encodeURIComponent(targetUrl);
+      const tryBackups = () => {
+        const backupProxies = [
+          { url: `https://api.allorigins.win/raw?url=${enc}`, isGetWrap: false },
+          { url: `https://api.allorigins.win/get?url=${enc}`, isGetWrap: true },
+          { url: `https://api.codetabs.com/v1/proxy?quest=${enc}`, isGetWrap: false },
+          { url: `https://corsproxy.org/?url=${enc}`, isGetWrap: false }
+        ];
+        return firstResolved(backupProxies.map(async (bp) => {
+          const res = await fetchWithTimeout(bp.url, { method: 'GET', credentials: 'omit' }, 6500);
+          if (!res.ok) throw new Error('status ' + res.status);
+          const txt = await res.text();
+          let parsed = JSON.parse(txt);
+          if (bp.isGetWrap && parsed && typeof parsed.contents === 'string') {
+            parsed = JSON.parse(parsed.contents);
+          }
+          if (parsed && (parsed.code === 200 || parsed.content)) {
+            return parsed;
+          }
+          throw new Error('invalid payload');
+        }));
+      };
+
+      // Staggered Hedged Race: Jina 우선 시작, 2.4초 초과 또는 즉시 실패 시 백업 프록시 병렬 경합
+      let hedgeTimer = null;
+      let triggerBackupsNow = null;
+      const delayedBackups = new Promise((resolve, reject) => {
+        let settled = false;
+        const trigger = () => {
+          if (settled) return;
+          settled = true;
+          tryBackups().then(resolve, reject);
+        };
+        triggerBackupsNow = () => {
+          if (hedgeTimer) { clearTimeout(hedgeTimer); hedgeTimer = null; }
+          trigger();
+        };
+        hedgeTimer = setTimeout(trigger, 2400);
+      });
+
+      const fastJina = tryJina().catch((err) => {
+        if (triggerBackupsNow) triggerBackupsNow();
+        throw err;
+      });
+
+      try {
+        return await firstResolved([fastJina, delayedBackups]);
+      } catch (e) {
+        throw new Error('프록시를 통한 데이터 수신 실패: ' + targetUrl);
+      } finally {
+        if (hedgeTimer) clearTimeout(hedgeTimer);
+      }
+    })();
+
+    inflightProxyMap[targetUrl] = reqPromise;
+    try {
+      return await reqPromise;
+    } finally {
+      delete inflightProxyMap[targetUrl];
     }
   }
+
+  async function fetchLiveDetailCached(channelId) {
+    const cid = String(channelId || '').trim();
+    if (!cid) return { success: false, isOnline: false, error: '채널 ID 없음' };
+    const cached = liveDetailCache[cid];
+    if (cached && (Date.now() - cached.ts) < 25000) {
+      return cached.data;
+    }
+    try {
+      const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v2/channels/${cid}/live-detail`);
+      const content = data && data.content;
+      if (!content || content.status !== 'OPEN') {
+        return { success: false, isOnline: false, error: '현재 오프라인 상태입니다.' };
+      }
+      const pb = JSON.parse(content.livePlaybackJson || '{}');
+      const mediaList = pb.media || [];
+      const primary = mediaList.find(m => m.mediaId === 'LLHLS' || m.latency === 'lowLatency') || mediaList[0];
+      if (!primary) return { success: false, isOnline: true, error: '스트림 경로 없음' };
+      const hlsMedia = mediaList.find(m => m.mediaId === 'HLS');
+      let thumb = content.liveImageUrl || '';
+      if (thumb.includes('{type}')) thumb = thumb.replace('{type}', '720');
+      const ch = content.channel || {};
+      if (content.chatChannelId) channelChatIdMap[cid] = content.chatChannelId;
+
+      const resObj = {
+        success: true,
+        isOnline: true,
+        channelId: cid,
+        channelName: sanitizeText(ch.channelName || cid),
+        channelImageUrl: ch.channelImageUrl || './static/img/favicon.png',
+        title: sanitizeText(content.liveTitle || ''),
+        categoryValue: sanitizeText(content.liveCategoryValue || '기타'),
+        userCount: content.concurrentUserCount || 0,
+        thumbUrl: thumb,
+        masterUrl: primary.path,
+        streamUrl: primary.path,
+        hlsUrl: hlsMedia ? hlsMedia.path : primary.path,
+        encodingTracks: primary.encodingTrack || [],
+        chatChannelId: content.chatChannelId || ''
+      };
+      liveDetailCache[cid] = { ts: Date.now(), data: resObj };
+      return resObj;
+    } catch (e) {
+      return { success: false, isOnline: false, error: '방송 정보를 불러오지 못했습니다.' };
+    }
+  }
+
+  // 홈/즐겨찾기 카드 터치·클릭 시작 시 백그라운드 선로딩(Pre-warm)으로 멀티뷰 등록 체감 대기시간 단축
+  let hoverPrefetchTimer = null;
+  document.addEventListener('pointerdown', (e) => {
+    if (!window.__IS_STATIC_WEB__) return;
+    const card = e.target && typeof e.target.closest === 'function' ? e.target.closest('.live-card[data-channel-id]') : null;
+    if (card && card.dataset.channelId) {
+      fetchLiveDetailCached(card.dataset.channelId).catch(() => {});
+    }
+  }, { passive: true, capture: true });
+
+  document.addEventListener('mouseover', (e) => {
+    if (!window.__IS_STATIC_WEB__) return;
+    const card = e.target && typeof e.target.closest === 'function' ? e.target.closest('.live-card[data-channel-id]') : null;
+    if (!card || !card.dataset.channelId) return;
+    const cid = card.dataset.channelId;
+    if (hoverPrefetchTimer) clearTimeout(hoverPrefetchTimer);
+    hoverPrefetchTimer = setTimeout(() => {
+      fetchLiveDetailCached(cid).catch(() => {});
+    }, 180);
+  }, { passive: true });
 
   // Piped CORS API (한국어 지역/트렌딩 및 댓글 폴백)
   const PIPED_BASES = ['https://api.piped.private.coffee'];
@@ -422,7 +532,7 @@
     });
   }
 
-  // YouTube IFrame Embed HTML 생성기 (iframe srcdoc 용 - 한국어 UI 기본 적용 & Strict Sanitization)
+  // YouTube IFrame Embed HTML 생성기 (iframe srcdoc 용 - 한국어 기본화 + 자동재생/폴백 완비 + Multiview 메시지 규격 100% 일치)
   function generateYoutubeEmbedHtml(videoId, slotIndex = 0, autoplay = true, startSeconds = 0) {
     const cleanVid = cleanYtId(videoId);
     const safeSlot = parseInt(slotIndex, 10) || 0;
@@ -436,91 +546,309 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; position: relative; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     #player { width: 100% !important; height: 100% !important; border: none; }
+    #tapToPlayOverlay {
+      position: absolute; inset: 0; z-index: 20;
+      display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      background: rgba(0, 0, 0, 0.55); cursor: pointer;
+    }
+    .tap-play-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 999px; border: 1.5px solid #00ffa3;
+      background: rgba(11, 14, 20, 0.92); color: #00ffa3; font-size: 13px; font-weight: 800;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+    }
+    #ytFallbackBox {
+      position: absolute; inset: 0; z-index: 30;
+      display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      background: #0b0e14; color: #e2e8f0; text-align: center; padding: 16px;
+    }
+    .yt-fb-btn {
+      padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+      background: #ef4444; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
   </style>
 </head>
 <body>
   <div id="player"></div>
+  <div id="tapToPlayOverlay">
+    <div class="tap-play-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      <span>클릭하여 유튜브 재생</span>
+    </div>
+  </div>
+  <div id="ytFallbackBox"></div>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     var player = null;
+    var fallbackVideo = null;
     var slotIndex = ${safeSlot};
+    var videoId = '${cleanVid}';
+    var isReady = false;
+    var isLooping = false;
+    var manualPaused = false;
     var timeTimer = null;
+    var autoplayWatchdog = null;
+    var tapOverlay = document.getElementById('tapToPlayOverlay');
+
+    function postParent(payload) {
+      try {
+        payload.slotIndex = slotIndex;
+        payload.slot = slotIndex;
+        if (!payload.videoId) payload.videoId = videoId;
+        window.parent.postMessage(payload, '*');
+      } catch(e) {}
+    }
+
+    function mapHeightToYTQuality(val) {
+      var n = parseInt(val, 10);
+      if (n >= 1080) return 'hd1080';
+      if (n >= 720) return 'hd720';
+      if (n >= 480) return 'large';
+      if (n >= 360) return 'medium';
+      return 'default';
+    }
+
+    if (tapOverlay) {
+      tapOverlay.addEventListener('click', function() {
+        manualPaused = false;
+        tapOverlay.style.display = 'none';
+        if (player) {
+          try {
+            player.playVideo();
+          } catch(e) {}
+        }
+      });
+    }
+
+    function attemptAutoplay() {
+      if (!player || !${autoplayVal}) return;
+      try {
+        var res = player.playVideo();
+        if (res && typeof res.catch === 'function') {
+          res.catch(function() {
+            try {
+              player.mute();
+              player.playVideo();
+              postParent({ type: 'yt_autoplay_muted' });
+            } catch(e2) {}
+          });
+        }
+      } catch(e) {
+        try {
+          player.mute();
+          player.playVideo();
+          postParent({ type: 'yt_autoplay_muted' });
+        } catch(e2) {}
+      }
+
+      if (autoplayWatchdog) clearTimeout(autoplayWatchdog);
+      autoplayWatchdog = setTimeout(function() {
+        if (!player || manualPaused) return;
+        try {
+          var st = player.getPlayerState();
+          if (st === -1 || st === 5 || st === 2) {
+            player.mute();
+            player.playVideo();
+            postParent({ type: 'yt_autoplay_muted' });
+            setTimeout(function() {
+              if (!player || manualPaused) return;
+              var st2 = player.getPlayerState();
+              if ((st2 === -1 || st2 === 5 || st2 === 2) && tapOverlay) {
+                tapOverlay.style.display = 'flex';
+              }
+            }, 1100);
+          }
+        } catch(e) {}
+      }, 650);
+    }
 
     function onYouTubeIframeAPIReady() {
+      var pVars = {
+        autoplay: ${autoplayVal},
+        controls: 0,
+        disablekb: 1,
+        fs: 1,
+        hl: 'ko',
+        cc_lang_pref: 'ko',
+        modestbranding: 1,
+        rel: 0,
+        iv_load_policy: 3,
+        cc_load_policy: 0,
+        playsinline: 1,
+        enablejsapi: 1,
+        origin: '${safeOrigin}'
+      };
+      if (${startSecVal} > 0) pVars.start = ${startSecVal};
+
       player = new YT.Player('player', {
         width: '100%',
         height: '100%',
-        videoId: '${cleanVid}',
-        playerVars: {
-          autoplay: ${autoplayVal},
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          hl: 'ko',
-          cc_lang_pref: 'ko',
-          modestbranding: 1,
-          rel: 0,
-          iv_load_policy: 3,
-          cc_load_policy: 0,
-          playsinline: 1,
-          enablejsapi: 1,
-          start: ${startSecVal},
-          origin: '${safeOrigin}'
-        },
+        host: 'https://www.youtube.com',
+        videoId: videoId,
+        playerVars: pVars,
         events: {
-          onReady: function(e) {
-            if (${autoplayVal}) { e.target.playVideo(); }
+          onReady: function() {
+            isReady = true;
             startTimeTracker();
-            window.parent.postMessage({ type: 'yt_ready', slot: slotIndex, videoId: '${cleanVid}' }, '*');
+            postParent({ type: 'yt_ready' });
+            attemptAutoplay();
           },
           onStateChange: function(e) {
-            window.parent.postMessage({ type: 'yt_state', slot: slotIndex, state: e.data }, '*');
-            if (e.data === YT.PlayerState.ENDED) {
-              window.parent.postMessage({ type: 'yt_ended', slot: slotIndex, videoId: '${cleanVid}' }, '*');
+            var stateName = 'unknown';
+            if (e.data === YT.PlayerState.PLAYING) {
+              stateName = 'playing';
+              manualPaused = false;
+              if (tapOverlay) tapOverlay.style.display = 'none';
+            } else if (e.data === YT.PlayerState.PAUSED) {
+              stateName = 'paused';
+            } else if (e.data === YT.PlayerState.BUFFERING) {
+              stateName = 'buffering';
+              if (tapOverlay) tapOverlay.style.display = 'none';
+            } else if (e.data === YT.PlayerState.ENDED) {
+              if (isLooping && player) {
+                try { player.seekTo(0, true); player.playVideo(); return; } catch(err) {}
+              }
+              stateName = 'ended';
+              postParent({ type: 'yt_ended' });
             }
+            var cur = 0, dur = 0;
+            try { cur = player.getCurrentTime() || 0; dur = player.getDuration() || 0; } catch(_) {}
+            postParent({ type: 'yt_statechange', state: stateName, currentTime: cur, duration: dur });
           },
           onError: function(e) {
-            window.parent.postMessage({ type: 'yt_error', slot: slotIndex, code: e.data }, '*');
+            tryPipedStreamFallback(e.data);
           }
         }
       });
     }
 
+    function tryPipedStreamFallback(errCode) {
+      if (fallbackVideo) return;
+      var fbBox = document.getElementById('ytFallbackBox');
+      fetch('https://api.piped.private.coffee/streams/' + encodeURIComponent(videoId), { credentials: 'omit' })
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function(d) {
+          var vs = Array.isArray(d.videoStreams) ? d.videoStreams : [];
+          var mp4 = vs.find(function(x) { return !x.videoOnly && x.url && (x.mimeType || '').indexOf('mp4') !== -1; }) || vs.find(function(x) { return !x.videoOnly && x.url; });
+          var srcUrl = (mp4 && mp4.url) || d.hls || '';
+          if (!srcUrl) throw new Error('no fallback stream');
+          document.body.innerHTML = '<video id="fallback-video" autoplay playsinline controls style="width:100%;height:100%;object-fit:contain;background:#000;"></video>';
+          fallbackVideo = document.getElementById('fallback-video');
+          fallbackVideo.src = srcUrl;
+          fallbackVideo.loop = isLooping;
+          fallbackVideo.play().catch(function() {
+            fallbackVideo.muted = true;
+            fallbackVideo.play().catch(function(){});
+            postParent({ type: 'yt_autoplay_muted' });
+          });
+          fallbackVideo.addEventListener('play', function() { postParent({ type: 'yt_statechange', state: 'playing', currentTime: fallbackVideo.currentTime || 0, duration: fallbackVideo.duration || 0 }); });
+          fallbackVideo.addEventListener('pause', function() { if (!fallbackVideo.ended) postParent({ type: 'yt_statechange', state: 'paused', currentTime: fallbackVideo.currentTime || 0, duration: fallbackVideo.duration || 0 }); });
+          fallbackVideo.addEventListener('ended', function() { postParent({ type: 'yt_statechange', state: 'ended', currentTime: fallbackVideo.duration || 0, duration: fallbackVideo.duration || 0 }); });
+          isReady = true;
+          startTimeTracker();
+          postParent({ type: 'yt_ready' });
+        })
+        .catch(function() {
+          postParent({ type: 'yt_error', code: errCode, errorCode: errCode });
+          if (fbBox) {
+            fbBox.style.display = 'flex';
+            fbBox.innerHTML =
+              '<div style="font-size:13px;font-weight:700;">임베드 재생이 제한된 영상입니다. (오류 ' + errCode + ')</div>' +
+              '<a class="yt-fb-btn" href="https://www.youtube.com/watch?v=' + encodeURIComponent(videoId) + '" target="_blank" rel="noopener noreferrer">YouTube에서 직접 보기</a>';
+          }
+        });
+    }
+
     function startTimeTracker() {
       if (timeTimer) clearInterval(timeTimer);
       timeTimer = setInterval(function() {
-        if (!player || typeof player.getCurrentTime !== 'function') return;
         try {
-          var cur = player.getCurrentTime() || 0;
-          var dur = player.getDuration() || 0;
-          var vData = (typeof player.getVideoData === 'function') ? player.getVideoData() : null;
-          var isLive = Boolean(vData && vData.isLive) || (dur === 0 && player.getPlayerState() === 1);
-          window.parent.postMessage({
-            type: 'yt_timeupdate',
-            slot: slotIndex,
-            currentTime: cur,
-            duration: dur,
-            isLive: isLive
-          }, '*');
+          var cur = 0, dur = 0, isLive = false;
+          if (fallbackVideo) {
+            cur = fallbackVideo.currentTime || 0;
+            dur = fallbackVideo.duration || 0;
+          } else if (player && typeof player.getCurrentTime === 'function') {
+            cur = player.getCurrentTime() || 0;
+            dur = player.getDuration() || 0;
+            var vData = (typeof player.getVideoData === 'function') ? player.getVideoData() : null;
+            isLive = Boolean(vData && vData.isLive) || (dur === 0 && player.getPlayerState() === 1);
+          } else {
+            return;
+          }
+          if ((dur > 0 && isFinite(dur)) || isLive) {
+            postParent({ type: 'yt_timeupdate', currentTime: cur, duration: isLive ? 0 : dur, isLive: isLive });
+          }
         } catch(err) {}
       }, 450);
     }
 
+    window.addEventListener('mousemove', function() { postParent({ type: 'yt_mousemove' }); }, { passive: true });
+    window.addEventListener('dblclick', function() { postParent({ type: 'yt_dblclick' }); });
+
     window.addEventListener('message', function(event) {
       var d = event.data;
-      if (!d || typeof d !== 'object' || !player) return;
+      if (!d || typeof d !== 'object' || !d.action) return;
+      if (typeof d.slotIndex === 'number') slotIndex = d.slotIndex;
+
+      if (d.action === 'setLoop') { isLooping = !!d.loop; if (fallbackVideo) fallbackVideo.loop = isLooping; return; }
+      if (d.action === 'setCaptions') { return; }
+
+      if (fallbackVideo) {
+        try {
+          if (d.action === 'play') fallbackVideo.play().catch(function(){});
+          else if (d.action === 'pause') fallbackVideo.pause();
+          else if (d.action === 'togglePlay') { if (fallbackVideo.paused) fallbackVideo.play().catch(function(){}); else fallbackVideo.pause(); }
+          else if (d.action === 'mute') fallbackVideo.muted = true;
+          else if (d.action === 'unmute') fallbackVideo.muted = false;
+          else if (d.action === 'setVolume') {
+            var fv = (typeof d.volume === 'number') ? d.volume : d.value;
+            if (typeof fv === 'number') { fallbackVideo.volume = Math.max(0, Math.min(1, fv / 100)); if (fv > 0) fallbackVideo.muted = false; }
+          } else if (d.action === 'seek' || d.action === 'seekTo') {
+            var fs = (typeof d.seconds === 'number') ? d.seconds : d.value;
+            if (typeof fs === 'number') fallbackVideo.currentTime = fs;
+          }
+        } catch(e) {}
+        return;
+      }
+
+      if (!player) return;
       try {
-        if (d.action === 'play') player.playVideo();
-        else if (d.action === 'pause') player.pauseVideo();
-        else if (d.action === 'mute') player.mute();
-        else if (d.action === 'unmute') player.unMute();
-        else if (d.action === 'setVolume') player.setVolume(d.value);
-        else if (d.action === 'seekTo') player.seekTo(d.value, true);
-        else if (d.action === 'setPlaybackQuality') player.setPlaybackQuality(d.value);
+        if (d.action === 'play') {
+          manualPaused = false;
+          player.playVideo();
+        } else if (d.action === 'pause') {
+          manualPaused = true;
+          player.pauseVideo();
+        } else if (d.action === 'togglePlay') {
+          var st = (typeof player.getPlayerState === 'function') ? player.getPlayerState() : -1;
+          if (st === YT.PlayerState.PLAYING) { manualPaused = true; player.pauseVideo(); }
+          else { manualPaused = false; player.playVideo(); }
+        } else if (d.action === 'mute') {
+          player.mute();
+        } else if (d.action === 'unmute') {
+          player.unMute();
+        } else if (d.action === 'setVolume') {
+          var vol = (typeof d.volume === 'number') ? d.volume : d.value;
+          if (typeof vol === 'number') {
+            player.setVolume(vol);
+            if (vol > 0 && typeof player.isMuted === 'function' && player.isMuted()) player.unMute();
+          }
+        } else if (d.action === 'seek' || d.action === 'seekTo') {
+          var sec = (typeof d.seconds === 'number') ? d.seconds : d.value;
+          if (typeof sec === 'number') player.seekTo(sec, true);
+        } else if (d.action === 'setQuality' || d.action === 'setPlaybackQuality') {
+          var q = mapHeightToYTQuality(d.quality || d.value);
+          if (typeof player.setPlaybackQuality === 'function') player.setPlaybackQuality(q);
+        } else if (d.action === 'loadVideo' && d.videoId && typeof player.loadVideoById === 'function') {
+          videoId = String(d.videoId);
+          player.loadVideoById(videoId, d.startSeconds || 0);
+        }
       } catch(e) {}
     });
   </script>
@@ -545,9 +873,9 @@
 
     // 1. System / Status
     if (path === '/api/health') return jsonResp({ status: 'ok', webMode: true });
-    if (path === '/api/system/version') return jsonResp({ version: '1.3.2', webMode: true });
+    if (path === '/api/system/version') return jsonResp({ version: '1.3.3', webMode: true });
     if (path.startsWith('/api/system/update')) {
-      return jsonResp({ success: true, has_update: false, current_version: '1.3.2', latest_version: '1.3.2', webMode: true });
+      return jsonResp({ success: true, has_update: false, current_version: '1.3.3', latest_version: '1.3.3', webMode: true });
     }
     if (path === '/api/network/config') return jsonResp({ success: true, config: { use_cloudflare: false } });
     if (path.startsWith('/api/user/')) {
@@ -560,26 +888,24 @@
     }
     if (path.startsWith('/api/diagnostics')) return jsonResp({ success: true, logs: [] });
 
-    // 2. Chzzk Lives List (1회 50개 요청 + 30초 메모리/로컬스토리지 폴백 캐싱)
+    // 2. Chzzk Lives List (SWR 즉시 반환 + 백그라운드 최신화, 수동 새로고침 시 즉시 갱신)
     if (path === '/api/lives') {
       const sortType = urlObj.searchParams.get('sortType') || 'POPULAR';
       const keyword = (urlObj.searchParams.get('keyword') || '').toLowerCase();
       const now = Date.now();
-      if (cachedLivesList.length > 0 && (now - cachedLivesTs) < 30000 && !keyword) {
-        return jsonResp({ success: true, total: cachedLivesList.length, lives: cachedLivesList });
-      }
-      try {
-        const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v1/lives?size=50&sortType=${sortType}`);
-        const items = (data && data.content && data.content.data) ? data.content.data : [];
+      const isManualRefresh = (now - lastManualRefreshClickTs) < 2500 || urlObj.searchParams.get('force') === '1';
+      const ageMs = now - cachedLivesTs;
+
+      const parseLiveItems = (items) => {
         const seen = new Set();
-        let lives = [];
+        const out = [];
         for (const item of items) {
           const ch = item.channel || {};
           if (!ch.channelId || seen.has(ch.channelId)) continue;
           seen.add(ch.channelId);
           let thumb = item.liveImageUrl || '';
           if (thumb.includes('{type}')) thumb = thumb.replace('{type}', '720');
-          lives.push({
+          out.push({
             liveId: item.liveId,
             channelId: ch.channelId,
             channelName: sanitizeText(ch.channelName || '스트리머'),
@@ -593,73 +919,68 @@
             openDate: item.openDate || ''
           });
         }
+        return out;
+      };
+
+      const filterLives = (list) => {
+        if (!keyword) return list;
+        return list.filter(l =>
+          l.channelName.toLowerCase().includes(keyword) ||
+          l.liveTitle.toLowerCase().includes(keyword) ||
+          l.categoryValue.toLowerCase().includes(keyword)
+        );
+      };
+
+      // 캐시가 10분 이내이고 수동 새로고침이 아니면 1ms 즉시 반환 + 25초 초과 시 백그라운드 갱신
+      if (!isManualRefresh && !keyword && cachedLivesList.length > 0 && ageMs < 600000) {
+        if (ageMs >= 25000 && !bgLivesRefreshInFlight) {
+          bgLivesRefreshInFlight = true;
+          proxyFetchJson(`https://api.chzzk.naver.com/service/v1/lives?size=50&sortType=${sortType}`)
+            .then((freshData) => {
+              const items = (freshData && freshData.content && freshData.content.data) ? freshData.content.data : [];
+              const freshLives = parseLiveItems(items);
+              if (freshLives.length > 0) {
+                cachedLivesList = freshLives;
+                cachedLivesTs = Date.now();
+                lsSet('cached_lives', { ts: cachedLivesTs, lives: freshLives.slice(0, 50) });
+                if (window.app && !window.app.searchKeyword && !window.app.selectedCategory) {
+                  window.app.lives = freshLives;
+                  window.app.renderCategoryChips();
+                  window.app.filterAndRenderLives();
+                }
+              }
+            })
+            .catch(() => {})
+            .finally(() => { bgLivesRefreshInFlight = false; });
+        }
+        return jsonResp({ success: true, total: cachedLivesList.length, lives: cachedLivesList, cached: true });
+      }
+
+      try {
+        const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v1/lives?size=50&sortType=${sortType}`);
+        const items = (data && data.content && data.content.data) ? data.content.data : [];
+        let lives = parseLiveItems(items);
         if (lives.length > 0) {
           cachedLivesList = lives;
           cachedLivesTs = now;
           lsSet('cached_lives', { ts: now, lives: lives.slice(0, 50) });
         }
-        if (keyword) {
-          lives = lives.filter(l =>
-            l.channelName.toLowerCase().includes(keyword) ||
-            l.liveTitle.toLowerCase().includes(keyword) ||
-            l.categoryValue.toLowerCase().includes(keyword)
-          );
-        }
+        lives = filterLives(lives);
         return jsonResp({ success: true, total: lives.length, lives });
       } catch (e) {
         if (cachedLivesList.length > 0) {
-          let fallbackLives = cachedLivesList;
-          if (keyword) {
-            fallbackLives = fallbackLives.filter(l =>
-              l.channelName.toLowerCase().includes(keyword) ||
-              l.liveTitle.toLowerCase().includes(keyword) ||
-              l.categoryValue.toLowerCase().includes(keyword)
-            );
-          }
+          const fallbackLives = filterLives(cachedLivesList);
           return jsonResp({ success: true, total: fallbackLives.length, lives: fallbackLives, cached: true });
         }
         return jsonResp({ success: false, error: '치지직 방송 목록을 불러오지 못했습니다. (잠시 후 새로고침해 주세요)', lives: [] });
       }
     }
 
-    // 3. Chzzk Live Detail
+    // 3. Chzzk Live Detail (25초 캐시 + 프리페치 히트)
     if (path.startsWith('/api/live/')) {
       const channelId = path.split('/').pop();
-      try {
-        const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v2/channels/${channelId}/live-detail`);
-        const content = data && data.content;
-        if (!content || content.status !== 'OPEN') {
-          return jsonResp({ success: false, isOnline: false, error: '현재 오프라인 상태입니다.' });
-        }
-        const pb = JSON.parse(content.livePlaybackJson || '{}');
-        const mediaList = pb.media || [];
-        const primary = mediaList.find(m => m.mediaId === 'LLHLS' || m.latency === 'lowLatency') || mediaList[0];
-        if (!primary) return jsonResp({ success: false, isOnline: true, error: '스트림 경로 없음' });
-        const hlsMedia = mediaList.find(m => m.mediaId === 'HLS');
-        let thumb = content.liveImageUrl || '';
-        if (thumb.includes('{type}')) thumb = thumb.replace('{type}', '720');
-        const ch = content.channel || {};
-        if (content.chatChannelId) channelChatIdMap[channelId] = content.chatChannelId;
-
-        return jsonResp({
-          success: true,
-          isOnline: true,
-          channelId,
-          channelName: sanitizeText(ch.channelName || channelId),
-          channelImageUrl: ch.channelImageUrl || './static/img/favicon.png',
-          title: sanitizeText(content.liveTitle || ''),
-          categoryValue: sanitizeText(content.liveCategoryValue || '기타'),
-          userCount: content.concurrentUserCount || 0,
-          thumbUrl: thumb,
-          masterUrl: primary.path,
-          streamUrl: primary.path,
-          hlsUrl: hlsMedia ? hlsMedia.path : primary.path,
-          encodingTracks: primary.encodingTrack || [],
-          chatChannelId: content.chatChannelId || ''
-        });
-      } catch (e) {
-        return jsonResp({ success: false, isOnline: false, error: '방송 정보를 불러오지 못했습니다.' });
-      }
+      const detail = await fetchLiveDetailCached(channelId);
+      return jsonResp(detail);
     }
 
     // 4. Chzzk Channel Search & Info & Clips & Videos
@@ -728,10 +1049,14 @@
       }
     }
 
-    // 5. Chzzk Chat Token & Emoji
+    // 5. Chzzk Chat Token & Emoji (토큰 30초 / 이모티콘 5분 캐시)
     if (path.startsWith('/api/chat/') && path.endsWith('/access')) {
       const cid = path.split('/')[3];
       let chatCid = urlObj.searchParams.get('chat_channel_id') || channelChatIdMap[cid];
+      const cachedTok = chatAccessCache[cid];
+      if (cachedTok && (Date.now() - cachedTok.ts) < 30000) {
+        return jsonResp(cachedTok.data);
+      }
       try {
         if (!chatCid) {
           const ld = await proxyFetchJson(`https://api.chzzk.naver.com/service/v2/channels/${cid}/live-detail`);
@@ -741,13 +1066,15 @@
         if (!chatCid) return jsonResp({ success: false, error: '채팅 채널 ID 없음' });
         const tkData = await proxyFetchJson(`https://comm-api.game.naver.com/nng_main/v1/chats/access-token?channelId=${chatCid}&chatType=STREAMING`);
         const content = (tkData && tkData.content) || {};
-        return jsonResp({
+        const accObj = {
           success: true,
           channelId: cid,
           chatChannelId: chatCid,
           accessToken: content.accessToken,
           extraToken: content.extraToken || ''
-        });
+        };
+        if (accObj.accessToken) chatAccessCache[cid] = { ts: Date.now(), data: accObj };
+        return jsonResp(accObj);
       } catch (e) {
         return jsonResp({ success: false, error: '채팅 토큰 발급 실패' });
       }
@@ -755,6 +1082,10 @@
 
     if (path.startsWith('/api/chat/') && path.endsWith('/emoji-packs')) {
       const cid = path.split('/')[3];
+      const cachedEm = emojiPackCache[cid];
+      if (cachedEm && (Date.now() - cachedEm.ts) < 300000) {
+        return jsonResp(cachedEm.data);
+      }
       try {
         const data = await proxyFetchJson(`https://api.chzzk.naver.com/service/v1/channels/${cid}/emoji-packs`);
         const c = (data && data.content) || {};
@@ -766,7 +1097,9 @@
             }
           }
         }
-        return jsonResp({ success: true, emojis: emojiMap });
+        const emObj = { success: true, emojis: emojiMap };
+        emojiPackCache[cid] = { ts: Date.now(), data: emObj };
+        return jsonResp(emObj);
       } catch (e) {
         return jsonResp({ success: true, emojis: {} });
       }

@@ -277,6 +277,9 @@ class MultiViewManager {
           }
         } catch (err) {}
         this.updateSlotAudioUI(slotIndex);
+      } else if (data.type === 'yt_autoplay_muted') {
+        slot.muted = true;
+        this.updateSlotAudioUI(slotIndex);
       }
     });
 
@@ -1183,6 +1186,20 @@ class MultiViewManager {
             // Chzzk <video> currently in PiP
           } else if (mediaEl.parentElement !== videoContainer) {
             videoContainer.appendChild(mediaEl);
+          }
+        }
+        if (videoContainer) {
+          let loadEl = videoContainer.querySelector('.slot-loading-indicator');
+          if (slot.isLoading && !mediaEl) {
+            if (!loadEl) {
+              loadEl = document.createElement('div');
+              loadEl.className = 'slot-loading-indicator';
+              loadEl.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(11,14,20,0.85);color:var(--accent-color);font-size:12.5px;font-weight:700;z-index:12;pointer-events:none;';
+              loadEl.innerHTML = `${ICONS.spinner}<span>방송 스트림 연결 중...</span>`;
+              videoContainer.appendChild(loadEl);
+            }
+          } else if (loadEl) {
+            loadEl.remove();
           }
         }
       }
@@ -2698,6 +2715,7 @@ class MultiViewManager {
           startSeconds: 0
         }, '*');
       } catch (e) {
+        slot.iframeEl.referrerPolicy = 'strict-origin-when-cross-origin';
         if (window.webBackendPolyfill && window.webBackendPolyfill.isStaticWeb()) {
           slot.iframeEl.srcdoc = window.webBackendPolyfill.generateYoutubeEmbedHtml(nextVideoId, slotIndex, true);
         } else {
@@ -3126,9 +3144,22 @@ class MultiViewManager {
 
     const slot = this.slots[slotIndex];
     if (slot) {
+      this.destroySlotStream(slot);
+      const known = (window.app && Array.isArray(window.app.lives))
+        ? window.app.lives.find(l => l.channelId === channelId)
+        : null;
+      slot.type = 'live';
+      slot.active = true;
+      slot.isLoading = true;
+      slot.channelId = channelId;
       slot.lastChannelId = channelId;
+      if (known) {
+        slot.channelName = known.channelName || slot.channelName;
+        slot.title = known.liveTitle || slot.title;
+      }
       slot.hasError = false;
       slot.errorMessage = null;
+      this.renderSlots();
     }
 
     try {
@@ -3139,6 +3170,7 @@ class MultiViewManager {
       if (!data.success || !masterUrl) {
         if (slot) {
           slot.active = true;
+          slot.isLoading = false;
           slot.channelId = channelId;
           slot.lastChannelId = channelId;
           slot.hasError = true;
@@ -3151,6 +3183,7 @@ class MultiViewManager {
 
       this.destroySlotStream(slot);
 
+      slot.isLoading = false;
       slot.channelId = channelId;
       slot.lastChannelId = channelId;
       slot.channelName = data.channelName;
@@ -3164,7 +3197,13 @@ class MultiViewManager {
       slot.active = true;
       slot.hasError = false;
       slot.errorMessage = null;
-      this.prefetchSlotChat(slot);
+      if (window.webBackendPolyfill && window.webBackendPolyfill.isStaticWeb() && !slot.chatOpen) {
+        setTimeout(() => {
+          if (slot.active && slot.channelId === channelId) this.prefetchSlotChat(slot);
+        }, 1400);
+      } else {
+        this.prefetchSlotChat(slot);
+      }
 
       // Check if any other slot is currently active and unmuted
       const anyOtherUnmuted = this.slots.some(s => s.active && s.index !== slotIndex && !s.muted);
@@ -3301,6 +3340,7 @@ class MultiViewManager {
       const s = this.slots[slotIndex];
       if (s) {
         s.active = true;
+        s.isLoading = false;
         s.channelId = channelId;
         s.lastChannelId = channelId;
         s.hasError = true;
@@ -3577,6 +3617,7 @@ class MultiViewManager {
 
       // Create dedicated YouTube embed iframe
       const iframe = document.createElement('iframe');
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
       if (window.webBackendPolyfill && window.webBackendPolyfill.isStaticWeb()) {
         iframe.srcdoc = window.webBackendPolyfill.generateYoutubeEmbedHtml(videoId, slotIndex, true);
       } else {
@@ -4223,6 +4264,7 @@ class MultiViewManager {
     const hls = new Hls({
       enableWorker: true,
       lowLatencyMode: true,           // LL-HLS 저지연 모드
+      startFragPrefetch: true,        // 매니페스트 파싱 직후 초기 세그먼트 동시 프리페치 (첫 화면 로딩 단축)
       backBufferLength: 60,           // 60초 백버퍼 유지 (타임머신 되돌려보기용)
       maxBufferLength: 45,            // 45초 전방 버퍼
       maxMaxBufferLength: 90,
