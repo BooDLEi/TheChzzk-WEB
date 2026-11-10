@@ -186,12 +186,52 @@
     return parsed;
   }
 
+  // Android 네이티브 비동기 HTTP 브릿지 (JavaBridge 스레드 블로킹/ANR 원천 차단)
+  const androidPendingFetches = {};
+  let androidFetchSeq = 0;
+  window.__onAndroidNativeFetch = function(reqId, bodyText) {
+    const entry = androidPendingFetches[reqId];
+    if (!entry) return;
+    delete androidPendingFetches[reqId];
+    clearTimeout(entry.timer);
+    entry.resolve(bodyText || '');
+  };
+
+  function androidFetchTextAsync(targetUrl, timeoutMs = 8500) {
+    if (!window.AndroidChzzk) return Promise.resolve('');
+    if (typeof window.AndroidChzzk.nativeFetchAsync === 'function') {
+      return new Promise((resolve) => {
+        const reqId = 'andreq_' + (++androidFetchSeq) + '_' + Date.now();
+        const timer = setTimeout(() => {
+          delete androidPendingFetches[reqId];
+          resolve('');
+        }, timeoutMs);
+        androidPendingFetches[reqId] = { resolve, timer };
+        try {
+          window.AndroidChzzk.nativeFetchAsync(reqId, targetUrl);
+        } catch (e) {
+          clearTimeout(timer);
+          delete androidPendingFetches[reqId];
+          resolve('');
+        }
+      });
+    }
+    if (typeof window.AndroidChzzk.nativeFetch === 'function') {
+      try {
+        return Promise.resolve(window.AndroidChzzk.nativeFetch(targetUrl) || '');
+      } catch (e) {
+        return Promise.resolve('');
+      }
+    }
+    return Promise.resolve('');
+  }
+
   // ================= CORS 프록시 & Android Native Fetch (고속 병렬 헤지 레이스) =================
   async function proxyFetchJson(targetUrl) {
-    // 0순위: Android APK 네이티브 자바 HTTP 인터셉터 (CORS 0%, Rate Limit 0%)
-    if (window.AndroidChzzk && typeof window.AndroidChzzk.nativeFetch === 'function') {
+    // 0순위: Android APK 비동기 네이티브 HTTP 인터셉터 (CORS 0%, 스레드 블로킹 0%)
+    if (window.AndroidChzzk) {
       try {
-        const raw = window.AndroidChzzk.nativeFetch(targetUrl);
+        const raw = await androidFetchTextAsync(targetUrl, 8500);
         if (raw && raw.trim().startsWith('{')) {
           return JSON.parse(raw);
         }
@@ -352,14 +392,6 @@
   const PIPED_BASES = ['https://api.piped.private.coffee'];
   async function pipedFetchJson(ep) {
     for (const base of PIPED_BASES) {
-      if (window.AndroidChzzk && typeof window.AndroidChzzk.nativeFetch === 'function') {
-        try {
-          const raw = window.AndroidChzzk.nativeFetch(`${base}${ep}`);
-          if (raw && (raw.trim().startsWith('{') || raw.trim().startsWith('['))) {
-            return JSON.parse(raw);
-          }
-        } catch (e) {}
-      }
       try {
         const res = await fetchWithTimeout(`${base}${ep}`, {
           credentials: 'omit',
@@ -367,6 +399,14 @@
         }, 7000);
         if (res.ok) return await res.json();
       } catch (e) {}
+      if (window.AndroidChzzk) {
+        try {
+          const raw = await androidFetchTextAsync(`${base}${ep}`, 7000);
+          if (raw && (raw.trim().startsWith('{') || raw.trim().startsWith('['))) {
+            return JSON.parse(raw);
+          }
+        } catch (e) {}
+      }
     }
     return null;
   }
@@ -374,19 +414,19 @@
   // Invidious CORS-enabled API
   let invidiousBase = 'https://yt.chocolatemoo53.com';
   async function invidiousFetchJson(ep) {
-    if (window.AndroidChzzk && typeof window.AndroidChzzk.nativeFetch === 'function') {
+    try {
+      const res = await fetchWithTimeout(`${invidiousBase}${ep}`, { credentials: 'omit' }, 7000);
+      if (res.ok) return await res.json();
+    } catch (e) {}
+
+    if (window.AndroidChzzk) {
       try {
-        const raw = window.AndroidChzzk.nativeFetch(`${invidiousBase}${ep}`);
+        const raw = await androidFetchTextAsync(`${invidiousBase}${ep}`, 7000);
         if (raw && (raw.trim().startsWith('{') || raw.trim().startsWith('['))) {
           return JSON.parse(raw);
         }
       } catch (e) {}
     }
-
-    try {
-      const res = await fetchWithTimeout(`${invidiousBase}${ep}`, { credentials: 'omit' }, 7000);
-      if (res.ok) return await res.json();
-    } catch (e) {}
 
     // Live instance fallback
     try {
@@ -465,22 +505,12 @@
     };
   }
 
-  // 사용자 브라우저의 한국어 환경(ko-KR)에서 공식 YouTube oEmbed로 영문 자동번역 제목을 한국어 원제목으로 복원
+  // 사용자 브라우저의 한국어 환경(ko-KR)에서 공식 YouTube oEmbed로 영문 자동번역 제목을 한국어 원제목으로 복원 (순수 비동기 fetch로 JavaBridge 부하 0%)
   async function fetchYoutubeOembed(vid) {
     if (!vid) return null;
     if (ytOembedCache[vid]) return ytOembedCache[vid];
     const target = `https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + vid)}&format=json`;
     try {
-      if (window.AndroidChzzk && typeof window.AndroidChzzk.nativeFetch === 'function') {
-        const raw = window.AndroidChzzk.nativeFetch(target);
-        if (raw && raw.trim().startsWith('{')) {
-          const d = JSON.parse(raw);
-          if (d && d.title) {
-            ytOembedCache[vid] = d;
-            return d;
-          }
-        }
-      }
       const res = await fetchWithTimeout(target, { credentials: 'omit' }, 2600);
       if (res.ok) {
         const d = await res.json();
@@ -873,9 +903,9 @@
 
     // 1. System / Status
     if (path === '/api/health') return jsonResp({ status: 'ok', webMode: true });
-    if (path === '/api/system/version') return jsonResp({ version: '1.3.3', webMode: true });
+    if (path === '/api/system/version') return jsonResp({ version: '1.3.4', webMode: true });
     if (path.startsWith('/api/system/update')) {
-      return jsonResp({ success: true, has_update: false, current_version: '1.3.3', latest_version: '1.3.3', webMode: true });
+      return jsonResp({ success: true, has_update: false, current_version: '1.3.4', latest_version: '1.3.4', webMode: true });
     }
     if (path === '/api/network/config') return jsonResp({ success: true, config: { use_cloudflare: false } });
     if (path.startsWith('/api/user/')) {

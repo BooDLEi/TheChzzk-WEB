@@ -5,7 +5,7 @@
      유튜브 댓글/채팅창 레이아웃 깨짐을 원천 차단하고, 자유모드 롱프레스 편집 UI를 제공합니다.
    ============================================================ */
 
-@media (max-width: 960px), ((hover: none) and (pointer: coarse) and (max-height: 620px)), ((hover: none) and (pointer: coarse) and (max-width: 1100px)) {
+@media (max-width: 960px), ((hover: none) and (pointer: coarse) and (max-height: 760px)), ((hover: none) and (pointer: coarse) and (max-width: 1366px)) {
   html, body {
     width: 100% !important;
     max-width: 100vw !important;
@@ -81,8 +81,8 @@
     background: rgba(255, 255, 255, 0.03) !important;
   }
 
-  /* 가로모드 (Landscape: 높이 좁고 폭이 넓은 화면)에서는 헤더를 슬림하게 컴팩트 래핑 */
-  @media (orientation: landscape) and (max-height: 580px) {
+  /* 가로모드 (Landscape: 스마트폰·폴더블·태블릿 가로 화면)에서는 헤더를 슬림한 가로 바 형태로 컴팩트 정돈 */
+  @media (orientation: landscape) {
     header {
       padding: max(4px, env(safe-area-inset-top)) 10px 4px 10px !important;
       gap: 4px !important;
@@ -183,6 +183,10 @@
   }
 
   .category-sidebar {
+    position: static !important;
+    top: auto !important;
+    transform: none !important;
+    z-index: 1 !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
@@ -214,6 +218,15 @@
 
   .category-count {
     display: none !important;
+  }
+
+  .card-badge-category {
+    max-width: calc(100% - 76px) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 10px !important;
+    padding: 2px 6px !important;
   }
 
   /* 2열 세로 피드 카드 그리드 (절대 좌우 안 잘림) */
@@ -252,10 +265,12 @@
 
   /* ================= 4. 유튜브 탭 ================= */
   .youtube-sticky-header {
-    top: -10px !important;
-    margin: -10px -10px 10px -10px !important;
+    position: static !important;
+    top: auto !important;
+    margin: 0 0 10px 0 !important;
     padding: 10px !important;
-    width: calc(100% + 20px) !important;
+    width: 100% !important;
+    box-shadow: none !important;
     gap: 8px !important;
   }
 
@@ -284,70 +299,253 @@
     gap: 6px !important;
   }
 
-  /* ================= 5. 멀티뷰 / 플레이어 (완벽 세로/가로 반응형 + 자유모드 터치 편집) ================= */
-  #multiview-tab.active {
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
+  /* ================= 5. 멀티뷰 / 플레이어 (세로 1열 스택 vs 가로 PC형 분할 정렬 분기) ================= */
+  /* 5-A. 세로모드(Portrait): 툴바 랩핑 & 1열 세로 스택 */
+  @media (orientation: portrait) {
+    #multiview-tab.active {
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+    }
+
+    .multiview-container {
+      height: auto !important;
+      min-height: 100% !important;
+      overflow: visible !important;
+      gap: 8px !important;
+    }
+
+    .multiview-toolbar {
+      padding: 6px 8px !important;
+      gap: 6px !important;
+      flex-wrap: wrap !important;
+      max-width: 100% !important;
+    }
+
+    .multiview-toolbar > div {
+      flex-wrap: wrap !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      gap: 4px !important;
+    }
+
+    .multiview-toolbar .btn-sm {
+      padding: 4px 7px !important;
+      font-size: 11px !important;
+    }
+
+    .layout-mode-group {
+      width: 100% !important;
+      margin-left: 0 !important;
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 3px !important;
+    }
+
+    .layout-mode-btn {
+      flex: 1 1 auto !important;
+      font-size: 11px !important;
+      padding: 4px 6px !important;
+      text-align: center !important;
+    }
+
+    #slotCountDisplay {
+      margin-left: 0 !important;
+      font-size: 11.5px !important;
+    }
+
+    /* 그리드 레이아웃 모드(정렬/메인1대형)만 세로 1열 스택, 자유모드(mode-custom)는 절대배치 유지 */
+    .players-grid:not(.mode-custom),
+    .players-grid.dynamic-grid:not(.mode-custom),
+    .players-grid.mode-focus:not(.mode-custom),
+    .players-grid.mode-auto:not(.mode-custom) {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 10px !important;
+      height: auto !important;
+      flex: none !important;
+      width: 100% !important;
+    }
+
+    .players-grid:not(.mode-custom) .player-slot {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      height: auto !important;
+      min-height: 0 !important;
+      position: relative !important;
+      grid-column: auto !important;
+      grid-row: auto !important;
+    }
+
+    .players-grid:not(.mode-custom) .slot-video-area {
+      width: 100% !important;
+      aspect-ratio: 16 / 9 !important;
+      height: auto !important;
+      flex: none !important;
+    }
+
+    .chat-dock-panel,
+    .slot-chat-column,
+    .slot-playlist-column,
+    .slot-related-column {
+      width: 100% !important;
+      min-width: 100% !important;
+      max-width: 100% !important;
+      height: 280px !important;
+      min-height: 220px !important;
+      max-height: 46vh !important;
+      border-left: none !important;
+      border-top: 1px solid var(--border-color) !important;
+    }
   }
 
-  .multiview-container {
-    height: auto !important;
-    min-height: 100% !important;
-    overflow: visible !important;
-    gap: 8px !important;
-  }
+  /* 5-B. 가로모드(Landscape: 스마트폰 가로·태블릿·폴더블): PC와 동일한 한 화면 가로/격자 분할 정렬 & 단일행 슬림 툴바 */
+  @media (orientation: landscape) {
+    .lives-grid,
+    .vods-grid,
+    .clips-grid,
+    .recordings-grid,
+    .yt-videos-grid,
+    .yt-bookmarks-grid,
+    .yt-channel-videos-grid,
+    .channel-search-grid {
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)) !important;
+    }
 
-  .multiview-toolbar {
-    padding: 6px 8px !important;
-    gap: 6px !important;
-    flex-wrap: wrap !important;
-    max-width: 100% !important;
-  }
+    #multiview-tab.active {
+      display: flex !important;
+      flex-direction: column !important;
+      padding: 4px 8px !important;
+      overflow: hidden !important;
+      height: 100% !important;
+    }
 
-  /* 멀티뷰 툴바 내부 인라인 flex 행이 폭을 넘어 잘리는 현상 방지 */
-  .multiview-toolbar > div {
-    flex-wrap: wrap !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    gap: 4px !important;
-  }
+    .multiview-container {
+      display: flex !important;
+      flex-direction: column !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      flex: 1 1 auto !important;
+      overflow: hidden !important;
+      gap: 4px !important;
+    }
 
-  .multiview-toolbar .btn-sm {
-    padding: 4px 7px !important;
-    font-size: 11px !important;
-  }
+    /* 가로모드 상단 멀티뷰 툴바: 한 줄에 딱 맞게 컴팩트 정돈 */
+    .multiview-toolbar {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      gap: 6px !important;
+      padding: 4px 8px !important;
+      min-height: 34px !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      scrollbar-width: none !important;
+      max-width: 100% !important;
+    }
 
-  .layout-mode-group {
-    width: 100% !important;
-    margin-left: 0 !important;
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 3px !important;
-  }
+    .multiview-toolbar::-webkit-scrollbar {
+      display: none;
+    }
 
-  .layout-mode-btn {
-    flex: 1 1 auto !important;
-    font-size: 11px !important;
-    padding: 4px 6px !important;
-    text-align: center !important;
-  }
+    .multiview-toolbar > div {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      width: auto !important;
+      flex-shrink: 0 !important;
+      gap: 4px !important;
+    }
 
-  #slotCountDisplay {
-    margin-left: 0 !important;
-    font-size: 11.5px !important;
-  }
+    .layout-mode-group {
+      width: auto !important;
+      flex: 0 0 auto !important;
+      flex-wrap: nowrap !important;
+      margin-left: 4px !important;
+      padding: 2px 3px !important;
+      gap: 2px !important;
+    }
 
-  /* 그리드 레이아웃 모드(정렬/메인1대형)만 1열 세로 스택으로 강제 변환, 자유모드(mode-custom)는 절대배치 유지! */
-  .players-grid:not(.mode-custom),
-  .players-grid.dynamic-grid:not(.mode-custom),
-  .players-grid.mode-focus:not(.mode-custom),
-  .players-grid.mode-auto:not(.mode-custom) {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 10px !important;
-    height: auto !important;
-    flex: none !important;
-    width: 100% !important;
+    .layout-mode-btn,
+    .multiview-toolbar .btn-sm {
+      flex: 0 0 auto !important;
+      white-space: nowrap !important;
+      height: 26px !important;
+      padding: 0 8px !important;
+      font-size: 11px !important;
+      line-height: 1 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 4px !important;
+    }
+
+    #slotCountDisplay {
+      width: auto !important;
+      white-space: nowrap !important;
+      font-size: 11px !important;
+      margin-left: 4px !important;
+    }
+
+    .multiview-workspace {
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      padding: 2px !important;
+      overflow: hidden !important;
+    }
+
+    /* PC와 동일한 CSS Grid 가로/세로 분할 유지 -> 가로 화면 안에 모든 슬롯 자동 맞춤 */
+    .players-grid:not(.mode-custom),
+    .players-grid.dynamic-grid:not(.mode-custom),
+    .players-grid.mode-focus:not(.mode-custom),
+    .players-grid.mode-auto:not(.mode-custom) {
+      display: grid !important;
+      flex: 1 1 auto !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      gap: 6px !important;
+      overflow: hidden !important;
+    }
+
+    .players-grid:not(.mode-custom) .player-slot {
+      display: flex !important;
+      flex-direction: row !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      max-width: none !important;
+      position: relative !important;
+    }
+
+    .players-grid:not(.mode-custom) .slot-video-area {
+      width: 100% !important;
+      height: 100% !important;
+      aspect-ratio: auto !important;
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      min-width: 0 !important;
+    }
+
+    .chat-dock-panel,
+    .slot-chat-column,
+    .slot-playlist-column,
+    .slot-related-column {
+      width: 210px !important;
+      min-width: 175px !important;
+      max-width: 42% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      border-top: none !important;
+      border-left: 1px solid var(--border-color) !important;
+    }
   }
 
   .players-grid.mode-custom {
@@ -359,20 +557,6 @@
     overflow: auto !important;
   }
 
-  /* 슬롯 내부: 정렬/메인모드에서는 세로 스택, 자유모드에서는 지정 위치/크기 유지 */
-  .players-grid:not(.mode-custom) .player-slot {
-    display: flex !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    position: relative !important;
-    grid-column: auto !important;
-    grid-row: auto !important;
-  }
-
   .players-grid.mode-custom .player-slot {
     position: absolute !important;
     display: flex !important;
@@ -380,16 +564,12 @@
     touch-action: none !important;
   }
 
-  .slot-video-area {
+  .players-grid.mode-custom .slot-video-area {
     width: 100% !important;
-    aspect-ratio: 16 / 9 !important;
-    height: auto !important;
+    height: 100% !important;
+    aspect-ratio: auto !important;
     flex: 1 1 auto !important;
     min-height: 0 !important;
-  }
-
-  .players-grid:not(.mode-custom) .slot-video-area {
-    flex: none !important;
   }
 
   /* 슬롯 하단 오버레이 컨트롤바 반응형 압축 */
@@ -419,27 +599,14 @@
     padding: 2px 3px !important;
   }
 
-  /* 사이드 도크(치지직 채팅, 유튜브 댓글, 재생목록, 관련영상)를 비디오 하단 세로 배치 */
-  .chat-dock-panel,
-  .slot-chat-column,
-  .slot-playlist-column,
-  .slot-related-column {
-    width: 100% !important;
-    min-width: 100% !important;
-    max-width: 100% !important;
-    height: 280px !important;
-    min-height: 220px !important;
-    max-height: 46vh !important;
-    border-left: none !important;
-    border-top: 1px solid var(--border-color) !important;
-  }
-
   .chat-dock-panel.closed,
   .slot-chat-column.collapsed,
   .slot-playlist-column.collapsed,
   .slot-related-column.collapsed {
     display: none !important;
+    width: 0 !important;
     height: 0 !important;
+    min-width: 0 !important;
     min-height: 0 !important;
   }
 
