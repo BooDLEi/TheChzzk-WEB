@@ -25,10 +25,10 @@
   <link rel="icon" type="image/x-icon" href="./static/favicon.ico">
   <link rel="apple-touch-icon" href="./static/img/favicon.png">
   <link rel="manifest" href="./static/manifest.json">
-  <link rel="stylesheet" href="./static/css/style.css?v=1.3.5">
-  <link rel="stylesheet" href="./static/css/responsive.css?v=1.3.5">
-  <script src="./static/js/web_backend_polyfill.js?v=1.3.5"></script>
-  <script src="./static/js/hls.min.js?v=1.3.5"></script>
+  <link rel="stylesheet" href="./static/css/style.css?v=1.5.0">
+  <link rel="stylesheet" href="./static/css/responsive.css?v=1.5.0">
+  <script src="./static/js/web_backend_polyfill.js?v=1.5.0"></script>
+  <script src="./static/js/hls.min.js?v=1.5.0"></script>
 </head>
 <body>
 
@@ -50,33 +50,39 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="#ff0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
         <span>유튜브</span>
       </button>
-      <button class="nav-btn" data-tab="bookmarks">
+      <button class="nav-btn desktop-only-nav-btn" data-tab="bookmarks">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
         <span>즐겨찾기</span>
         <span class="badge" id="bookmarks-badge">0</span>
       </button>
       <button class="nav-btn" data-tab="multiview">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-        <span>플레이어</span>
+        <span class="nav-label-desktop">플레이어</span>
+        <span class="nav-label-mobile">멀티뷰</span>
         <span class="badge" id="multiview-badge">0/1</span>
       </button>
       <button class="nav-btn" data-tab="clips">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
         <span>클립</span>
       </button>
-      <button class="nav-btn" data-tab="recorder">
+      <button class="nav-btn desktop-only-nav-btn" data-tab="recorder">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3" fill="currentColor"></circle></svg>
         <span>녹화</span>
         <span class="badge" id="recorder-badge">0</span>
       </button>
-      <button class="nav-btn" data-tab="editor">
+      <button class="nav-btn desktop-only-nav-btn" data-tab="editor">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
         <span>편집</span>
       </button>
-      <button class="nav-btn" data-tab="settings">
+      <button class="nav-btn desktop-only-nav-btn" data-tab="settings">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
         <span>설정</span>
         <span class="badge" id="settings-update-badge" style="display: none; background: #38bdf8; color: #0b0e14; font-weight: 800;">UP</span>
+      </button>
+      <button class="nav-btn mobile-only-nav-btn" data-tab="vault" style="display: none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        <span>보관함</span>
+        <span class="badge" id="vault-badge" style="display: none;">0</span>
       </button>
     </nav>
 
@@ -141,6 +147,22 @@
   <!-- Main Content Areas -->
   <main>
 
+    <!-- Mobile Vault Hub Sub-Tab Bar (보관함 / 에디터 / 설정) - Hidden on Desktop -->
+    <div class="mobile-vault-header" id="mobileVaultHeader" style="display: none;">
+      <button class="mobile-vault-tab-btn active" data-vault-subtab="recorder" onclick="window.app.switchTab('recorder')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        <span>보관함</span>
+      </button>
+      <button class="mobile-vault-tab-btn" data-vault-subtab="editor" onclick="window.app.switchTab('editor')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
+        <span>에디터</span>
+      </button>
+      <button class="mobile-vault-tab-btn" data-vault-subtab="settings" onclick="window.app.switchTab('settings')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span>설정</span>
+      </button>
+    </div>
+
     <!-- 1. Explore & Live Catalog Tab (Left Category Sidebar + Right Lives Content) -->
     <section class="tab-pane active" id="explore-tab">
       <div id="slotSelectionBanner" class="slot-selection-banner" style="display: none;">
@@ -151,9 +173,9 @@
         <button class="btn btn-sm btn-danger" onclick="window.multiview.cancelTargetSlot()">선택 취소</button>
       </div>
 
-      <div class="explore-layout">
+      <div class="explore-layout" id="exploreLayout">
         <!-- Left Category Sidebar -->
-        <aside class="category-sidebar">
+        <aside class="category-sidebar" id="exploreCategorySidebar">
           <div class="category-sidebar-header">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 12h4m-2-2v4m7-2h.01m3 0h.01"></path></svg>
             <span>게임 / 카테고리</span>
@@ -170,33 +192,76 @@
         </aside>
 
         <!-- Right Content Area -->
-        <div class="explore-content">
-          <div class="explore-toolbar">
-            <div class="search-group" style="flex: 1; max-width: none; display: flex; gap: 8px; align-items: center;">
+        <div class="explore-content" id="exploreContent">
+          <div class="explore-toolbar" id="exploreToolbar">
+            <div class="search-group" style="flex: 1; max-width: none; display: flex; gap: 6px; align-items: center;">
               <input type="text" id="liveSearchInput" class="input-box" placeholder="스트리머명, 방송 제목, 게임/장르 검색..." style="flex: 1;">
-              <button class="btn btn-secondary" id="searchOfflineChannelToggleBtn" style="display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; padding: 6px 12px;" title="오프라인 채널까지 포함하여 검색 (다시보기 및 클립 탐색)">
-                <span id="searchOfflineIcon">🌐</span>
+              <button class="btn btn-secondary" id="searchOfflineChannelToggleBtn" style="display: flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; padding: 6px 10px;" title="오프라인 채널까지 포함하여 검색 (다시보기 및 클립 탐색)">
+                <svg id="searchOfflineIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                 <span id="searchOfflineText">오프라인 채널 검색</span>
               </button>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <div id="exploreToolbarRight" style="display: flex; gap: 8px; align-items: center;">
               <span id="liveTotalCountDisplay" style="font-size: 13px; color: var(--text-muted);">불러오는 중...</span>
-              <button class="btn" id="refreshLivesBtn" style="display: flex; align-items: center; gap: 6px;">
+              <button class="btn" id="refreshLivesBtn" style="display: flex; align-items: center; gap: 6px;" title="실시간 방송 목록 새로고침">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                <span>새로고침</span>
+                <span class="refresh-btn-label">새로고침</span>
               </button>
+            </div>
+          </div>
+
+          <!-- Mobile Filter Row (Category Filter Strip + Bookmark Toggle + Icon Refresh) -->
+          <div class="mobile-explore-filter-row" id="mobileExploreFilterRow" style="display: none;">
+            <div class="mobile-explore-cats-slot" id="mobileExploreCatsSlot"></div>
+            <div class="mobile-explore-filter-actions" id="mobileExploreFilterActions">
+              <button class="btn mobile-home-bm-btn" id="mobileHomeBookmarkFilterBtn" onclick="window.app.toggleHomeBookmarkFilter()" title="즐겨찾기 채널 모아보기">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                <span class="mobile-bm-count" id="mobileHomeBookmarksCount">0</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mobile Home Bookmark Sections (Shown when mobileHomeBookmarkFilterBtn is active) -->
+          <div id="mobileHomeBookmarksSection" class="mobile-home-bookmarks-section" style="display: none; margin-bottom: 18px;">
+            <div class="mobile-home-bm-add-row">
+              <input type="text" id="mobileHomeAddBookmarkInput" class="input-box" placeholder="즐겨찾기 추가 (스트리머명, 채널 ID 또는 링크)..." style="flex: 1;">
+              <button class="btn btn-sm btn-primary" id="mobileHomeAddBookmarkBtn" onclick="window.app.addBookmarkFromMobileHome()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>추가</span>
+              </button>
+            </div>
+
+            <div id="mobileHomeBookmarksOnlineSection" style="margin-bottom: 16px;">
+              <div style="font-size: 14px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                <span class="live-dot-pulse"></span>
+                <span>방송 중인 즐겨찾기</span>
+                <span class="badge" id="mobileHomeBmOnlineBadge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">0</span>
+              </div>
+              <div class="lives-grid" id="mobileHomeBookmarksOnlineGrid"></div>
+            </div>
+
+            <div id="mobileHomeBookmarksOfflineSection">
+              <div style="font-size: 14px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #64748b;"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                <span style="color: var(--text-muted);">오프라인 즐겨찾기</span>
+                <span class="badge" id="mobileHomeBmOfflineBadge" style="background: rgba(255, 255, 255, 0.08); color: #94a3b8;">0</span>
+              </div>
+              <div class="lives-grid" id="mobileHomeBookmarksOfflineGrid"></div>
             </div>
           </div>
 
           <!-- Section: Offline Channel Search Results (Accessible when toggled or no live stream matches) -->
           <div id="channelSearchResultsSection" style="margin-bottom: 24px; display: none;">
-            <div style="font-size: 16px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
               <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="color: var(--accent-color);">🌐</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                 <span>채널 검색 결과 (오프라인 포함)</span>
                 <span class="badge" id="channelSearchCountBadge">0</span>
               </div>
-              <button class="btn btn-sm btn-secondary" id="closeChannelSearchBtn">✕ 검색 닫기</button>
+              <button class="btn btn-sm btn-secondary" id="closeChannelSearchBtn" style="display: inline-flex; align-items: center; gap: 4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>검색 닫기</span>
+              </button>
             </div>
             <div class="channel-search-grid" id="channelSearchResultsGrid"></div>
           </div>
@@ -291,7 +356,7 @@
               <div class="search-group" style="flex: 1; position: relative;">
                 <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="text" id="ytSearchInput" class="input-box" placeholder="유튜브 영상 검색, 채널명 검색, 또는 YouTube 링크(URL) 붙여넣기..." style="width: 100%; padding-left: 36px; padding-right: 32px;">
-                <button id="ytClearSearchBtn" class="yt-clear-btn" style="display: none;" title="검색어 지우기">✕</button>
+                <button id="ytClearSearchBtn" class="yt-clear-btn" style="display: none;" title="검색어 지우기"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
               </div>
               <button class="btn btn-primary" id="ytSearchBtn" style="display: flex; align-items: center; gap: 6px;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -329,7 +394,7 @@
           <!-- Algorithm Keywords Control Bar (희망 알고리즘 키워드 툴바 - 접기/펼치기 지원) -->
           <div class="yt-algorithm-toolbar" id="ytAlgorithmToolbar">
             <button class="yt-kw-toggle-btn" id="ytToggleKeywordsBtn" onclick="window.youtubeUI.toggleKeywordsBar()" title="알고리즘 키워드 바 접기/펼치기">
-              <span id="ytToggleKeywordsIcon">▼</span>
+              <span id="ytToggleKeywordsIcon" style="display:inline-flex;align-items:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
               <span style="font-weight: 700;">희망 알고리즘 키워드</span>
             </button>
             <div class="yt-kw-chips-container" id="ytKeywordsBar">
@@ -444,7 +509,7 @@
             <div class="yt-empty-state" id="ytVideoBookmarksEmpty" style="display: none;">
               <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
               <h3>즐겨찾기한 유튜브 영상이 없습니다</h3>
-              <p>영상 썸네일 우상단의 별(★) 아이콘을 클릭하여 마음에 드는 영상을 즐겨찾기에 보관해보세요.</p>
+              <p>영상 썸네일 우상단의 즐겨찾기 별 아이콘을 클릭하여 마음에 드는 영상을 보관해보세요.</p>
             </div>
             <div class="yt-videos-grid" id="ytVideoBookmarksGrid"></div>
           </div>
@@ -490,7 +555,7 @@
           <div class="yt-empty-state" id="ytWatchLaterEmpty" style="display: none;">
             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; opacity: 0.6;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             <h3>나중에 볼 영상이 없습니다</h3>
-            <p>영상 썸네일 우상단의 시계(🕒) 아이콘을 클릭하여 나중에 볼 영상을 담아두세요.</p>
+            <p>영상 썸네일 우상단의 시계 아이콘을 클릭하여 나중에 볼 영상을 담아두세요.</p>
           </div>
           <div class="yt-videos-grid" id="ytWatchLaterGrid"></div>
         </div>
@@ -516,20 +581,22 @@
     <!-- 3. Multi-Viewing Tab -->
     <section class="tab-pane" id="multiview-tab">
       <div class="multiview-container">
-        <div class="multiview-toolbar">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <button class="btn btn-primary btn-sm" id="addSlotBtn" onclick="window.multiview.addNewSlot()" title="새 슬롯 1개 추가" style="display: flex; align-items: center; gap: 5px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span>슬롯 추가</span>
-            </button>
-            <button class="btn btn-sm" id="removeEmptySlotBtn" onclick="window.multiview.removeLastEmptySlot()" title="비어있는 슬롯 1개 제거" style="display: flex; align-items: center; gap: 5px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span>슬롯 제거</span>
-            </button>
-            <button class="btn btn-sm" onclick="window.multiview.clearAllSlots()" title="모든 슬롯을 비우고 단일 슬롯으로 초기화" style="display: flex; align-items: center; gap: 5px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-              <span>전체 비우기</span>
-            </button>
+        <div class="multiview-toolbar" id="multiviewToolbar">
+          <div class="mv-toolbar-left" id="mvToolbarLeft" style="display: flex; align-items: center; gap: 6px;">
+            <div class="mv-slot-actions-group" id="mvSlotActionsGroup" style="display: flex; align-items: center; gap: 6px;">
+              <button class="btn btn-primary btn-sm" id="addSlotBtn" onclick="window.multiview.addNewSlot()" title="새 슬롯 1개 추가" style="display: flex; align-items: center; gap: 5px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>슬롯 추가</span>
+              </button>
+              <button class="btn btn-sm" id="removeEmptySlotBtn" onclick="window.multiview.removeLastEmptySlot()" title="비어있는 슬롯 1개 제거" style="display: flex; align-items: center; gap: 5px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>슬롯 제거</span>
+              </button>
+              <button class="btn btn-sm" id="clearAllSlotsBtn" onclick="window.multiview.clearAllSlots()" title="모든 슬롯을 비우고 단일 슬롯으로 초기화" style="display: flex; align-items: center; gap: 5px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span>전체 비우기</span>
+              </button>
+            </div>
             <div class="layout-mode-group" style="display: flex; align-items: center; gap: 3px; margin-left: 6px; background: rgba(0,0,0,0.35); padding: 2px 4px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
               <button class="btn btn-sm layout-mode-btn active" id="layoutModeEqualBtn" onclick="window.multiview.setLayoutMode('auto')" title="슬롯들이 화면에 맞춰 서로 붙어 정렬되는 모드">정렬 모드</button>
               <button class="btn btn-sm layout-mode-btn" id="layoutModeFocusBtn" onclick="window.multiview.setLayoutMode('focus')" title="1번 슬롯 대형 메인 + 보조 슬롯 분할">메인 1대형</button>
@@ -543,7 +610,7 @@
               슬롯 1개 (단일)
             </span>
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
+          <div class="mv-toolbar-right" style="display: flex; gap: 8px; align-items: center;">
             <button class="btn btn-sm" id="muteAllSlotsBtn" style="display: flex; align-items: center; gap: 5px;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
               <span>전체 음소거</span>
@@ -555,6 +622,9 @@
         <div class="multiview-workspace">
           <div class="players-grid dynamic-grid" id="playersGrid"></div>
         </div>
+
+        <!-- Mobile Bottom Slot Actions Bar (Moved here dynamically on mobile) -->
+        <div class="mv-mobile-bottom-bar" id="mvMobileBottomBar" style="display: none;"></div>
       </div>
     </section>
 
@@ -602,7 +672,7 @@
 
       <div id="clipsChannelBanner" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; margin-bottom: 20px; display: none; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 14px;">
-          <img id="clipsBannerAvatar" src="" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-color); cursor: pointer;" title="채널 홈으로 이동">
+          <img id="clipsBannerAvatar" src="./static/img/favicon.png" onerror="this.onerror=null; this.src='./static/img/favicon.png';" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-color); cursor: pointer;" title="채널 홈으로 이동">
           <div>
             <div id="clipsBannerName" style="font-size: 16px; font-weight: 800; color: #fff; cursor: pointer;" title="채널 홈으로 이동"></div>
             <div id="clipsBannerMeta" style="font-size: 12.5px; color: var(--text-muted); margin-top: 2px;"></div>
@@ -652,13 +722,12 @@
       <div class="channel-hero-banner" id="channelHeroBanner">
         <div style="display: flex; align-items: center; gap: 20px; flex: 1; flex-wrap: wrap;">
           <div style="position: relative;">
-            <img id="channelHeroAvatar" src="" class="channel-hero-avatar">
+            <img id="channelHeroAvatar" src="./static/img/favicon.png" onerror="this.onerror=null; this.src='./static/img/favicon.png';" class="channel-hero-avatar">
             <span id="channelLiveBadge" class="channel-live-indicator" style="display: none;">LIVE</span>
           </div>
           <div style="flex: 1; min-width: 240px;">
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
               <h2 id="channelHeroName" style="font-size: 22px; font-weight: 900; color: #fff; margin: 0;">스트리머</h2>
-              <span id="channelVerifiedBadge" style="color: var(--accent-color); font-size: 16px; display: none;">✓</span>
               <button class="btn btn-sm" id="channelBookmarkToggleBtn" style="font-size: 12px; padding: 4px 10px; display: flex; align-items: center; gap: 5px;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                 <span>즐겨찾기</span>
@@ -738,11 +807,15 @@
                 <button class="recorder-subtab active" data-subtab="all" onclick="window.recorderUI.setSubtab('all')">
                   전체 <span class="badge" id="recCountAll" style="font-size: 10px; margin-left: 2px;">0</span>
                 </button>
-                <button class="recorder-subtab" data-subtab="videos" onclick="window.recorderUI.setSubtab('videos')">
-                  🎬 녹화 영상 <span class="badge" id="recCountVideos" style="font-size: 10px; margin-left: 2px;">0</span>
+                <button class="recorder-subtab" data-subtab="videos" onclick="window.recorderUI.setSubtab('videos')" style="display: inline-flex; align-items: center; gap: 4px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                  <span>녹화 영상</span>
+                  <span class="badge" id="recCountVideos" style="font-size: 10px; margin-left: 2px;">0</span>
                 </button>
-                <button class="recorder-subtab" data-subtab="captures" onclick="window.recorderUI.setSubtab('captures')">
-                  📸 캡처 이미지 <span class="badge" id="recCountCaptures" style="font-size: 10px; margin-left: 2px;">0</span>
+                <button class="recorder-subtab" data-subtab="captures" onclick="window.recorderUI.setSubtab('captures')" style="display: inline-flex; align-items: center; gap: 4px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                  <span>캡처 이미지</span>
+                  <span class="badge" id="recCountCaptures" style="font-size: 10px; margin-left: 2px;">0</span>
                 </button>
               </div>
 
@@ -785,7 +858,8 @@
               </div>
 
               <button class="btn btn-sm" id="groupByDateToggleBtn" style="display: flex; align-items: center; gap: 5px; font-size: 12px;">
-                <span>📅 날짜별 묶어보기</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span>날짜별 묶어보기</span>
               </button>
             </div>
           </div>
@@ -815,7 +889,7 @@
             </button>
             <div class="editor-cur-file-info">
               <span class="editor-file-label">현재 편집 영상:</span>
-              <span class="editor-file-name" id="editorCurrentFileName">선택된 영상 없음 (보관함에서 [✂️ 편집실로 가져오기]를 누르세요)</span>
+              <span class="editor-file-name" id="editorCurrentFileName">선택된 영상 없음 (보관함에서 [편집실로 가져오기]를 누르세요)</span>
             </div>
             <button class="btn btn-sm" id="refreshEditorSourcesBtn" title="목록 새로고침" style="display: flex; align-items: center; gap: 4px;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
@@ -1172,7 +1246,7 @@
               <span>프로그램 업데이트 (GitHub 연동)</span>
             </div>
             <div style="display: flex; gap: 6px; align-items: center;">
-              <span id="updateCurrentVerBadge" style="font-size: 11.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);">v1.2.5</span>
+              <span id="updateCurrentVerBadge" style="font-size: 11.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);">v1.5.0</span>
               <button class="btn btn-sm btn-secondary" id="checkUpdateBtn" onclick="window.app.checkSystemUpdate(true)">
                 업데이트 확인
               </button>
@@ -1220,7 +1294,7 @@
           </div>
           <div style="font-size: 13px; line-height: 1.8; color: var(--text-muted);">
             <div><strong>프로그램명:</strong> 더치지직 (The Chzzk Multi Studio & Recorder)</div>
-            <div><strong>현재 버전:</strong> <span id="infoVersionText">v1.2.5</span></div>
+            <div><strong>현재 버전:</strong> <span id="infoVersionText">v1.5.0</span></div>
             <div><strong>GitHub 저장소:</strong> <a href="https://github.com/BooDLEi/TheChzzk" target="_blank" style="color: #38bdf8; text-decoration: underline;">https://github.com/BooDLEi/TheChzzk.git</a></div>
             <div><strong>플랫폼:</strong> 네이버 치지직 & 유튜브 무광고 멀티뷰 통합 스튜디오</div>
             <div><strong>엔진:</strong> FastAPI + PyWebView + HLS.js + yt-dlp + FFmpeg Concat Remux</div>
@@ -1334,7 +1408,7 @@
     <div class="modal-content" style="max-width: 920px; position: relative;">
       <div class="modal-header">
         <div class="modal-title" style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 18px;">📸</span>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           <span id="capturePreviewFileName">캡처 이미지 미리보기</span>
         </div>
         <button class="modal-close-btn" onclick="window.recorderUI.closeCaptureModal()">&times;</button>
@@ -1346,10 +1420,19 @@
         <div style="padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); flex-wrap: wrap; gap: 10px;">
           <div id="capturePreviewMeta" style="font-size: 12.5px; color: var(--text-muted);"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button class="btn btn-sm" id="capturePreviewRenameBtn">✏️ 이름 변경</button>
-            <a id="capturePreviewDownloadLink" href="#" download="" class="btn btn-sm btn-primary">💾 이미지 저장</a>
-            <button class="btn btn-sm btn-danger" id="capturePreviewDeleteBtn">🗑️ 삭제</button>
-            <button class="btn btn-sm" onclick="window.recorderUI.closeCaptureModal()">✕ 닫기</button>
+            <button class="btn btn-sm" id="capturePreviewRenameBtn" style="display: inline-flex; align-items: center; gap: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <span>이름 변경</span>
+            </button>
+            <a id="capturePreviewDownloadLink" href="#" download="" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>이미지 저장</span>
+            </a>
+            <button class="btn btn-sm btn-danger" id="capturePreviewDeleteBtn" style="display: inline-flex; align-items: center; gap: 4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>삭제</span>
+            </button>
+            <button class="btn btn-sm" onclick="window.recorderUI.closeCaptureModal()">닫기</button>
           </div>
         </div>
       </div>
@@ -1361,7 +1444,7 @@
     <div class="modal-content" style="max-width: 480px;">
       <div class="modal-header">
         <div class="modal-title" style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-          <span>✏️</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
           <span>파일명 수정</span>
         </div>
         <button class="modal-close-btn" onclick="window.recorderUI.closeRenameModal()">&times;</button>
@@ -1485,12 +1568,12 @@
   <div id="liveNotificationContainer" class="live-notification-container"></div>
 
   <!-- Scripts -->
-  <script src="./static/js/multiview.js?v=1.3.5"></script>
-  <script src="./static/js/channel_ui.js?v=1.3.5"></script>
-  <script src="./static/js/clips_ui.js?v=1.3.5"></script>
-  <script src="./static/js/recorder_ui.js?v=1.3.5"></script>
-  <script src="./static/js/editor_ui.js?v=1.3.5"></script>
-  <script src="./static/js/youtube_ui.js?v=1.3.5"></script>
-  <script src="./static/js/app.js?v=1.3.5"></script>
+  <script src="./static/js/multiview.js?v=1.5.0"></script>
+  <script src="./static/js/channel_ui.js?v=1.5.0"></script>
+  <script src="./static/js/clips_ui.js?v=1.5.0"></script>
+  <script src="./static/js/recorder_ui.js?v=1.5.0"></script>
+  <script src="./static/js/editor_ui.js?v=1.5.0"></script>
+  <script src="./static/js/youtube_ui.js?v=1.5.0"></script>
+  <script src="./static/js/app.js?v=1.5.0"></script>
 </body>
 </html>

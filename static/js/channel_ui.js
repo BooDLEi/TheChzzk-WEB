@@ -28,7 +28,6 @@ class ChannelUI {
     // Hero elements
     this.channelHeroAvatar = document.getElementById('channelHeroAvatar');
     this.channelHeroName = document.getElementById('channelHeroName');
-    this.channelVerifiedBadge = document.getElementById('channelVerifiedBadge');
     this.channelFollowToggleBtn = document.getElementById('channelFollowToggleBtn');
     this.channelBookmarkToggleBtn = document.getElementById('channelBookmarkToggleBtn');
     this.channelNotifyToggleBtn = document.getElementById('channelNotifyToggleBtn');
@@ -235,10 +234,12 @@ class ChannelUI {
         const name = data.channelName || '스트리머';
         this.channelHeroName.textContent = name;
         if (this.channelNavTitle) this.channelNavTitle.textContent = name;
-        this.channelHeroAvatar.src = data.channelImageUrl || './static/img/default_avatar.png';
+        if (this.channelHeroAvatar) {
+          this.channelHeroAvatar.src = data.channelImageUrl || './static/img/favicon.png';
+          this.channelHeroAvatar.onerror = () => { this.channelHeroAvatar.src = './static/img/favicon.png'; };
+        }
         this.channelFollowerCount.textContent = `팔로워 ${(data.followerCount || 0).toLocaleString()}명`;
         this.channelHeroDesc.textContent = data.description || '스트리머 채널 소개가 없습니다.';
-        this.channelVerifiedBadge.style.display = data.verifiedMark ? 'inline' : 'none';
         this.updateBookmarkButtonState();
         this.updateFollowButtonState();
         this.updateNotifyButtonState();
@@ -407,32 +408,44 @@ class ChannelUI {
       return;
     }
 
+    const mvSvgIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>';
+
     this.channelVodsGrid.innerHTML = '';
     this.currentVideos.forEach(v => {
       const card = document.createElement('div');
       card.className = 'vod-card';
       const typeLabel = v.videoType === 'REPLAY' ? '다시보기' : '업로드';
+      const safeTitle = escapeHtml(v.videoTitle || '제목 없음');
+      const thumbUrl = v.thumbnailImageUrl || './static/img/favicon.png';
+      const pubDate = (v.publishDate || '').split(' ')[0] || '-';
 
       card.innerHTML = `
         <div class="vod-thumb-wrap">
-          <img src="${v.thumbnailImageUrl || './static/img/default_thumb.png'}" loading="lazy" alt="${v.videoTitle}">
+          <img src="${escapeHtml(thumbUrl)}" loading="lazy" alt="${safeTitle}" onerror="this.src='./static/img/favicon.png'">
           <span class="vod-type-badge">${typeLabel}</span>
-          <span class="vod-duration-badge">${v.durationText}</span>
+          <span class="vod-duration-badge">${escapeHtml(v.durationText || '')}</span>
         </div>
         <div class="vod-info">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-            <div class="vod-title" style="flex: 1;" title="${v.videoTitle}">${v.videoTitle}</div>
-            <button class="btn btn-sm btn-multiview-send" onclick="event.stopPropagation(); window.channelUI.sendVodToMultiview('${v.videoNo}', '${escapeHtml(v.videoTitle)}')" title="멀티뷰 슬롯에서 재생" style="padding: 2px 7px; font-size: 11px; flex-shrink: 0;">
-              📺 멀티뷰
+            <div class="vod-title" style="flex: 1;" title="${safeTitle}">${safeTitle}</div>
+            <button type="button" class="btn btn-sm btn-multiview-send" title="멀티뷰 슬롯에서 재생" style="padding: 2px 7px; font-size: 11px; flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px;">
+              ${mvSvgIcon}<span>멀티뷰</span>
             </button>
           </div>
           <div class="vod-meta">
-            <span>${v.categoryValue || '기타'}</span>
-            <span>조회 ${(v.readCount || 0).toLocaleString()}회 • ${v.publishDate.split(' ')[0]}</span>
+            <span>${escapeHtml(v.categoryValue || '기타')}</span>
+            <span>조회 ${(v.readCount || 0).toLocaleString()}회 • ${escapeHtml(pubDate)}</span>
           </div>
         </div>
       `;
 
+      const mvBtn = card.querySelector('.btn-multiview-send');
+      if (mvBtn) {
+        mvBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          this.sendVodToMultiview(v.videoNo, v.videoTitle);
+        });
+      }
       card.addEventListener('click', () => this.playVod(v.videoNo, v.videoTitle, v.durationText));
       this.channelVodsGrid.appendChild(card);
     });
@@ -546,15 +559,19 @@ class ChannelUI {
       return;
     }
 
+    const mvSvgIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>';
+
     this.channelClipsGrid.innerHTML = '';
     this.currentClips.forEach(c => {
       const card = document.createElement('div');
       card.className = 'clip-card';
       const durSec = Math.round(c.duration || 0);
+      const safeTitle = escapeHtml(c.clipTitle || '제목 없음');
+      const thumbUrl = c.thumbnailImageUrl || './static/img/favicon.png';
 
       card.innerHTML = `
         <div class="clip-thumb-wrap">
-          <img src="${c.thumbnailImageUrl || './static/img/default_thumb.png'}" loading="lazy" alt="${c.clipTitle}">
+          <img src="${escapeHtml(thumbUrl)}" loading="lazy" alt="${safeTitle}" onerror="this.src='./static/img/favicon.png'">
           <div class="clip-play-overlay">
             <div class="clip-play-btn-circle">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -564,17 +581,24 @@ class ChannelUI {
         </div>
         <div class="clip-info">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-            <div class="clip-title" style="flex: 1;" title="${c.clipTitle}">${c.clipTitle}</div>
-            <button class="btn btn-sm btn-multiview-send" onclick="event.stopPropagation(); window.channelUI.sendClipToMultiview('${c.clipUID}', '${escapeHtml(c.clipTitle)}')" title="멀티뷰 슬롯에서 재생" style="padding: 2px 7px; font-size: 11px; flex-shrink: 0;">
-              📺 멀티뷰
+            <div class="clip-title" style="flex: 1;" title="${safeTitle}">${safeTitle}</div>
+            <button type="button" class="btn btn-sm btn-multiview-send" title="멀티뷰 슬롯에서 재생" style="padding: 2px 7px; font-size: 11px; flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px;">
+              ${mvSvgIcon}<span>멀티뷰</span>
             </button>
           </div>
           <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
-            조회 ${(c.readCount || 0).toLocaleString()}회 • ${c.createdDate ? c.createdDate.split(' ')[0] : ''}
+            조회 ${(c.readCount || 0).toLocaleString()}회 • ${c.createdDate ? escapeHtml(c.createdDate.split(' ')[0]) : ''}
           </div>
         </div>
       `;
 
+      const mvBtn = card.querySelector('.btn-multiview-send');
+      if (mvBtn) {
+        mvBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          this.sendClipToMultiview(c.clipUID, c.clipTitle);
+        });
+      }
       card.addEventListener('click', () => {
         if (window.clipsUI) {
           window.clipsUI.currentClips = this.currentClips;

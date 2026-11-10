@@ -13,6 +13,18 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+const YT_SVGS = {
+  starOutline: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  starFilled: '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  clock: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  playlistAdd: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="15" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/><line x1="19" y1="15" x2="19" y2="21"/><line x1="16" y1="18" x2="22" y2="18"/></svg>',
+  playlistBadge: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
+  playTriangle: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
+  closeX: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  chevronRight: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+  chevronDown: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'
+};
+
 class YouTubeUI {
   constructor() {
     this.currentSubTab = 'recommendations'; // 'recommendations' | 'search' | 'bookmarks' | 'playlists' | 'watchlater' | 'history'
@@ -253,7 +265,7 @@ class YouTubeUI {
       toolbar.classList.toggle('collapsed', this.keywordsCollapsed);
     }
     if (icon) {
-      icon.textContent = this.keywordsCollapsed ? '▶' : '▼';
+      icon.innerHTML = this.keywordsCollapsed ? YT_SVGS.chevronRight : YT_SVGS.chevronDown;
     }
   }
 
@@ -475,6 +487,7 @@ class YouTubeUI {
       return;
     }
 
+    this._searchChannelsCache = channels || [];
     this.ytSearchChannelsRow.style.display = 'flex';
     let html = `
       <div class="yt-channels-row-header">
@@ -484,20 +497,20 @@ class YouTubeUI {
       <div class="yt-channels-scroll">
     `;
 
-    channels.forEach(ch => {
+    this._searchChannelsCache.forEach((ch, idx) => {
       const nameEsc = escapeHtml(ch.channelName);
-      const idEsc = escapeHtml(ch.channelId);
       const isBookmarked = this.isBookmarked(ch.channelId);
 
       html += `
-        <div class="yt-channel-card" onclick="window.youtubeUI.openChannelView('${idEsc}', '${nameEsc}', '${ch.thumbnail || ''}', '${ch.subscriberCount || ''}')">
-          <img class="yt-channel-avatar" src="${ch.thumbnail || './static/img/favicon.png'}" onerror="this.src='./static/img/favicon.png'" alt="${nameEsc}">
+        <div class="yt-channel-card" onclick="window.youtubeUI.openSearchChannelByIdx(${idx})">
+          <img class="yt-channel-avatar" src="${escapeHtml(ch.thumbnail || './static/img/favicon.png')}" onerror="this.src='./static/img/favicon.png'" alt="${nameEsc}">
           <div class="yt-channel-info">
             <div class="yt-channel-title" title="${nameEsc}">${nameEsc}</div>
             <div class="yt-channel-subs">${escapeHtml(ch.subscriberCount || '채널')}</div>
           </div>
-          <button class="btn btn-sm ${isBookmarked ? 'btn-danger' : 'btn-secondary'} yt-channel-bm-btn" onclick="event.stopPropagation(); window.youtubeUI.toggleBookmark('${idEsc}', '${nameEsc}', '${ch.thumbnail || ''}', '${ch.subscriberCount || ''}')" title="${isBookmarked ? '즐겨찾기 해제' : '채널 즐겨찾기'}">
-            ${isBookmarked ? '★ 즐겨찾기됨' : '☆ 즐겨찾기'}
+          <button type="button" class="btn btn-sm ${isBookmarked ? 'btn-danger' : 'btn-secondary'} yt-channel-bm-btn" onclick="event.stopPropagation(); window.youtubeUI.toggleSearchChannelBmByIdx(${idx})" title="${isBookmarked ? '즐겨찾기 해제' : '채널 즐겨찾기'}" style="display:inline-flex;align-items:center;gap:4px;">
+            ${isBookmarked ? YT_SVGS.starFilled : YT_SVGS.starOutline}
+            <span>${isBookmarked ? '즐겨찾기됨' : '즐겨찾기'}</span>
           </button>
         </div>
       `;
@@ -505,6 +518,18 @@ class YouTubeUI {
 
     html += `</div>`;
     this.ytSearchChannelsRow.innerHTML = html;
+  }
+
+  openSearchChannelByIdx(idx) {
+    const ch = this._searchChannelsCache && this._searchChannelsCache[idx];
+    if (!ch) return;
+    this.openChannelView(ch.channelId, ch.channelName, ch.thumbnail || '', ch.subscriberCount || '');
+  }
+
+  toggleSearchChannelBmByIdx(idx) {
+    const ch = this._searchChannelsCache && this._searchChannelsCache[idx];
+    if (!ch) return;
+    this.toggleBookmark(ch.channelId, ch.channelName, ch.thumbnail || '', ch.subscriberCount || '');
   }
 
   // ================= Channel Videos View (채널 상세 영상 목록) =================
@@ -755,7 +780,13 @@ class YouTubeUI {
       if (data.success) {
         if (window.app) window.app.showToast(`'${channelName || channelId}' 채널을 즐겨찾기에 추가했습니다!`, 'success');
         await this.loadBookmarks();
+        this.refreshAllVisibleGrids();
+        if (this._searchChannelsCache && this.ytSearchChannelsRow && this.ytSearchChannelsRow.style.display !== 'none') {
+          this.renderSearchChannels(this._searchChannelsCache);
+        }
         if (this.currentSubTab === 'recommendations') this.loadRecommendations(false);
+      } else if (window.app) {
+        window.app.showToast(data.error || '채널 즐겨찾기 추가에 실패했습니다.', 'error');
       }
     } catch (e) {
       console.error(e);
@@ -771,6 +802,12 @@ class YouTubeUI {
       if (data.success) {
         if (window.app) window.app.showToast('즐겨찾기에서 채널을 삭제했습니다.', 'info');
         await this.loadBookmarks();
+        this.refreshAllVisibleGrids();
+        if (this._searchChannelsCache && this.ytSearchChannelsRow && this.ytSearchChannelsRow.style.display !== 'none') {
+          this.renderSearchChannels(this._searchChannelsCache);
+        }
+      } else if (window.app) {
+        window.app.showToast(data.error || '채널 즐겨찾기 삭제에 실패했습니다.', 'error');
       }
     } catch (e) {
       console.error(e);
@@ -786,25 +823,25 @@ class YouTubeUI {
     }
 
     if (this.ytBookmarksEmpty) this.ytBookmarksEmpty.style.display = 'none';
+    this._bookmarksCache = this.bookmarks;
 
     let html = '';
-    this.bookmarks.forEach(bm => {
+    this.bookmarks.forEach((bm, idx) => {
       const nameEsc = escapeHtml(bm.channelName);
-      const idEsc = escapeHtml(bm.channelId);
 
       html += `
-        <div class="yt-bookmark-card" onclick="window.youtubeUI.openChannelView('${idEsc}', '${nameEsc}', '${bm.thumbnail || ''}', '${bm.subscriberCount || ''}')">
-          <img class="yt-bookmark-avatar" src="${bm.thumbnail || './static/img/favicon.png'}" onerror="this.src='./static/img/favicon.png'" alt="${nameEsc}">
+        <div class="yt-bookmark-card" onclick="window.youtubeUI.openBookmarkedChannelByIdx(${idx})">
+          <img class="yt-bookmark-avatar" src="${escapeHtml(bm.thumbnail || './static/img/favicon.png')}" onerror="this.src='./static/img/favicon.png'" alt="${nameEsc}">
           <div class="yt-bookmark-body">
             <div class="yt-bookmark-name" title="${nameEsc}">${nameEsc}</div>
             <div class="yt-bookmark-subs">${escapeHtml(bm.subscriberCount || '즐겨찾기 채널')}</div>
             <div class="yt-bookmark-date">${escapeHtml(bm.addedAt ? bm.addedAt.substring(0, 10) + ' 추가' : '')}</div>
           </div>
           <div class="yt-bookmark-actions" onclick="event.stopPropagation();">
-            <button class="btn btn-sm btn-secondary" onclick="window.youtubeUI.openChannelView('${idEsc}', '${nameEsc}', '${bm.thumbnail || ''}', '${bm.subscriberCount || ''}')" title="채널 최신 영상 목록 보기">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="window.youtubeUI.openBookmarkedChannelByIdx(${idx})" title="채널 최신 영상 목록 보기">
               영상 목록
             </button>
-            <button class="btn btn-sm btn-ghost" onclick="window.youtubeUI.removeBookmark('${idEsc}')" title="즐겨찾기 삭제" style="color: #f87171;">
+            <button type="button" class="btn btn-sm btn-ghost" onclick="window.youtubeUI.removeBookmarkByIdx(${idx})" title="즐겨찾기 삭제" style="color: #f87171;">
               삭제
             </button>
           </div>
@@ -813,6 +850,18 @@ class YouTubeUI {
     });
 
     this.ytBookmarksGrid.innerHTML = html;
+  }
+
+  openBookmarkedChannelByIdx(idx) {
+    const bm = this._bookmarksCache && this._bookmarksCache[idx];
+    if (!bm) return;
+    this.openChannelView(bm.channelId, bm.channelName, bm.thumbnail || '', bm.subscriberCount || '');
+  }
+
+  removeBookmarkByIdx(idx) {
+    const bm = this._bookmarksCache && this._bookmarksCache[idx];
+    if (!bm) return;
+    this.removeBookmark(bm.channelId);
   }
 
   // ================= Video Bookmarks (영상 즐겨찾기 - Requirement 4) =================
@@ -867,9 +916,11 @@ class YouTubeUI {
         });
         const data = await res.json();
         if (data.success) {
-          if (window.app) window.app.showToast('즐겨찾기 영상에 추가했습니다! ⭐', 'success');
+          if (window.app) window.app.showToast('즐겨찾기 영상에 추가했습니다!', 'success');
           await this.loadVideoBookmarks();
           this.refreshAllVisibleGrids();
+        } else if (window.app) {
+          window.app.showToast(data.error || '영상 즐겨찾기 추가에 실패했습니다.', 'error');
         }
       } catch (e) {
         console.error(e);
@@ -944,9 +995,11 @@ class YouTubeUI {
         });
         const data = await res.json();
         if (data.success) {
-          if (window.app) window.app.showToast('나중에 볼 영상에 담았습니다! 🕒', 'success');
+          if (window.app) window.app.showToast('나중에 볼 영상에 담았습니다!', 'success');
           await this.loadWatchLater();
           this.refreshAllVisibleGrids();
+        } else if (window.app) {
+          window.app.showToast(data.error || '나중에 볼 영상 저장에 실패했습니다.', 'error');
         }
       } catch (e) {
         console.error(e);
@@ -1038,19 +1091,36 @@ class YouTubeUI {
     if (empty) empty.style.display = 'none';
 
     let html = '';
-    this.customPlaylists.forEach(pl => {
-      const plIdEsc = escapeHtml(pl.id);
+    this.customPlaylists.forEach((pl, idx) => {
       const titleEsc = escapeHtml(pl.title);
       const descEsc = escapeHtml(pl.description || '');
-      const count = pl.videos ? pl.videos.length : 0;
-      const thumb = (pl.videos && pl.videos[0] && pl.videos[0].thumbnail) ? pl.videos[0].thumbnail : './static/img/favicon.png';
+      const videos = Array.isArray(pl.videos) ? pl.videos : [];
+      const count = videos.length;
+      const thumb = (videos[0] && videos[0].thumbnail) ? videos[0].thumbnail : './static/img/favicon.png';
+      const isExpanded = this._expandedPlaylistIds && this._expandedPlaylistIds.has(pl.id);
+
+      const tracksHtml = videos.length === 0
+        ? '<div class="yt-pl-track-empty">담긴 영상이 없습니다.</div>'
+        : videos.map((v, vIdx) => {
+            const vid = v.videoId || v.id || '';
+            const vTitleEsc = escapeHtml(v.title || '제목 없음');
+            return `
+              <div class="yt-pl-track-row" data-pl-idx="${idx}" data-vid="${escapeHtml(vid)}">
+                <span class="yt-pl-track-num">${vIdx + 1}</span>
+                <span class="yt-pl-track-title" title="${vTitleEsc}">${vTitleEsc}</span>
+                <button type="button" class="btn btn-xs btn-ghost yt-pl-track-del" onclick="event.stopPropagation(); window.youtubeUI.removeVideoFromPlaylistByIdx(${idx}, ${vIdx})" title="재생목록에서 삭제" style="color:#f87171;padding:2px 6px;">
+                  ${YT_SVGS.closeX}
+                </button>
+              </div>
+            `;
+          }).join('');
 
       html += `
-        <div class="yt-playlist-card" onclick="window.youtubeUI.playPlaylistInSlot('${plIdEsc}', true)">
+        <div class="yt-playlist-card" onclick="window.youtubeUI.playPlaylistByIdx(${idx}, true)">
           <div class="yt-pl-card-thumb-wrap">
             <img class="yt-pl-card-thumb" src="${escapeHtml(thumb)}" onerror="this.src='./static/img/favicon.png'" alt="">
             <div class="yt-pl-count-badge">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+              ${YT_SVGS.playlistBadge}
               <span>${count}개</span>
             </div>
           </div>
@@ -1058,19 +1128,69 @@ class YouTubeUI {
             <div class="yt-pl-card-title">${titleEsc}</div>
             ${descEsc ? `<div class="yt-pl-card-desc">${descEsc}</div>` : ''}
             <div class="yt-pl-card-actions" onclick="event.stopPropagation()">
-              <button class="btn btn-sm btn-primary" onclick="window.youtubeUI.playPlaylistInSlot('${plIdEsc}', true)" style="display: flex; align-items: center; gap: 4px;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <button type="button" class="btn btn-sm btn-primary" onclick="window.youtubeUI.playPlaylistByIdx(${idx}, true)" style="display: inline-flex; align-items: center; gap: 4px;">
+                ${YT_SVGS.playTriangle}
                 <span>전체 재생</span>
               </button>
-              <button class="btn btn-sm btn-ghost" onclick="window.youtubeUI.deleteCustomPlaylist('${plIdEsc}')" style="margin-left: auto; color: #f87171;" title="재생목록 삭제">
+              <button type="button" class="btn btn-sm btn-secondary" onclick="window.youtubeUI.togglePlaylistTracksByIdx(${idx})" title="영상 목록 편집">
+                <span>${isExpanded ? '접기' : `목록 (${count})`}</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-ghost" onclick="window.youtubeUI.deleteCustomPlaylistByIdx(${idx})" style="margin-left: auto; color: #f87171;" title="재생목록 삭제">
                 삭제
               </button>
             </div>
+            ${isExpanded ? `<div class="yt-pl-tracks-panel" onclick="event.stopPropagation()">${tracksHtml}</div>` : ''}
           </div>
         </div>
       `;
     });
     grid.innerHTML = html;
+  }
+
+  playPlaylistByIdx(idx, isCustom = true) {
+    const pl = this.customPlaylists && this.customPlaylists[idx];
+    if (!pl) return;
+    this.playPlaylistInSlot(pl.id, isCustom);
+  }
+
+  togglePlaylistTracksByIdx(idx) {
+    const pl = this.customPlaylists && this.customPlaylists[idx];
+    if (!pl) return;
+    if (!this._expandedPlaylistIds) this._expandedPlaylistIds = new Set();
+    if (this._expandedPlaylistIds.has(pl.id)) {
+      this._expandedPlaylistIds.delete(pl.id);
+    } else {
+      this._expandedPlaylistIds.add(pl.id);
+    }
+    this.renderCustomPlaylists();
+  }
+
+  deleteCustomPlaylistByIdx(idx) {
+    const pl = this.customPlaylists && this.customPlaylists[idx];
+    if (!pl) return;
+    this.deleteCustomPlaylist(pl.id);
+  }
+
+  async removeVideoFromPlaylistByIdx(plIdx, vidIdx) {
+    const pl = this.customPlaylists && this.customPlaylists[plIdx];
+    if (!pl || !Array.isArray(pl.videos)) return;
+    const vidObj = pl.videos[vidIdx];
+    const videoId = vidObj && (vidObj.videoId || vidObj.id);
+    if (!videoId) return;
+    try {
+      const res = await fetch(`/api/youtube/custom_playlists/${encodeURIComponent(pl.id)}/videos/${encodeURIComponent(videoId)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        if (window.app) window.app.showToast('재생목록에서 영상을 삭제했습니다.', 'info');
+        await this.loadCustomPlaylists();
+      } else if (window.app) {
+        window.app.showToast((data && data.error) || '영상 삭제에 실패했습니다.', 'error');
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   promptCreatePlaylist() {
@@ -1185,12 +1305,12 @@ class YouTubeUI {
       if (!this.customPlaylists || this.customPlaylists.length === 0) {
         listEl.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px;">아직 생성된 재생목록이 없습니다. 하단의 [+ 새 재생목록]을 눌러 생성해보세요.</div>';
       } else {
-        listEl.innerHTML = this.customPlaylists.map(pl => {
+        listEl.innerHTML = this.customPlaylists.map((pl, idx) => {
           const hasVideo = pl.videos && pl.videos.some(v => (v.videoId || v.id) === (videoData.videoId || videoData.id));
           return `
-            <div class="slot-pl-item" onclick="window.youtubeUI.confirmAddToPlaylist('${escapeHtml(pl.id)}')" style="justify-content: space-between;">
+            <div class="slot-pl-item" onclick="window.youtubeUI.confirmAddToPlaylistByIdx(${idx})" style="justify-content: space-between;">
               <span style="font-weight: 600; color: #fff;">${escapeHtml(pl.title)} (${pl.videos ? pl.videos.length : 0}개)</span>
-              ${hasVideo ? '<span style="font-size: 11px; color: var(--accent-color);">이미 추가됨 ✓</span>' : '<span style="font-size: 11px; color: #38bdf8;">+ 추가</span>'}
+              ${hasVideo ? '<span style="font-size: 11px; color: var(--accent-color);">이미 추가됨</span>' : '<span style="font-size: 11px; color: #38bdf8;">+ 추가</span>'}
             </div>
           `;
         }).join('');
@@ -1198,6 +1318,12 @@ class YouTubeUI {
     }
 
     if (modal) modal.classList.add('active');
+  }
+
+  confirmAddToPlaylistByIdx(idx) {
+    const pl = this.customPlaylists && this.customPlaylists[idx];
+    if (!pl) return;
+    this.confirmAddToPlaylist(pl.id);
   }
 
   async confirmAddToPlaylist(playlistId) {
@@ -1218,17 +1344,19 @@ class YouTubeUI {
       });
       const data = await res.json();
       if (data.success) {
-        if (window.app) window.app.showToast('재생목록에 영상을 추가했습니다! 📑', 'success');
+        if (window.app) window.app.showToast('재생목록에 영상을 추가했습니다!', 'success');
         const modal = document.getElementById('ytAddToPlaylistModal');
         if (modal) modal.classList.remove('active');
         await this.loadCustomPlaylists();
+      } else if (window.app) {
+        window.app.showToast(data.error || '재생목록 추가에 실패했습니다.', 'error');
       }
     } catch (e) {
       console.error(e);
     }
   }
 
-  playPlaylistInSlot(playlistId, isCustom = true) {
+  playPlaylistInSlot(playlistId, isCustom = true, seedVideoId = '', seedMeta = null) {
     if (!window.multiview) return;
 
     if (isCustom) {
@@ -1254,8 +1382,9 @@ class YouTubeUI {
         }
       );
     } else {
-      // YouTube native playlist (e.g. from algorithm recommendation)
-      fetch(`/api/youtube/playlist/${encodeURIComponent(playlistId)}`)
+      // YouTube native playlist / Mix (e.g. from algorithm recommendation)
+      const q = (seedVideoId && seedVideoId !== playlistId) ? `?video_id=${encodeURIComponent(seedVideoId)}` : '';
+      fetch(`/api/youtube/playlist/${encodeURIComponent(playlistId)}${q}`)
         .then(r => r.json())
         .then(data => {
           if (data && data.success && data.videos && data.videos.length > 0) {
@@ -1270,10 +1399,22 @@ class YouTubeUI {
               true,
               {
                 playlistId: playlistId,
-                playlistTitle: data.title || 'YouTube 재생목록',
+                playlistTitle: data.title || (seedMeta && seedMeta.title) || 'YouTube 재생목록',
                 items: data.videos,
                 currentIndex: 0
               }
+            );
+          } else if (seedVideoId && seedVideoId !== playlistId) {
+            // Fallback: play seed video directly if playlist expansion is restricted
+            this.playInMultiview(
+              seedVideoId,
+              (seedMeta && seedMeta.title) || 'YouTube 영상',
+              (seedMeta && seedMeta.channelName) || 'YouTube',
+              (seedMeta && seedMeta.channelId) || '',
+              (seedMeta && seedMeta.thumbnail) || '',
+              (seedMeta && seedMeta.duration) || '',
+              true,
+              false
             );
           } else {
             if (window.app) window.app.showToast('재생목록 정보를 불러올 수 없습니다.', 'error');
@@ -1389,7 +1530,7 @@ class YouTubeUI {
             <img src="${h.thumbnail || `https://i.ytimg.com/vi/${vidEsc}/hqdefault.jpg`}" onerror="this.src='./static/img/favicon.png'" alt="${titleEsc}">
             ${h.duration ? `<span class="yt-badge-duration">${escapeHtml(h.duration)}</span>` : ''}
             <div class="yt-thumb-hover-overlay">
-              <span class="yt-play-icon">▶</span>
+              <span class="yt-play-icon">${YT_SVGS.playTriangle}</span>
             </div>
           </div>
           <div class="yt-history-info">
@@ -1405,11 +1546,11 @@ class YouTubeUI {
             </div>
           </div>
           <div class="yt-history-actions">
-            <button class="btn btn-sm btn-primary" onclick="window.youtubeUI.playHistoryItem('${vKey}')" title="멀티뷰 재생">
-              ▶ 재생
+            <button type="button" class="btn btn-sm btn-primary" onclick="window.youtubeUI.playHistoryItem('${vKey}')" title="멀티뷰 재생" style="display:inline-flex;align-items:center;gap:4px;">
+              ${YT_SVGS.playTriangle}<span>재생</span>
             </button>
-            <button class="btn btn-sm btn-ghost" onclick="window.youtubeUI.removeHistoryEntry('${vidEsc}')" title="기록에서 삭제">
-              ✕
+            <button type="button" class="btn btn-sm btn-ghost" onclick="window.youtubeUI.removeHistoryEntry('${vidEsc}')" title="기록에서 삭제">
+              ${YT_SVGS.closeX}
             </button>
           </div>
         </div>
@@ -1467,26 +1608,26 @@ class YouTubeUI {
             <img class="yt-video-thumb" src="${thumbEsc}" onerror="this.src='./static/img/favicon.png'" alt="${titleEsc}" loading="lazy">
             ${durEsc ? `<span class="yt-badge-duration">${durEsc}</span>` : ''}
             ${v.isWatched ? `<span class="yt-badge-watched">시청함</span>` : ''}
-            ${v.isLive ? `<span class="card-badge-live" style="position: absolute; top: 6px; left: 6px; padding: 2px 6px;">LIVE</span>` : ''}
-            ${isPl ? `<span class="yt-badge-playlist">📑 재생목록</span>` : ''}
+            ${v.isLive ? `<span class="card-badge-live">LIVE</span>` : ''}
+            ${isPl ? `<span class="yt-badge-playlist">${YT_SVGS.playlistBadge}<span>재생목록</span></span>` : ''}
 
-            <!-- Quick Action Buttons on Hover (⭐, 🕒, 📑) -->
+            <!-- Quick Action Buttons (Bookmark, Watch Later, Add to Playlist) -->
             ${!isPl ? `
               <div class="yt-card-quick-actions" onclick="event.stopPropagation()">
-                <button class="yt-quick-btn ${isBm ? 'active-star' : ''}" onclick="window.youtubeUI.toggleVideoBookmarkById('${vKey}')" title="${isBm ? '영상 즐겨찾기 해제' : '영상 즐겨찾기 (★)'}">
-                  ${isBm ? '★' : '☆'}
+                <button type="button" class="yt-quick-btn ${isBm ? 'active-star' : ''}" onclick="window.youtubeUI.toggleVideoBookmarkById('${vKey}')" title="${isBm ? '영상 즐겨찾기 해제' : '영상 즐겨찾기'}">
+                  ${isBm ? YT_SVGS.starFilled : YT_SVGS.starOutline}
                 </button>
-                <button class="yt-quick-btn ${isWl ? 'active-wl' : ''}" onclick="window.youtubeUI.toggleWatchLaterById('${vKey}')" title="${isWl ? '나중에 볼 영상에서 삭제' : '나중에 볼 영상에 저장 (🕒)'}">
-                  🕒
+                <button type="button" class="yt-quick-btn ${isWl ? 'active-wl' : ''}" onclick="window.youtubeUI.toggleWatchLaterById('${vKey}')" title="${isWl ? '나중에 볼 영상에서 삭제' : '나중에 볼 영상에 저장'}">
+                  ${YT_SVGS.clock}
                 </button>
-                <button class="yt-quick-btn" onclick="window.youtubeUI.promptAddToPlaylistById('${vKey}')" title="재생목록에 추가 (📑)">
-                  📑
+                <button type="button" class="yt-quick-btn" onclick="window.youtubeUI.promptAddToPlaylistById('${vKey}')" title="재생목록에 추가">
+                  ${YT_SVGS.playlistAdd}
                 </button>
               </div>
             ` : ''}
 
             <div class="yt-thumb-hover-overlay">
-              <span class="yt-play-icon">▶</span>
+              <span class="yt-play-icon">${YT_SVGS.playTriangle}</span>
               <span style="font-size: 11px; font-weight: 700; color: #fff;">${isPl ? '재생목록 전체 연속 재생' : '좌클릭: 재생 / 우클릭: 슬롯추가'}</span>
             </div>
           </div>
@@ -1502,8 +1643,8 @@ class YouTubeUI {
                 ${nameEsc}
               </span>
               ${chIdEsc ? `
-                <button class="yt-channel-mini-star" onclick="event.stopPropagation(); window.youtubeUI.toggleBookmark('${chIdEsc}', '${nameEsc}', '', '')" title="채널 즐겨찾기">
-                  ${this.isBookmarked(chIdEsc) ? '★' : '☆'}
+                <button type="button" class="yt-channel-mini-star ${this.isBookmarked(v.channelId) ? 'active' : ''}" onclick="event.stopPropagation(); window.youtubeUI.toggleChannelBookmarkByKey('${vKey}')" title="채널 즐겨찾기">
+                  ${this.isBookmarked(v.channelId) ? YT_SVGS.starFilled : YT_SVGS.starOutline}
                 </button>
               ` : ''}
             </div>
@@ -1525,9 +1666,9 @@ class YouTubeUI {
     const v = this._videoCache && this._videoCache[key];
     if (!v) return;
     if (v.isPlaylist || v.playlistId) {
-      this.playPlaylistInSlot(v.playlistId || v.videoId, false);
+      this.playPlaylistInSlot(v.playlistId || v.videoId, false, v.videoId || '', v);
     } else {
-      this.playInMultiview(v.videoId || v.id, v.title, v.channelName, v.channelId || '', v.thumbnail || '', v.duration || '', true);
+      this.playInMultiview(v.videoId || v.id, v.title, v.channelName, v.channelId || '', v.thumbnail || '', v.duration || '', true, Boolean(v.isLive));
     }
   }
 
@@ -1537,9 +1678,9 @@ class YouTubeUI {
     const v = this._videoCache && this._videoCache[key];
     if (!v) return;
     if (v.isPlaylist || v.playlistId) {
-      this.playPlaylistInSlot(v.playlistId || v.videoId, false);
+      this.playPlaylistInSlot(v.playlistId || v.videoId, false, v.videoId || '', v);
     } else {
-      this.playInMultiview(v.videoId || v.id, v.title, v.channelName, v.channelId || '', v.thumbnail || '', v.duration || '', false);
+      this.playInMultiview(v.videoId || v.id, v.title, v.channelName, v.channelId || '', v.thumbnail || '', v.duration || '', false, Boolean(v.isLive));
     }
   }
 
@@ -1562,6 +1703,12 @@ class YouTubeUI {
     if (!v) return;
     const vid = v.videoId || v.id;
     this.toggleWatchLater(vid, v.title, v.channelName, v.channelId || '', v.thumbnail || '', v.duration || '');
+  }
+
+  toggleChannelBookmarkByKey(key) {
+    const v = this._videoCache && this._videoCache[key];
+    if (!v || !v.channelId) return;
+    this.toggleBookmark(v.channelId, v.channelName || '', v.channelThumbnail || '', '');
   }
 
   promptAddToPlaylistById(key) {
@@ -1588,20 +1735,22 @@ class YouTubeUI {
     this.playInMultiview(videoId, title, channelName, channelId, thumbnail, duration, false);
   }
 
-  playInMultiview(videoId, title, channelName, channelId = '', thumbnail = '', duration = '', switchTab = true) {
+  playInMultiview(videoId, title, channelName, channelId = '', thumbnail = '', duration = '', switchTab = true, isLive = false) {
     if (!window.multiview) return;
 
     // Record watch history automatically!
     this.recordHistory(videoId, title, channelName, channelId, thumbnail, duration);
 
+    const extraOpts = isLive ? { isLive: true } : null;
+
     // If a target slot was selected via promptAddStream
     if (window.multiview.targetSlotIndex !== null) {
       const idx = window.multiview.targetSlotIndex;
       window.multiview.cancelTargetSlot();
-      window.multiview.loadYouTubeIntoSlot(idx, videoId, title, channelName, channelId, thumbnail, switchTab);
+      window.multiview.loadYouTubeIntoSlot(idx, videoId, title, channelName, channelId, thumbnail, switchTab, extraOpts);
     } else {
       // Find first empty slot or add new slot
-      window.multiview.addYouTubeToFirstAvailableSlot(videoId, title, channelName, channelId, thumbnail, switchTab);
+      window.multiview.addYouTubeToFirstAvailableSlot(videoId, title, channelName, channelId, thumbnail, switchTab, extraOpts);
     }
   }
 

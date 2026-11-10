@@ -203,7 +203,7 @@ class VideoEditorUI {
     if (this.segments.length === 0) {
       list.innerHTML = `
         <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px 0;">
-          상단에서 시작점/끝점을 잡고 [➕ 편집 구간 목록에 추가]를 누르세요.
+          상단에서 시작점/끝점을 잡고 [+ 편집 구간 목록에 추가]를 누르세요.
         </div>
       `;
       return;
@@ -219,8 +219,8 @@ class VideoEditorUI {
             <span style="font-size: 11px; color: var(--text-dim);">(${dur}초)</span>
           </div>
           <div style="display: flex; gap: 4px;">
-            <button class="btn btn-sm" onclick="window.editorUI.previewSegment(${s.start}, ${s.end})" title="구간 미리보기" style="padding: 2px 6px; font-size: 11px;">▶ 재생</button>
-            <button class="btn btn-sm btn-danger" onclick="window.editorUI.removeSegment(${s.id})" title="구간 삭제" style="padding: 2px 6px; font-size: 11px;">✕</button>
+            <button class="btn btn-sm" onclick="window.editorUI.previewSegment(${s.start}, ${s.end})" title="구간 미리보기" style="padding: 2px 6px; font-size: 11px; display:inline-flex; align-items:center; gap:3px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>재생</span></button>
+            <button class="btn btn-sm btn-danger" onclick="window.editorUI.removeSegment(${s.id})" title="구간 삭제" style="padding: 2px 6px; font-size: 11px; display:inline-flex; align-items:center;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
           </div>
         </div>
       `;

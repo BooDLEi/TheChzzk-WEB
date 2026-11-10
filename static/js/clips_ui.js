@@ -202,7 +202,7 @@ class ClipsUI {
     bookmarks.forEach(item => {
       const chId = item.channelId;
       const chName = item.channelName || '스트리머';
-      const imgUrl = item.channelImageUrl || './static/img/default_avatar.png';
+      const imgUrl = item.channelImageUrl || './static/img/favicon.png';
       const isLive = Boolean(item.openLive || item.isOnline);
 
       const chip = document.createElement('div');
@@ -211,10 +211,10 @@ class ClipsUI {
 
       chip.innerHTML = `
         <div class="following-chip-avatar-wrap">
-          <img src="${imgUrl}" loading="lazy" alt="${chName}" onerror="this.src='./static/img/default_avatar.png'">
+          <img src="${escapeHtml(imgUrl)}" loading="lazy" alt="${escapeHtml(chName)}" onerror="this.src='./static/img/favicon.png'">
           ${isLive ? '<span class="following-chip-live-dot"></span>' : ''}
         </div>
-        <div class="following-chip-name">${chName}</div>
+        <div class="following-chip-name">${escapeHtml(chName)}</div>
       `;
 
       chip.addEventListener('click', () => {
@@ -342,7 +342,10 @@ class ClipsUI {
 
   renderChannelBanner(ch) {
     this.clipsChannelBanner.style.display = 'flex';
-    this.clipsBannerAvatar.src = ch.channelImageUrl || '';
+    if (this.clipsBannerAvatar) {
+      this.clipsBannerAvatar.src = ch.channelImageUrl || './static/img/favicon.png';
+      this.clipsBannerAvatar.onerror = () => { this.clipsBannerAvatar.src = './static/img/favicon.png'; };
+    }
     this.clipsBannerName.textContent = ch.channelName;
     const followers = Number(ch.followerCount || 0).toLocaleString();
     this.clipsBannerMeta.textContent = `팔로워 ${followers}명 • ${ch.openLive ? '[LIVE] 현재 방송 중' : '현재 오프라인'}`;
@@ -392,12 +395,13 @@ class ClipsUI {
       const durationFormatted = this.formatDuration(clip.duration);
       const views = Number(clip.readCount || 0).toLocaleString();
       const dateStr = clip.createdDate ? clip.createdDate.split(' ')[0] : '';
-      const thumb = clip.thumbnailImageUrl || '';
+      const thumb = clip.thumbnailImageUrl || './static/img/favicon.png';
+      const safeTitle = escapeHtml(clip.clipTitle || '제목 없음');
 
       return `
         <div class="clip-card" data-clip-uid="${clip.clipUID}">
           <div class="clip-thumb-wrap" onclick="window.clipsUI.playClip('${clip.clipUID}', ${index})">
-            <img src="${thumb}" alt="${clip.clipTitle}">
+            <img src="${escapeHtml(thumb)}" loading="lazy" alt="${safeTitle}" onerror="this.src='./static/img/favicon.png'">
             <div class="clip-play-overlay">
               <div class="clip-play-btn-circle">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -406,7 +410,7 @@ class ClipsUI {
             <div class="clip-duration-badge">${durationFormatted}</div>
           </div>
           <div class="clip-info">
-            <div class="clip-title" title="${clip.clipTitle}">${clip.clipTitle}</div>
+            <div class="clip-title" title="${safeTitle}">${safeTitle}</div>
             <div class="clip-meta-row">
               <span>조회 ${views}회</span>
               <span>${dateStr}</span>

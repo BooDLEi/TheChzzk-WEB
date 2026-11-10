@@ -19,6 +19,26 @@ function escapeRecHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+const REC_SVGS = {
+  tape: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><line x1="8" y1="14" x2="16" y2="14"/></svg>',
+  pause: '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>',
+  stop: '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>',
+  play: '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
+  clock: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  check: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  scissors: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>',
+  closeX: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  alert: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  save: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  folder: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+  calendar: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  edit: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+  trash: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  zoom: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  video: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
+  image: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'
+};
+
 class RecorderUI {
   constructor() {
     this.jobs = [];
@@ -268,6 +288,11 @@ class RecorderUI {
     if (this.recorderBadge) {
       this.recorderBadge.textContent = activeCount;
     }
+    const vaultBadge = document.getElementById('vault-badge');
+    if (vaultBadge) {
+      vaultBadge.textContent = activeCount;
+      vaultBadge.style.display = activeCount > 0 ? 'inline-flex' : 'none';
+    }
 
     const indicator = this.headerRecordingIndicator;
     const textEl = this.headerRecordingText;
@@ -326,7 +351,7 @@ class RecorderUI {
     if (!this.jobs || this.jobs.length === 0) {
       this.recPopupBody.innerHTML = `
         <div style="text-align: center; padding: 28px 12px; color: var(--text-muted); font-size: 13px;">
-          <div style="font-size: 24px; margin-bottom: 6px;">📼</div>
+          <div style="display:inline-flex;margin-bottom:6px;opacity:0.8;">${REC_SVGS.tape}</div><br>
           현재 진행 중인 녹화 작업이 없습니다.<br>
           <span style="font-size: 11.5px; color: var(--text-dim);">멀티뷰 화면 우상단의 [녹화] 버튼을 눌러 방송을 녹화하세요.</span>
         </div>
@@ -349,32 +374,33 @@ class RecorderUI {
           </span>
         `;
         actionButtons = `
-          <button class="btn btn-sm" onclick="window.recorderUI.pauseJob('${j.jobId}')" title="녹화 일시정지">⏸ 일시정지</button>
-          <button class="btn btn-sm btn-danger" onclick="window.recorderUI.stopJob('${j.jobId}')" title="녹화 중지 및 MP4 저장">⏹ 정지</button>
+          <button class="btn btn-sm" onclick="window.recorderUI.pauseJob('${j.jobId}')" title="녹화 일시정지" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.pause}<span>일시정지</span></button>
+          <button class="btn btn-sm btn-danger" onclick="window.recorderUI.stopJob('${j.jobId}')" title="녹화 중지 및 MP4 저장" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.stop}<span>정지</span></button>
         `;
       } else if (j.status === 'paused') {
         cardClass += ' is-paused';
-        statusHtml = `<span style="color: #f59e0b; font-weight: 800;">❚❚ 일시정지됨</span>`;
+        statusHtml = `<span style="color: #f59e0b; font-weight: 800; display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.pause}<span>일시정지됨</span></span>`;
         actionButtons = `
-          <button class="btn btn-sm btn-primary" onclick="window.recorderUI.resumeJob('${j.jobId}')" title="녹화 재개">▶ 재개</button>
-          <button class="btn btn-sm btn-danger" onclick="window.recorderUI.stopJob('${j.jobId}')" title="녹화 중지 및 MP4 저장">⏹ 정지</button>
+          <button class="btn btn-sm btn-primary" onclick="window.recorderUI.resumeJob('${j.jobId}')" title="녹화 재개" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.play}<span>재개</span></button>
+          <button class="btn btn-sm btn-danger" onclick="window.recorderUI.stopJob('${j.jobId}')" title="녹화 중지 및 MP4 저장" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.stop}<span>정지</span></button>
         `;
       } else if (j.status === 'finalizing') {
-        statusHtml = `<span style="color: #38bdf8; font-weight: 800;">⏳ MP4 변환 중...</span>`;
+        statusHtml = `<span style="color: #38bdf8; font-weight: 800; display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.clock}<span>MP4 변환 중...</span></span>`;
         actionButtons = `<span style="font-size: 11px; color: var(--text-muted);">저장 처리 중</span>`;
       } else if (j.status === 'completed') {
-        statusHtml = `<span style="color: #00ffa3; font-weight: 800;">✓ 녹화 완료</span>`;
+        statusHtml = `<span style="color: #00ffa3; font-weight: 800; display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.check}<span>녹화 완료</span></span>`;
         actionButtons = `
-          <button class="btn btn-sm" onclick="window.recorderUI.previewFile('${encodeURIComponent(j.finalPath || '')}', '${escapeRecHtml(j.title || '녹화 영상')}'); window.recorderUI.closeHeaderPopup();">▶ 재생</button>
-          <button class="btn btn-sm btn-primary" onclick="window.recorderUI.editFile('${encodeURIComponent(j.finalPath || '')}'); window.recorderUI.closeHeaderPopup();">✂️ 편집</button>
-          <button class="btn btn-sm" onclick="window.recorderUI.deleteJob('${j.jobId}')" title="목록에서 제거">✕</button>
+          <button class="btn btn-sm" onclick="window.recorderUI.previewFile('${encodeURIComponent(j.finalPath || '')}', '${escapeRecHtml(j.title || '녹화 영상')}'); window.recorderUI.closeHeaderPopup();" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.play}<span>재생</span></button>
+          <button class="btn btn-sm btn-primary" onclick="window.recorderUI.editFile('${encodeURIComponent(j.finalPath || '')}'); window.recorderUI.closeHeaderPopup();" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.scissors}<span>편집</span></button>
+          <button class="btn btn-sm" onclick="window.recorderUI.deleteJob('${j.jobId}')" title="목록에서 제거">${REC_SVGS.closeX}</button>
         `;
       } else if (j.status === 'error') {
         cardClass += ' is-error';
-        statusHtml = `<span style="color: #f87171; font-weight: 800;">✕ 녹화 오류</span>`;
+        statusHtml = `<span style="color: #f87171; font-weight: 800; display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.closeX}<span>녹화 오류</span></span>`;
         errorAlert = `
-          <div style="background: rgba(239,68,68,0.18); border: 1px solid rgba(239,68,68,0.4); border-radius: 4px; padding: 6px 8px; font-size: 11px; color: #fca5a5; line-height: 1.4; word-break: break-all; margin-top: 4px;">
-            ⚠️ ${escapeRecHtml(j.errorMessage || '스트림 연결 중 예기치 않은 오류가 발생했습니다.')}
+          <div style="background: rgba(239,68,68,0.18); border: 1px solid rgba(239,68,68,0.4); border-radius: 4px; padding: 6px 8px; font-size: 11px; color: #fca5a5; line-height: 1.4; word-break: break-all; margin-top: 4px; display:flex; align-items:flex-start; gap:5px;">
+            <span style="flex-shrink:0;margin-top:1px;">${REC_SVGS.alert}</span>
+            <span>${escapeRecHtml(j.errorMessage || '스트림 연결 중 예기치 않은 오류가 발생했습니다.')}</span>
           </div>
         `;
         actionButtons = `<button class="btn btn-sm btn-danger" onclick="window.recorderUI.deleteJob('${j.jobId}')">작업 삭제</button>`;
@@ -394,8 +420,8 @@ class RecorderUI {
           <div class="rec-job-status-row">
             <div>${statusHtml}</div>
             <div class="rec-job-metrics">
-              <span title="녹화 진행 시간">⏱ ${durStr}</span>
-              <span title="현재 파일 크기">💾 ${sizeStr}</span>
+              <span title="녹화 진행 시간" style="display:inline-flex;align-items:center;gap:3px;">${REC_SVGS.clock}${durStr}</span>
+              <span title="현재 파일 크기" style="display:inline-flex;align-items:center;gap:3px;">${REC_SVGS.save}${sizeStr}</span>
             </div>
           </div>
           <div class="rec-job-actions" style="margin-top: 6px; justify-content: flex-end;">
@@ -509,7 +535,7 @@ class RecorderUI {
     if (totalItems === 0) {
       this.recordingsContainer.innerHTML = `
         <div style="text-align: center; padding: 50px 20px; color: var(--text-muted); background: var(--bg-secondary); border-radius: 8px; border: 1px dashed var(--border-color); margin-top: 10px;">
-          <div style="font-size: 32px; margin-bottom: 10px;">📁</div>
+          <div style="display:inline-flex;margin-bottom:10px;opacity:0.7;">${REC_SVGS.folder}</div>
           <div style="font-size: 15px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">표시할 파일이 없습니다.</div>
           <div style="font-size: 12.5px; color: var(--text-dim);">검색어나 날짜 필터를 확인하시거나, 멀티뷰에서 화면 녹화 또는 캡처를 진행하세요.</div>
         </div>
@@ -584,7 +610,7 @@ class RecorderUI {
       html += `
         <div class="date-group-section">
           <div class="date-group-header">
-            <span>📅 ${d}</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;">${REC_SVGS.calendar}<span>${d}</span></span>
             <span style="font-size: 11.5px; opacity: 0.85;">${groupItems.length}개 파일</span>
           </div>
       `;
@@ -635,7 +661,7 @@ class RecorderUI {
       return `
         <div class="recording-card">
           <div class="card-thumb-wrap" onclick="window.recorderUI.previewFile('${encPath}', '${escName}')" title="클릭하여 미리보기">
-            <img src="${thumbUrl}" alt="${escName}" onerror="this.onerror=null; this.src='./static/img/video_placeholder.png';" loading="lazy">
+            <img src="${thumbUrl}" alt="${escName}" onerror="this.onerror=null; this.src='./static/img/favicon.png';" loading="lazy">
             <span class="card-type-badge video">MP4</span>
             ${durStr ? `<span class="card-thumb-duration">${durStr}</span>` : ''}
           </div>
@@ -647,10 +673,10 @@ class RecorderUI {
             </div>
           </div>
           <div class="card-actions-bar">
-            <button class="btn btn-sm" onclick="window.recorderUI.previewFile('${encPath}', '${escName}')" title="미리보기">▶ 재생</button>
-            <button class="btn btn-sm btn-primary" onclick="window.recorderUI.editFile('${encPath}')" title="영상 컷편집실로 가져오기">✂️ 편집실</button>
-            <button class="btn btn-sm" onclick="window.recorderUI.openRenameModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', 'video')" title="파일명 변경">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="window.recorderUI.deleteFile('${encPath}')" title="삭제">🗑️</button>
+            <button class="btn btn-sm" onclick="window.recorderUI.previewFile('${encPath}', '${escName}')" title="미리보기" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.play}<span>재생</span></button>
+            <button class="btn btn-sm btn-primary" onclick="window.recorderUI.editFile('${encPath}')" title="영상 컷편집실로 가져오기" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.scissors}<span>편집실</span></button>
+            <button class="btn btn-sm" onclick="window.recorderUI.openRenameModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', 'video')" title="파일명 변경">${REC_SVGS.edit}</button>
+            <button class="btn btn-sm btn-danger" onclick="window.recorderUI.deleteFile('${encPath}')" title="삭제">${REC_SVGS.trash}</button>
           </div>
         </div>
       `;
@@ -660,7 +686,7 @@ class RecorderUI {
       return `
         <div class="recording-card">
           <div class="card-thumb-wrap" onclick="window.recorderUI.openCaptureModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', ${item.size || 0}, ${item.modified || 0})" title="클릭하여 원본 확대 보기">
-            <img src="${streamUrl}" alt="${escName}" loading="lazy">
+            <img src="${streamUrl}" alt="${escName}" onerror="this.onerror=null; this.src='./static/img/favicon.png';" loading="lazy">
             <span class="card-type-badge capture">캡처</span>
           </div>
           <div class="card-content">
@@ -671,10 +697,10 @@ class RecorderUI {
             </div>
           </div>
           <div class="card-actions-bar">
-            <button class="btn btn-sm" onclick="window.recorderUI.openCaptureModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', ${item.size || 0}, ${item.modified || 0})" title="이미지 확대 보기">🔍 확대</button>
-            <a href="${streamUrl}" download="${escName}" class="btn btn-sm btn-primary" title="이미지 다운로드">💾 저장</a>
-            <button class="btn btn-sm" onclick="window.recorderUI.openRenameModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', 'capture')" title="파일명 변경">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="window.recorderUI.deleteCapture('${encPath}')" title="삭제">🗑️</button>
+            <button class="btn btn-sm" onclick="window.recorderUI.openCaptureModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', ${item.size || 0}, ${item.modified || 0})" title="이미지 확대 보기" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.zoom}<span>확대</span></button>
+            <a href="${streamUrl}" download="${escName}" class="btn btn-sm btn-primary" title="이미지 다운로드" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.save}<span>저장</span></a>
+            <button class="btn btn-sm" onclick="window.recorderUI.openRenameModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', 'capture')" title="파일명 변경">${REC_SVGS.edit}</button>
+            <button class="btn btn-sm btn-danger" onclick="window.recorderUI.deleteCapture('${encPath}')" title="삭제">${REC_SVGS.trash}</button>
           </div>
         </div>
       `;
@@ -692,7 +718,7 @@ class RecorderUI {
       return `
         <tr>
           <td style="font-weight: 600; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escName}">
-            <span style="color: #ef4444; margin-right: 6px;">🎬</span>
+            <span style="color: #ef4444; margin-right: 6px; display:inline-flex; vertical-align:middle;">${REC_SVGS.video}</span>
             <span onclick="window.recorderUI.previewFile('${encPath}', '${escName}')" style="cursor: pointer; text-decoration: underline;">${escName}</span>
           </td>
           <td><span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; font-weight: 700;">MP4 영상</span></td>
@@ -700,10 +726,10 @@ class RecorderUI {
           <td style="font-size: 12px; color: var(--text-muted);">${dateStr}</td>
           <td>
             <div style="display: flex; gap: 5px; flex-wrap: nowrap;">
-              <button class="btn btn-sm" onclick="window.recorderUI.previewFile('${encPath}', '${escName}')">▶ 재생</button>
-              <button class="btn btn-sm btn-primary" onclick="window.recorderUI.editFile('${encPath}')">✂️ 편집실</button>
-              <button class="btn btn-sm" onclick="window.recorderUI.openRenameModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', 'video')">✏️ 이름</button>
-              <button class="btn btn-sm btn-danger" onclick="window.recorderUI.deleteFile('${encPath}')">🗑️</button>
+              <button class="btn btn-sm" onclick="window.recorderUI.previewFile('${encPath}', '${escName}')" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.play}<span>재생</span></button>
+              <button class="btn btn-sm btn-primary" onclick="window.recorderUI.editFile('${encPath}')" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.scissors}<span>편집실</span></button>
+              <button class="btn btn-sm" onclick="window.recorderUI.openRenameModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', 'video')" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.edit}<span>이름</span></button>
+              <button class="btn btn-sm btn-danger" onclick="window.recorderUI.deleteFile('${encPath}')">${REC_SVGS.trash}</button>
             </div>
           </td>
         </tr>
@@ -713,7 +739,7 @@ class RecorderUI {
       return `
         <tr>
           <td style="font-weight: 600; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escName}">
-            <span style="color: #3b82f6; margin-right: 6px;">📸</span>
+            <span style="color: #3b82f6; margin-right: 6px; display:inline-flex; vertical-align:middle;">${REC_SVGS.image}</span>
             <span onclick="window.recorderUI.openCaptureModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', ${item.size || 0}, ${item.modified || 0})" style="cursor: pointer; text-decoration: underline;">${escName}</span>
           </td>
           <td><span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; font-weight: 700;">캡처 이미지</span></td>
@@ -721,10 +747,10 @@ class RecorderUI {
           <td style="font-size: 12px; color: var(--text-muted);">${dateStr}</td>
           <td>
             <div style="display: flex; gap: 5px; flex-wrap: nowrap;">
-              <button class="btn btn-sm" onclick="window.recorderUI.openCaptureModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', ${item.size || 0}, ${item.modified || 0})">🔍 확대</button>
-              <a href="${streamUrl}" download="${escName}" class="btn btn-sm btn-primary">💾 저장</a>
-              <button class="btn btn-sm" onclick="window.recorderUI.openRenameModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', 'capture')">✏️ 이름</button>
-              <button class="btn btn-sm btn-danger" onclick="window.recorderUI.deleteCapture('${encPath}')">🗑️</button>
+              <button class="btn btn-sm" onclick="window.recorderUI.openCaptureModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', ${item.size || 0}, ${item.modified || 0})" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.zoom}<span>확대</span></button>
+              <a href="${streamUrl}" download="${escName}" class="btn btn-sm btn-primary" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.save}<span>저장</span></a>
+              <button class="btn btn-sm" onclick="window.recorderUI.openRenameModal('${item.path.replace(/\\/g, '\\\\')}', '${escName}', 'capture')" style="display:inline-flex;align-items:center;gap:4px;">${REC_SVGS.edit}<span>이름</span></button>
+              <button class="btn btn-sm btn-danger" onclick="window.recorderUI.deleteCapture('${encPath}')">${REC_SVGS.trash}</button>
             </div>
           </td>
         </tr>

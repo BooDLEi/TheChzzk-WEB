@@ -182,9 +182,25 @@ class MultiViewManager {
       }
 
       if (data.type === 'yt_timeupdate') {
+        const wasLive = !!slot.isLive;
         slot.isLive = !!data.isLive;
         slot.currentTime = data.currentTime || 0;
         slot.duration = data.duration || 0;
+
+        if (!wasLive && slot.isLive) {
+          const chatTitleEl = document.getElementById(`slot-chat-title-${slotIndex}`);
+          if (chatTitleEl) {
+            chatTitleEl.textContent = `${slot.channelName || 'YouTube'} 실시간 채팅`;
+          }
+          const chatBtnEl = document.getElementById(`slot-chat-toggle-btn-${slotIndex}`);
+          if (chatBtnEl) {
+            chatBtnEl.title = '유튜브 실시간 채팅 켜기/끄기 (단축키 C)';
+          }
+          if (slot.chatOpen && !slot.ytLiveChatActive) {
+            this.loadYouTubeLiveChat(slotIndex);
+          }
+        }
+
         const timeEl = document.getElementById(`slot-yt-time-${slotIndex}`);
         const sliderEl = document.getElementById(`slot-yt-slider-${slotIndex}`);
         if (timeEl) {
@@ -552,7 +568,47 @@ class MultiViewManager {
     }
   }
 
+  isMobilePortraitMode() {
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const isMobile = (window.app && typeof window.app.isMobileUIMode === 'function')
+      ? window.app.isMobileUIMode()
+      : (document.documentElement.classList.contains('is-mobile-ui')
+         || document.documentElement.classList.contains('is-android-apk')
+         || window.innerWidth <= 960
+         || (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches && window.innerWidth <= 1366));
+    return isMobile && isPortrait;
+  }
+
   getFocusLayout(count) {
+    if (this.isMobilePortraitMode()) {
+      if (count <= 1) {
+        return {
+          isPortraitFocus: true,
+          cols: 1,
+          rows: 1,
+          colFractions: [1.0],
+          rowFractions: [1.0],
+          slots: [{ col: '1 / -1', row: '1' }]
+        };
+      }
+      const subRows = Math.ceil((count - 1) / 2);
+      const slots = [{ col: '1 / span 2', row: '1' }];
+      for (let i = 1; i < count; i++) {
+        slots.push({
+          col: `${((i - 1) % 2) + 1}`,
+          row: `${2 + Math.floor((i - 1) / 2)}`
+        });
+      }
+      return {
+        isPortraitFocus: true,
+        cols: 2,
+        rows: 1 + subRows,
+        colFractions: [1.0, 1.0],
+        rowFractions: [1.85, ...new Array(subRows).fill(1.0)],
+        slots
+      };
+    }
+
     if (count <= 1) {
       return {
         cols: 1,
@@ -743,12 +799,19 @@ class MultiViewManager {
     // 1. Focus Mode (메인 1대형): N개의 슬롯이 하나도 잘리지 않고 모두 한 화면에 표시되도록 정밀 배치
     if (this.layoutMode === 'focus') {
       const focusData = this.getFocusLayout(count);
-      const cols = focusData.cols;
-      const rows = focusData.rows;
 
-      this.playersGrid.className = 'players-grid dynamic-grid mode-focus';
-      this.playersGrid.style.gridTemplateColumns = focusData.colFractions.map(f => `${f.toFixed(3)}fr`).join(' ');
-      this.playersGrid.style.gridTemplateRows = focusData.rowFractions.map(f => `${f.toFixed(3)}fr`).join(' ');
+      if (focusData.isPortraitFocus) {
+        this.playersGrid.className = 'players-grid dynamic-grid mode-focus mode-focus-portrait';
+        this.playersGrid.style.height = 'auto';
+        this.playersGrid.style.minHeight = '0';
+        this.playersGrid.style.overflow = 'visible';
+        this.playersGrid.style.gridTemplateColumns = focusData.cols === 1 ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))';
+        this.playersGrid.style.gridTemplateRows = 'auto';
+      } else {
+        this.playersGrid.className = 'players-grid dynamic-grid mode-focus';
+        this.playersGrid.style.gridTemplateColumns = focusData.colFractions.map(f => `${f.toFixed(3)}fr`).join(' ');
+        this.playersGrid.style.gridTemplateRows = focusData.rowFractions.map(f => `${f.toFixed(3)}fr`).join(' ');
+      }
 
       // 슬롯별 위치 명시적 매핑 (작은 슬롯 잘림 문제 원천 차단)
       for (let i = 0; i < count; i++) {
@@ -2035,8 +2098,14 @@ class MultiViewManager {
     let gesturePhase = 'idle'; // idle | pending | move_ready | dragging | edit_mode | cancelled
     let startX = 0;
     let startY = 0;
+    let grabOffsetX = 0;
+    let grabOffsetY = 0;
     let initSlotX = 0;
     let initSlotY = 0;
+    let pendingCustomX = null;
+    let pendingCustomY = null;
+    let dragSwapTargetIdx = null;
+    let touchGhostEl = null;
     let tapCheckX = 0;
     let tapCheckY = 0;
     let tapStartMs = 0;
@@ -2046,10 +2115,20 @@ class MultiViewManager {
       if (editTimer) { clearTimeout(editTimer); editTimer = null; }
     };
 
+    const cleanupGhost = () => {
+      document.body.classList.remove('is-slot-dragging');
+      slotEl.classList.remove('slot-dragging-source', 'touch-slot-holding-move');
+      if (touchGhostEl) {
+        touchGhostEl.remove();
+        touchGhostEl = null;
+      }
+      this.clearSlotHoverClasses();
+    };
+
     slotEl.addEventListener('touchstart', (e) => {
-      if (this.layoutMode !== 'custom') return;
       if (!e.touches || e.touches.length !== 1) {
         clearTimers();
+        cleanupGhost();
         gesturePhase = 'cancelled';
         return;
       }
@@ -2059,8 +2138,8 @@ class MultiViewManager {
       const index = this.slots.indexOf(slot);
       if (index === -1) return;
 
-      // 편집 모드 중에는 크기 조절 핸들 우선 허용, 그 외 슬롯 내 1회 탭으로 편집 종료 준비
-      if (slotEl.classList.contains('touch-slot-edit-mode')) {
+      // 자유모드 편집 상태에서는 크기 조절 핸들 우선 허용, 그 외 슬롯 내 1회 탭으로 편집 종료 준비
+      if (this.layoutMode === 'custom' && slotEl.classList.contains('touch-slot-edit-mode')) {
         if (e.target.closest('.resize-handle')) return;
         gesturePhase = 'edit_tap_exit';
         tapCheckX = e.touches[0].clientX;
@@ -2069,14 +2148,20 @@ class MultiViewManager {
         return;
       }
 
-      if (e.target.closest('button, input, select, a, .slot-chat-messages, .slot-related-list, .slot-playlist-list, .resize-handle')) {
+      if (e.target.closest('button, input, select, a, .slot-chat-messages, .slot-related-list, .slot-playlist-list, .resize-handle, .slot-chat-input-area')) {
         return;
       }
 
+      const rect = slotEl.getBoundingClientRect();
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
+      grabOffsetX = Math.min(Math.max(12, startX - rect.left), Math.max(40, rect.width - 12));
+      grabOffsetY = Math.min(Math.max(12, startY - rect.top), Math.max(30, rect.height - 12));
       initSlotX = (slot.x !== null) ? slot.x : Math.max(8, slotEl.offsetLeft || 12);
       initSlotY = (slot.y !== null) ? slot.y : Math.max(8, slotEl.offsetTop || 12);
+      pendingCustomX = initSlotX;
+      pendingCustomY = initSlotY;
+      dragSwapTargetIdx = null;
       gesturePhase = 'pending';
 
       moveTimer = setTimeout(() => {
@@ -2084,19 +2169,21 @@ class MultiViewManager {
         gesturePhase = 'move_ready';
         slotEl.classList.add('touch-slot-holding-move');
         if (navigator.vibrate) try { navigator.vibrate(18); } catch (_) {}
-      }, 240);
+      }, 230);
 
-      editTimer = setTimeout(() => {
-        if (gesturePhase !== 'pending' && gesturePhase !== 'move_ready') return;
-        gesturePhase = 'edit_mode';
-        slotEl.classList.remove('touch-slot-holding-move');
-        this.enterTouchSlotEditMode(index);
-        if (navigator.vibrate) try { navigator.vibrate([25, 35, 25]); } catch (_) {}
-      }, 720);
+      if (this.layoutMode === 'custom') {
+        editTimer = setTimeout(() => {
+          if (gesturePhase !== 'pending' && gesturePhase !== 'move_ready') return;
+          gesturePhase = 'edit_mode';
+          slotEl.classList.remove('touch-slot-holding-move');
+          this.enterTouchSlotEditMode(index);
+          if (navigator.vibrate) try { navigator.vibrate([25, 35, 25]); } catch (_) {}
+        }, 720);
+      }
     }, { passive: true });
 
     slotEl.addEventListener('touchmove', (e) => {
-      if (this.layoutMode !== 'custom' || !e.touches || e.touches.length !== 1) return;
+      if (!e.touches || e.touches.length !== 1) return;
       const t = e.touches[0];
       const dist = Math.hypot(t.clientX - startX, t.clientY - startY);
 
@@ -2113,40 +2200,74 @@ class MultiViewManager {
         return;
       }
 
-      if (gesturePhase === 'move_ready' && dist >= 8) {
+      const slot = typeof slotOrIndex === 'object' ? slotOrIndex : this.slots[slotOrIndex];
+      const currentIndex = slot ? this.slots.indexOf(slot) : -1;
+
+      if (gesturePhase === 'move_ready' && dist >= 6) {
         if (editTimer) { clearTimeout(editTimer); editTimer = null; }
         gesturePhase = 'dragging';
+        document.body.classList.add('is-slot-dragging');
+        slotEl.classList.remove('touch-slot-holding-move');
+        slotEl.classList.add('slot-dragging-source');
+
+        touchGhostEl = document.createElement('div');
+        touchGhostEl.className = 'slot-drag-ghost';
+        touchGhostEl.style.pointerEvents = 'none';
+        const ghostW = Math.min(Math.max(150, slotEl.offsetWidth || 220), 260);
+        const ghostH = Math.min(Math.max(90, slotEl.offsetHeight || 130), 155);
+        touchGhostEl.style.width = `${ghostW}px`;
+        touchGhostEl.style.height = `${ghostH}px`;
+        const title = (slot && (slot.title || (slot.active ? '실시간 방송' : ''))) || `슬롯 ${currentIndex + 1}`;
+        const name = (slot && (slot.channelName || (slot.active ? '스트리머' : '비어있는 슬롯'))) || '비어있는 슬롯';
+        touchGhostEl.innerHTML = `
+          <div class="slot-drag-ghost-content">
+            <div class="slot-drag-ghost-title">${escapeHtml(name)}</div>
+            <div class="slot-drag-ghost-sub">${escapeHtml(title)}</div>
+          </div>
+        `;
+        document.body.appendChild(touchGhostEl);
+        grabOffsetX = Math.round(ghostW / 2);
+        grabOffsetY = Math.round(ghostH / 2);
       }
 
       if (gesturePhase === 'dragging') {
         if (e.cancelable) e.preventDefault();
-        const slot = typeof slotOrIndex === 'object' ? slotOrIndex : this.slots[slotOrIndex];
-        if (!slot) return;
-        const nx = Math.max(8, Math.round(initSlotX + (t.clientX - startX)));
-        const ny = Math.max(8, Math.round(initSlotY + (t.clientY - startY)));
-        slot.x = nx;
-        slot.y = ny;
-        slotEl.style.left = `${nx}px`;
-        slotEl.style.top = `${ny}px`;
+        if (!slot || currentIndex === -1) return;
 
-        if (this.playersGrid) {
-          const curW = slot.w || slotEl.offsetWidth || 300;
-          const curH = slot.h || slotEl.offsetHeight || 180;
-          if (parseFloat(this.playersGrid.style.minWidth || 0) < nx + curW + 30) {
-            this.playersGrid.style.minWidth = `${nx + curW + 30}px`;
+        if (touchGhostEl) {
+          touchGhostEl.style.left = `${t.clientX - grabOffsetX}px`;
+          touchGhostEl.style.top = `${t.clientY - grabOffsetY}px`;
+        }
+
+        const elementsUnder = document.elementsFromPoint(t.clientX, t.clientY);
+        const targetSlotEl = elementsUnder.find(
+          el => el.classList && el.classList.contains('player-slot') && el !== slotEl
+        );
+
+        this.clearSlotHoverClasses();
+        if (targetSlotEl) {
+          const targetIdx = parseInt(targetSlotEl.id.replace('slot-', ''), 10);
+          if (!isNaN(targetIdx) && targetIdx !== currentIndex && targetIdx < this.slotCount) {
+            dragSwapTargetIdx = targetIdx;
+            targetSlotEl.classList.add('drag-swap-target');
+          } else {
+            dragSwapTargetIdx = null;
           }
-          if (parseFloat(this.playersGrid.style.minHeight || 0) < ny + curH + 30) {
-            this.playersGrid.style.minHeight = `${ny + curH + 30}px`;
+        } else {
+          dragSwapTargetIdx = null;
+          if (this.layoutMode === 'custom') {
+            pendingCustomX = Math.max(8, Math.round(initSlotX + (t.clientX - startX)));
+            pendingCustomY = Math.max(8, Math.round(initSlotY + (t.clientY - startY)));
           }
         }
       }
     }, { passive: false });
 
     const finishTouch = (e) => {
+      const isCancel = e && e.type === 'touchcancel';
       clearTimers();
-      slotEl.classList.remove('touch-slot-holding-move');
 
-      if (gesturePhase === 'edit_tap_exit') {
+      if (gesturePhase === 'edit_tap_exit' && !isCancel) {
         const dt = Date.now() - tapStartMs;
         const pt = e.changedTouches && e.changedTouches[0];
         const moveD = pt ? Math.hypot(pt.clientX - tapCheckX, pt.clientY - tapCheckY) : 0;
@@ -2154,17 +2275,34 @@ class MultiViewManager {
           if (e.cancelable) e.preventDefault();
           this.exitTouchSlotEditMode();
         }
-      } else if (gesturePhase === 'dragging') {
+      } else if (gesturePhase === 'dragging' && !isCancel) {
         const slot = typeof slotOrIndex === 'object' ? slotOrIndex : this.slots[slotOrIndex];
         const idx = slot ? this.slots.indexOf(slot) : -1;
         if (idx !== -1) {
-          this.preventOverlap(idx);
-          slotEl.style.left = `${slot.x}px`;
-          slotEl.style.top = `${slot.y}px`;
-          this.updateGridLayout();
+          if (dragSwapTargetIdx !== null && dragSwapTargetIdx !== idx && dragSwapTargetIdx < this.slotCount) {
+            if (this.layoutMode === 'custom') {
+              slot.x = initSlotX;
+              slot.y = initSlotY;
+              this.swapCustomSlots(idx, dragSwapTargetIdx);
+            } else {
+              this.swapSlots(idx, dragSwapTargetIdx);
+            }
+            if (navigator.vibrate) try { navigator.vibrate(14); } catch (_) {}
+          } else if (this.layoutMode === 'custom' && pendingCustomX !== null && pendingCustomY !== null) {
+            slot.x = pendingCustomX;
+            slot.y = pendingCustomY;
+            this.preventOverlap(idx);
+            slotEl.style.left = `${slot.x}px`;
+            slotEl.style.top = `${slot.y}px`;
+            this.updateGridLayout();
+          }
         }
       }
 
+      cleanupGhost();
+      dragSwapTargetIdx = null;
+      pendingCustomX = null;
+      pendingCustomY = null;
       gesturePhase = 'idle';
     };
 
@@ -2587,7 +2725,7 @@ class MultiViewManager {
               <button class="slot-ctrl-btn ${slot.playlistOpen ? 'active' : ''}" id="slot-pl-btn-${i}" onclick="window.multiview.toggleSlotPlaylist(${i})" title="재생목록 열기/닫기">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
               </button>
-              <button class="slot-ctrl-btn" onclick="window.multiview.toggleSlotChat(${i})" title="유튜브 영상 설명 및 댓글 열기/닫기 (단축키 C)">${ICONS.chat}</button>
+              <button class="slot-ctrl-btn ${slot.chatOpen ? 'active' : ''}" id="slot-chat-toggle-btn-${i}" onclick="window.multiview.toggleSlotChat(${i})" title="${slot.isLive ? '유튜브 실시간 채팅 켜기/끄기 (단축키 C)' : '유튜브 영상 설명 및 댓글 열기/닫기 (단축키 C)'}">${ICONS.chat}</button>
               <select class="slot-quality-select" id="slot-yt-quality-${i}" onchange="window.multiview.changeYouTubeQuality(${i}, this.value)" title="유튜브 재생 화질 선택">
                 <option value="-1" ${(!slot.ytQuality || slot.ytQuality == -1) ? 'selected' : ''}>화질: 자동</option>
                 <option value="1080" ${slot.ytQuality == 1080 ? 'selected' : ''}>1080p</option>
@@ -3052,7 +3190,7 @@ class MultiViewManager {
         <div class="slot-chat-header">
           <span style="display: flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;">
             ${ICONS.chat}
-            <span>${nameEsc} ${slot.type === 'youtube' ? '유튜브 댓글' : (slot.type === 'vod' ? '다시보기 채팅' : '채팅')}</span>
+            <span id="slot-chat-title-${i}">${nameEsc} ${slot.type === 'youtube' ? (slot.isLive ? '실시간 채팅' : '유튜브 댓글') : (slot.type === 'vod' ? '다시보기 채팅' : '채팅')}</span>
           </span>
           <div style="display: flex; align-items: center; gap: 3px; flex-shrink: 0;">
             <!-- Font size controls (Requirement 4: 글씨 및 이모티콘 크기 동시 조절) -->
@@ -3062,7 +3200,10 @@ class MultiViewManager {
               <button class="chat-col-btn" onclick="window.multiview.changeChatFontSize(${i}, 1)" title="채팅 글씨 및 이모티콘 확대" style="font-size: 11px; width: 18px; height: 18px; padding: 0; font-weight: 800;">A+</button>
             </div>
             ${slot.type === 'youtube' ? `
-              <button class="slot-header-icon-btn btn-accent" onclick="window.multiview.loadYouTubeSlotComments(${i})" title="댓글 새로고침">${ICONS.refresh}</button>
+              <button class="chat-col-btn chat-scroll-lock-btn ${slot.autoScroll !== false ? 'locked' : ''}" id="chat-lock-btn-${i}" onclick="window.multiview.scrollToBottom(${i})" title="최신 채팅 아래로 고정" style="${slot.isLive ? '' : 'display:none;'}">
+                ${ICONS.arrowDownToBottom}
+              </button>
+              <button class="slot-header-icon-btn btn-accent" id="slot-chat-refresh-btn-${i}" onclick="window.multiview.refreshYouTubeChatOrComments(${i})" title="${slot.isLive ? '채팅 새로고침' : '댓글 새로고침'}">${ICONS.refresh}</button>
             ` : `
               <button class="chat-col-btn chat-scroll-lock-btn ${slot.autoScroll !== false ? 'locked' : ''}" id="chat-lock-btn-${i}" onclick="window.multiview.scrollToBottom(${i})" title="최신 채팅 아래로 고정">
                 ${ICONS.arrowDownToBottom}
@@ -3072,7 +3213,7 @@ class MultiViewManager {
           </div>
         </div>
         <div class="slot-chat-messages" id="slot-chat-messages-${i}" style="font-size: ${chatFontSize}px;" onscroll="window.multiview.handleChatScroll(${i})">
-          <div class="chat-empty-hint">${slot.type === 'youtube' ? '유튜브 댓글을 불러오는 중...' : (slot.type === 'vod' ? '다시보기 채팅 동기화 대기 중...' : '실시간 채팅 수신 중...')}</div>
+          <div class="chat-empty-hint">${slot.type === 'youtube' ? (slot.isLive ? '유튜브 실시간 채팅을 불러오는 중...' : '유튜브 댓글을 불러오는 중...') : (slot.type === 'vod' ? '다시보기 채팅 동기화 대기 중...' : '실시간 채팅 수신 중...')}</div>
         </div>
         <button class="chat-scroll-bottom-toast" id="chat-bottom-btn-${i}" onclick="window.multiview.scrollToBottom(${i})">
           <span>최신 채팅으로 고정</span>
@@ -3581,10 +3722,11 @@ class MultiViewManager {
       slot.duration = 0;
       slot.currentTime = 0;
       slot.isPlaying = true;
+      slot.isLive = Boolean(playlistOptions && playlistOptions.isLive);
       slot.active = true;
 
       // Playlist configuration (Requirement 2)
-      if (playlistOptions) {
+      if (playlistOptions && playlistOptions.playlistId) {
         slot.playlistId = playlistOptions.playlistId || null;
         slot.playlistTitle = playlistOptions.playlistTitle || '재생목록';
         slot.playlistItems = playlistOptions.items || [];
@@ -3602,7 +3744,8 @@ class MultiViewManager {
 
       // If playlist ID was provided without items, fetch playlist items asynchronously
       if (slot.playlistId && (!slot.playlistItems || slot.playlistItems.length === 0)) {
-        fetch(`/api/youtube/playlist/${encodeURIComponent(slot.playlistId)}`)
+        const plQuery = (videoId && videoId !== slot.playlistId) ? `?video_id=${encodeURIComponent(videoId)}` : '';
+        fetch(`/api/youtube/playlist/${encodeURIComponent(slot.playlistId)}${plQuery}`)
           .then(r => r.json())
           .then(data => {
             if (data && data.success && data.videos && data.videos.length > 0) {
@@ -3652,9 +3795,13 @@ class MultiViewManager {
       // Prefetch related videos in background so end-screen is instant
       this.prefetchYouTubeRelated(slotIndex, videoId);
 
-      // If comments/description column was open, load new video's description & comments
+      // If chat/comments column was open, load YouTube live chat or comments
       if (slot.chatOpen) {
-        this.loadYouTubeSlotComments(slotIndex);
+        if (slot.isLive) {
+          this.loadYouTubeLiveChat(slotIndex);
+        } else {
+          this.loadYouTubeSlotComments(slotIndex);
+        }
       }
 
       iframe.onload = () => {
@@ -5218,6 +5365,7 @@ class MultiViewManager {
   disconnectSlotChat(slot) {
     if (!slot) return;
     this.stopVodChatSync(slot);
+    this.stopYouTubeLiveChat(slot);
     if (slot.chatPingTimer) {
       clearInterval(slot.chatPingTimer);
       slot.chatPingTimer = null;
@@ -5234,7 +5382,7 @@ class MultiViewManager {
     const slot = this.slots[slotIndex];
     if (!slot || !slot.active) return;
 
-    // 댓글창이 열리면 재생목록 및 관련영상 닫힘 (상호 배타적)
+    // 댓글창/채팅창이 열리면 재생목록 및 관련영상 닫힘 (상호 배타적)
     if (!slot.chatOpen) {
       if (slot.playlistOpen) this.toggleSlotPlaylist(slotIndex, false);
       if (slot.relatedOpen) this.toggleSlotRelated(slotIndex, false);
@@ -5252,17 +5400,25 @@ class MultiViewManager {
         }
       }
     }
+    const chatToggleBtn = document.getElementById(`slot-chat-toggle-btn-${slotIndex}`);
+    if (chatToggleBtn) {
+      chatToggleBtn.classList.toggle('active', slot.chatOpen);
+    }
 
     if (slot.chatOpen) {
       if (slot.type === 'youtube') {
-        this.loadYouTubeSlotComments(slotIndex);
+        if (slot.isLive) {
+          this.loadYouTubeLiveChat(slotIndex);
+        } else {
+          this.loadYouTubeSlotComments(slotIndex);
+        }
       } else if (slot.type === 'vod') {
         this.startVodChatSync(slot);
       } else if (!slot.chatSocket) {
         this.connectSlotChat(slot);
       }
       // Populate preserved chat history if any (Fix Request 3)
-      if (slot.chatHistory && slot.chatHistory.length > 0) {
+      if (slot.chatHistory && slot.chatHistory.length > 0 && slot.type !== 'youtube') {
         const container = document.getElementById(`slot-chat-messages-${slotIndex}`);
         if (container && container.querySelector('.chat-empty-hint')) {
           container.innerHTML = '';
@@ -5273,6 +5429,8 @@ class MultiViewManager {
     } else {
       if (slot.type === 'vod') {
         this.stopVodChatSync(slot);
+      } else if (slot.type === 'youtube') {
+        this.stopYouTubeLiveChat(slot);
       }
     }
   }
@@ -5376,9 +5534,314 @@ class MultiViewManager {
     `;
   }
 
-  async loadYouTubeSlotComments(slotIndex) {
+  refreshYouTubeChatOrComments(slotIndex) {
+    const slot = this.slots[slotIndex];
+    if (!slot || slot.type !== 'youtube') return;
+    if (slot.isLive && !slot.ytForceCommentsMode) {
+      this.loadYouTubeLiveChat(slotIndex, slot.ytLiveChatMode || 'auto');
+    } else {
+      this.loadYouTubeSlotComments(slotIndex, true);
+    }
+  }
+
+  stopYouTubeLiveChat(slot) {
+    if (!slot) return;
+    if (slot.ytLiveChatTimer) {
+      clearTimeout(slot.ytLiveChatTimer);
+      slot.ytLiveChatTimer = null;
+    }
+    slot.ytLiveChatActive = false;
+    slot.ytLiveChatContinuation = null;
+    slot.ytLiveChatSeenIds = null;
+  }
+
+  switchYouTubeLiveChatMode(slotIndex, mode) {
+    const slot = this.slots[slotIndex];
+    if (!slot || slot.type !== 'youtube') return;
+    if (mode === 'comments') {
+      slot.ytForceCommentsMode = true;
+      this.stopYouTubeLiveChat(slot);
+      const lockBtn = document.getElementById(`chat-lock-btn-${slotIndex}`);
+      if (lockBtn) lockBtn.style.display = 'none';
+      const titleEl = document.getElementById(`slot-chat-title-${slotIndex}`);
+      if (titleEl) titleEl.textContent = `${slot.channelName || 'YouTube'} 영상 정보`;
+      this.loadYouTubeSlotComments(slotIndex, true);
+    } else {
+      slot.ytForceCommentsMode = false;
+      this.loadYouTubeLiveChat(slotIndex, mode);
+    }
+  }
+
+  async loadYouTubeLiveChat(slotIndex, mode = 'auto') {
     const slot = this.slots[slotIndex];
     if (!slot || slot.type !== 'youtube' || !slot.videoId) return;
+
+    this.stopYouTubeLiveChat(slot);
+    slot.ytForceCommentsMode = false;
+    slot.ytLiveChatActive = true;
+    slot.ytLiveChatMode = mode;
+    slot.ytLiveChatSeenIds = new Set();
+
+    const container = document.getElementById(`slot-chat-messages-${slotIndex}`);
+    if (!container) return;
+
+    const titleEl = document.getElementById(`slot-chat-title-${slotIndex}`);
+    if (titleEl) titleEl.textContent = `${slot.channelName || 'YouTube'} 실시간 채팅`;
+    const refreshBtn = document.getElementById(`slot-chat-refresh-btn-${slotIndex}`);
+    if (refreshBtn) refreshBtn.title = '채팅 새로고침';
+    const lockBtn = document.getElementById(`chat-lock-btn-${slotIndex}`);
+    if (lockBtn) lockBtn.style.display = (mode === 'iframe') ? 'none' : '';
+
+    container.style.fontSize = `${slot.chatFontSize || 12}px`;
+    const targetVideoId = slot.videoId;
+
+    const renderModeBar = (activeMode, canShowNative = true) => `
+      <div class="yt-livechat-modebar">
+        ${canShowNative ? `
+          <button type="button" class="yt-lc-mode-btn ${activeMode === 'native' ? 'active' : ''}" onclick="window.multiview.switchYouTubeLiveChatMode(${slotIndex}, 'native')" title="다크 테마 최적화 채팅 (글씨 크기 조절 가능)">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>실시간 채팅</span>
+          </button>
+        ` : ''}
+        <button type="button" class="yt-lc-mode-btn ${activeMode === 'iframe' ? 'active' : ''}" onclick="window.multiview.switchYouTubeLiveChatMode(${slotIndex}, 'iframe')" title="직접 채팅 입력이 가능한 유튜브 공식 채팅창">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          <span>공식 채팅창</span>
+        </button>
+        <button type="button" class="yt-lc-mode-btn" onclick="window.multiview.switchYouTubeLiveChatMode(${slotIndex}, 'comments')" title="영상 설명 보기">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <span>영상 정보</span>
+        </button>
+      </div>
+    `;
+
+    // Direct Official YouTube Live Chat IFrame mode (Web version or explicitly requested)
+    if (mode === 'iframe') {
+      const hostName = (window.location && window.location.hostname && window.location.hostname !== 'null')
+        ? window.location.hostname
+        : '127.0.0.1';
+      const embedUrl = `https://www.youtube.com/live_chat?v=${encodeURIComponent(targetVideoId)}&embed_domain=${encodeURIComponent(hostName)}&dark_theme=1`;
+      const isStatic = !!(window.webBackendPolyfill && window.webBackendPolyfill.isStaticWeb());
+      container.innerHTML = `
+        <div class="yt-livechat-wrap">
+          ${renderModeBar('iframe', !isStatic)}
+          <div class="yt-livechat-iframe-box">
+            <iframe src="${embedUrl}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media" style="width:100%;height:100%;border:none;background:#0d111a;"></iframe>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="yt-livechat-wrap">
+        ${renderModeBar('native', true)}
+        <div class="yt-livechat-list" id="yt-livechat-list-${slotIndex}">
+          <div class="chat-empty-hint">유튜브 실시간 채팅 연결 중...</div>
+        </div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch(`/api/youtube/live_chat/${encodeURIComponent(targetVideoId)}`);
+      const data = await res.json();
+      if (!slot.active || slot.videoId !== targetVideoId || !slot.ytLiveChatActive) return;
+
+      // Web version returns useEmbedIframe: true -> render official YouTube Live Chat iframe
+      if (data && data.useEmbedIframe && data.embedUrl) {
+        slot.ytLiveChatMode = 'iframe';
+        if (lockBtn) lockBtn.style.display = 'none';
+        container.innerHTML = `
+          <div class="yt-livechat-wrap">
+            ${renderModeBar('iframe', false)}
+            <div class="yt-livechat-iframe-box">
+              <iframe src="${escapeHtml(data.embedUrl)}" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media" style="width:100%;height:100%;border:none;background:#0d111a;"></iframe>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const listEl = document.getElementById(`yt-livechat-list-${slotIndex}`);
+      if (!listEl) return;
+
+      if (!data || !data.success) {
+        const msg = (data && data.disabled)
+          ? '이 방송은 실시간 채팅이 비활성화되어 있습니다.'
+          : ((data && data.error) || '실시간 채팅을 불러올 수 없습니다.');
+        listEl.innerHTML = `<div class="chat-empty-hint">${escapeHtml(msg)}</div>`;
+        return;
+      }
+
+      slot.ytLiveChatContinuation = data.continuationToken || null;
+      listEl.innerHTML = '';
+
+      if (data.messages && data.messages.length > 0) {
+        this.appendYouTubeLiveChatMessages(slot, data.messages);
+      } else {
+        listEl.innerHTML = '<div class="chat-empty-hint">실시간 채팅 수신 대기 중...</div>';
+      }
+
+      // Schedule next poll
+      const delay = Math.max(1500, Math.min(6000, data.timeoutMs || 2500));
+      slot.ytLiveChatTimer = setTimeout(() => {
+        this.pollYouTubeLiveChat(slotIndex);
+      }, delay);
+    } catch (e) {
+      console.error('Failed to load YouTube live chat:', e);
+      const listEl = document.getElementById(`yt-livechat-list-${slotIndex}`);
+      if (listEl) listEl.innerHTML = '<div class="chat-empty-hint">실시간 채팅 연결에 실패했습니다.</div>';
+    }
+  }
+
+  async pollYouTubeLiveChat(slotIndex) {
+    const slot = this.slots[slotIndex];
+    if (!slot || !slot.active || slot.type !== 'youtube' || !slot.ytLiveChatActive || !slot.chatOpen || slot.ytLiveChatMode === 'iframe') {
+      return;
+    }
+    const targetVideoId = slot.videoId;
+    const cont = slot.ytLiveChatContinuation;
+    if (!cont || !targetVideoId) return;
+
+    try {
+      const res = await fetch(`/api/youtube/live_chat/${encodeURIComponent(targetVideoId)}?continuation=${encodeURIComponent(cont)}`);
+      const data = await res.json();
+      if (!slot.active || slot.videoId !== targetVideoId || !slot.ytLiveChatActive || !slot.chatOpen) return;
+
+      if (data && data.success) {
+        if (data.continuationToken) {
+          slot.ytLiveChatContinuation = data.continuationToken;
+        }
+        if (data.messages && data.messages.length > 0) {
+          this.appendYouTubeLiveChatMessages(slot, data.messages);
+        }
+        const delay = Math.max(1500, Math.min(6000, data.timeoutMs || 2500));
+        slot.ytLiveChatTimer = setTimeout(() => {
+          this.pollYouTubeLiveChat(slotIndex);
+        }, delay);
+      } else {
+        slot.ytLiveChatTimer = setTimeout(() => {
+          this.pollYouTubeLiveChat(slotIndex);
+        }, 4000);
+      }
+    } catch (_) {
+      if (slot.active && slot.ytLiveChatActive && slot.chatOpen) {
+        slot.ytLiveChatTimer = setTimeout(() => {
+          this.pollYouTubeLiveChat(slotIndex);
+        }, 5000);
+      }
+    }
+  }
+
+  appendYouTubeLiveChatMessages(slot, messages) {
+    const listEl = document.getElementById(`yt-livechat-list-${slot.index}`);
+    const scrollContainer = document.getElementById(`slot-chat-messages-${slot.index}`);
+    if (!listEl || !scrollContainer) return;
+
+    const hint = listEl.querySelector('.chat-empty-hint');
+    if (hint) hint.remove();
+
+    if (!slot.ytLiveChatSeenIds) slot.ytLiveChatSeenIds = new Set();
+
+    const frag = document.createDocumentFragment();
+    let addedCount = 0;
+
+    messages.forEach(msg => {
+      const msgId = msg.id || `${msg.author}_${msg.timestampUsec}_${JSON.stringify(msg.runs || []).slice(0, 30)}`;
+      if (slot.ytLiveChatSeenIds.has(msgId)) return;
+      slot.ytLiveChatSeenIds.add(msgId);
+      if (slot.ytLiveChatSeenIds.size > 800) {
+        const firstKey = slot.ytLiveChatSeenIds.values().next().value;
+        slot.ytLiveChatSeenIds.delete(firstKey);
+      }
+
+      const div = document.createElement('div');
+      div.innerHTML = this.renderYouTubeLiveChatMessageHTML(msg);
+      if (div.firstElementChild) {
+        frag.appendChild(div.firstElementChild);
+        addedCount++;
+      }
+    });
+
+    if (addedCount === 0) return;
+
+    listEl.appendChild(frag);
+    while (listEl.children.length > 220) {
+      listEl.removeChild(listEl.firstElementChild);
+    }
+
+    if (slot.autoScroll !== false) {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    }
+  }
+
+  renderYouTubeLiveChatMessageHTML(msg) {
+    const authorEsc = escapeHtml(msg.author || '익명');
+    const badgesHtml = (msg.badges || []).map(b => {
+      if (b.kind === 'owner') {
+        return `<span class="yt-lc-badge owner" title="${escapeHtml(b.label || '채널 소유자')}"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5z"/></svg></span>`;
+      }
+      if (b.kind === 'moderator') {
+        return `<span class="yt-lc-badge mod" title="${escapeHtml(b.label || '운영자')}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>`;
+      }
+      if (b.kind === 'verified') {
+        return `<span class="yt-lc-badge verified" title="${escapeHtml(b.label || '인증됨')}"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>`;
+      }
+      if (b.kind === 'member' && b.url) {
+        return `<img class="yt-lc-badge-img" src="${escapeHtml(b.url)}" alt="${escapeHtml(b.label || '멤버')}" title="${escapeHtml(b.label || '멤버십')}">`;
+      }
+      return '';
+    }).join('');
+
+    const bodyHtml = (msg.runs || []).map(r => {
+      if (r.type === 'emoji' && r.url) {
+        return `<img class="chat-emote yt-lc-emoji" src="${escapeHtml(r.url)}" alt="${escapeHtml(r.alt || '')}" loading="lazy">`;
+      }
+      return escapeHtml(r.text || '');
+    }).join('');
+
+    if (msg.kind === 'superchat') {
+      return `
+        <div class="chat-msg-item yt-lc-superchat">
+          <div class="yt-lc-sc-header">
+            <span class="yt-lc-sc-author">${badgesHtml}${authorEsc}</span>
+            <span class="yt-lc-sc-amount">${escapeHtml(msg.amount || 'Super Chat')}</span>
+          </div>
+          ${bodyHtml ? `<div class="yt-lc-sc-body">${bodyHtml}</div>` : ''}
+        </div>
+      `;
+    }
+
+    if (msg.kind === 'membership') {
+      return `
+        <div class="chat-msg-item yt-lc-membership">
+          <div class="yt-lc-sc-header">
+            <span class="yt-lc-sc-author">${badgesHtml}${authorEsc}</span>
+            <span class="yt-lc-mem-badge">멤버십</span>
+          </div>
+          <div class="yt-lc-sc-body">${bodyHtml}</div>
+        </div>
+      `;
+    }
+
+    const isOwner = (msg.badges || []).some(b => b.kind === 'owner');
+    const isMod = (msg.badges || []).some(b => b.kind === 'moderator');
+    const authorCls = isOwner ? 'yt-lc-author owner' : (isMod ? 'yt-lc-author mod' : 'yt-lc-author');
+
+    return `
+      <div class="chat-msg-item yt-lc-msg">
+        ${badgesHtml}<span class="${authorCls}">${authorEsc}</span><span class="yt-lc-colon">: </span><span class="chat-text">${bodyHtml}</span>
+      </div>
+    `;
+  }
+
+  async loadYouTubeSlotComments(slotIndex, forceComments = false) {
+    const slot = this.slots[slotIndex];
+    if (!slot || slot.type !== 'youtube' || !slot.videoId) return;
+
+    if (slot.isLive && !forceComments && !slot.ytForceCommentsMode) {
+      this.loadYouTubeLiveChat(slotIndex);
+      return;
+    }
 
     const container = document.getElementById(`slot-chat-messages-${slotIndex}`);
     if (!container) return;
@@ -5390,11 +5853,28 @@ class MultiViewManager {
       const res = await fetch(`/api/youtube/comments/${encodeURIComponent(slot.videoId)}`);
       const data = await res.json();
 
+      if (data && data.hasLiveChat && !forceComments && !slot.ytForceCommentsMode) {
+        slot.isLive = true;
+        this.loadYouTubeLiveChat(slotIndex);
+        return;
+      }
+
       const info = (data && data.videoInfo) ? data.videoInfo : {};
       const descText = (info.description || '').trim();
       const metaParts = [info.viewCount, info.dateText].filter(Boolean).join(' • ');
 
       let html = '';
+
+      if (slot.isLive) {
+        html += `
+          <div class="yt-livechat-modebar" style="margin-bottom:8px;">
+            <button type="button" class="yt-lc-mode-btn" onclick="window.multiview.switchYouTubeLiveChatMode(${slotIndex}, 'auto')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>실시간 채팅으로 돌아가기</span>
+            </button>
+          </div>
+        `;
+      }
 
       // 1. Top Video Description Card
       const isLongDesc = descText.length > 120 || descText.split('\n').length > 3;
@@ -6180,9 +6660,19 @@ class MultiViewManager {
       });
     }
 
-    window.addEventListener('resize', () => {
+    let mvResizeTimer = null;
+    const handleMvViewportChange = () => {
       this.syncPiPIframePosition();
-    });
+      clearTimeout(mvResizeTimer);
+      mvResizeTimer = setTimeout(() => {
+        if (this.layoutMode === 'focus' || this.layoutMode === 'auto') {
+          this.updateGridLayout();
+          this.applySlotLayoutStyles();
+        }
+      }, 90);
+    };
+    window.addEventListener('resize', handleMvViewportChange);
+    window.addEventListener('orientationchange', handleMvViewportChange);
   }
 
   syncPiPIframePosition() {

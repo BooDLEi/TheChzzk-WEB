@@ -24,6 +24,8 @@ class ChzzkApp {
     this.searchKeyword = '';
     this.selectedCategory = '';
     this.loginPollingInterval = null;
+    this.lastVaultSubtab = 'recorder';
+    this.homeBookmarkFilterActive = false;
 
     // Master volume state (Chzzk & YouTube independent)
     this.masterChzzkVolume = 1.0;
@@ -100,6 +102,20 @@ class ChzzkApp {
     this.refreshBookmarksBtn = document.getElementById('refreshBookmarksBtn');
     this.bookmarksBadge = document.getElementById('bookmarks-badge');
     this.bookmarksSummaryDisplay = document.getElementById('bookmarksSummaryDisplay');
+
+    // Mobile UI & Home Bookmark Filter Elements
+    this.mobileVaultHeader = document.getElementById('mobileVaultHeader');
+    this.mobileHomeBookmarkFilterBtn = document.getElementById('mobileHomeBookmarkFilterBtn');
+    this.mobileHomeBookmarksCount = document.getElementById('mobileHomeBookmarksCount');
+    this.mobileHomeBookmarksSection = document.getElementById('mobileHomeBookmarksSection');
+    this.mobileHomeBookmarksOnlineSection = document.getElementById('mobileHomeBookmarksOnlineSection');
+    this.mobileHomeBookmarksOnlineGrid = document.getElementById('mobileHomeBookmarksOnlineGrid');
+    this.mobileHomeBmOnlineBadge = document.getElementById('mobileHomeBmOnlineBadge');
+    this.mobileHomeBookmarksOfflineSection = document.getElementById('mobileHomeBookmarksOfflineSection');
+    this.mobileHomeBookmarksOfflineGrid = document.getElementById('mobileHomeBookmarksOfflineGrid');
+    this.mobileHomeBmOfflineBadge = document.getElementById('mobileHomeBmOfflineBadge');
+    this.mobileHomeAddBookmarkInput = document.getElementById('mobileHomeAddBookmarkInput');
+    this.vaultBadge = document.getElementById('vault-badge');
 
     // Settings & Secure 1-Time Follow Import
     this.openBrowserLoginBtn = document.getElementById('openBrowserLoginBtn');
@@ -193,6 +209,15 @@ class ChzzkApp {
         if (e.key === 'Enter') this.addBookmark();
       });
     }
+    if (this.mobileHomeAddBookmarkInput) {
+      this.mobileHomeAddBookmarkInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') this.addBookmarkFromMobileHome();
+      });
+    }
+
+    this.syncResponsiveMobileLayout();
+    window.addEventListener('resize', () => this.syncResponsiveMobileLayout());
+    window.addEventListener('orientationchange', () => setTimeout(() => this.syncResponsiveMobileLayout(), 60));
     if (this.importChzzkFollowBtn) {
       this.importChzzkFollowBtn.addEventListener('click', () => this.importChzzkFollows());
     }
@@ -469,14 +494,122 @@ class ChzzkApp {
     this.applyMasterVolumeToYT();
   }
 
+  isMobileUIMode() {
+    const root = document.documentElement;
+    if (root.classList.contains('is-android-apk')) return true;
+    if (window.innerWidth <= 960) return true;
+    if (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches && window.innerWidth <= 1366) {
+      return true;
+    }
+    return false;
+  }
+
+  syncResponsiveMobileLayout() {
+    const isMobile = this.isMobileUIMode();
+    document.documentElement.classList.toggle('is-mobile-ui', isMobile);
+
+    // 1. Explore layout: move category strip + bookmark filter + icon refresh below search bar on mobile
+    const exploreLayout = document.getElementById('exploreLayout');
+    const catSidebar = document.getElementById('exploreCategorySidebar');
+    const mobileFilterRow = document.getElementById('mobileExploreFilterRow');
+    const mobileCatsSlot = document.getElementById('mobileExploreCatsSlot');
+    const mobileActions = document.getElementById('mobileExploreFilterActions');
+    const toolbarRight = document.getElementById('exploreToolbarRight');
+    const refreshBtn = document.getElementById('refreshLivesBtn');
+    const searchOffText = document.getElementById('searchOfflineText');
+
+    if (exploreLayout && catSidebar && mobileFilterRow && mobileCatsSlot && mobileActions && toolbarRight && refreshBtn) {
+      if (isMobile) {
+        if (catSidebar.parentElement !== mobileCatsSlot) {
+          mobileCatsSlot.appendChild(catSidebar);
+        }
+        if (refreshBtn.parentElement !== mobileActions) {
+          mobileActions.appendChild(refreshBtn);
+        }
+        mobileFilterRow.style.display = 'flex';
+        if (searchOffText) searchOffText.textContent = '오프라인';
+      } else {
+        if (catSidebar.parentElement !== exploreLayout) {
+          exploreLayout.insertBefore(catSidebar, exploreLayout.firstChild);
+        }
+        if (refreshBtn.parentElement !== toolbarRight) {
+          toolbarRight.appendChild(refreshBtn);
+        }
+        mobileFilterRow.style.display = 'none';
+        if (searchOffText) searchOffText.textContent = '오프라인 채널 검색';
+        if (this.mobileHomeBookmarksSection) {
+          this.mobileHomeBookmarksSection.style.display = 'none';
+        }
+      }
+    }
+
+    // 2. Multiview toolbar: keep layout modes at top, move slot add/remove/clear to bottom bar on mobile
+    const mvSlotGroup = document.getElementById('mvSlotActionsGroup');
+    const mvToolbarLeft = document.getElementById('mvToolbarLeft');
+    const mvMobileBottom = document.getElementById('mvMobileBottomBar');
+    if (mvSlotGroup && mvToolbarLeft && mvMobileBottom) {
+      if (isMobile) {
+        if (mvSlotGroup.parentElement !== mvMobileBottom) {
+          mvMobileBottom.appendChild(mvSlotGroup);
+        }
+        mvMobileBottom.style.display = 'flex';
+      } else {
+        if (mvSlotGroup.parentElement !== mvToolbarLeft) {
+          mvToolbarLeft.insertBefore(mvSlotGroup, mvToolbarLeft.firstChild);
+        }
+        mvMobileBottom.style.display = 'none';
+      }
+    }
+
+    this.updateMobileVaultHeaderState(this.currentTab);
+    if (isMobile && this.homeBookmarkFilterActive && this.currentTab === 'explore') {
+      this.renderMobileHomeBookmarks();
+    }
+    if (window.multiview && (window.multiview.layoutMode === 'focus' || window.multiview.layoutMode === 'auto')) {
+      window.multiview.updateGridLayout();
+      window.multiview.applySlotLayoutStyles();
+    }
+  }
+
+  updateMobileVaultHeaderState(activeTab) {
+    const isVaultTab = activeTab === 'recorder' || activeTab === 'editor' || activeTab === 'settings';
+    const isMobile = this.isMobileUIMode();
+    if (this.mobileVaultHeader) {
+      this.mobileVaultHeader.style.display = (isMobile && isVaultTab) ? 'flex' : 'none';
+      if (isVaultTab) {
+        this.mobileVaultHeader.querySelectorAll('.mobile-vault-tab-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.vaultSubtab === activeTab);
+        });
+      }
+    }
+  }
+
   switchTab(tabName) {
+    if (tabName === 'vault') {
+      tabName = this.lastVaultSubtab || 'recorder';
+    }
+    if (tabName === 'bookmarks' && this.isMobileUIMode()) {
+      this.homeBookmarkFilterActive = true;
+      if (this.mobileHomeBookmarkFilterBtn) {
+        this.mobileHomeBookmarkFilterBtn.classList.add('active');
+      }
+      tabName = 'explore';
+    }
+    if (tabName === 'recorder' || tabName === 'editor' || tabName === 'settings') {
+      this.lastVaultSubtab = tabName;
+    }
+
     this.currentTab = tabName;
+    const isMobileVaultActive = this.isMobileUIMode() && (tabName === 'recorder' || tabName === 'editor' || tabName === 'settings');
     this.navBtns.forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.tab === tabName);
+      const btnTab = btn.dataset.tab;
+      const isActive = (btnTab === tabName) || (isMobileVaultActive && btnTab === 'vault');
+      btn.classList.toggle('active', isActive);
     });
     this.tabPanes.forEach(pane => {
       pane.classList.toggle('active', pane.id === `${tabName}-tab`);
     });
+    this.updateMobileVaultHeaderState(tabName);
 
     if (tabName !== 'channel' && window.channelUI) {
       window.channelUI.destroyLivePlayer();
@@ -500,6 +633,9 @@ class ChzzkApp {
     if (tabName === 'explore') {
       this.fetchFollowingLives();
       this.fetchBookmarks();
+      if (this.homeBookmarkFilterActive) {
+        this.renderMobileHomeBookmarks();
+      }
     } else if (tabName === 'youtube') {
       if (window.youtubeUI && typeof window.youtubeUI.onEnterTab === 'function') {
         window.youtubeUI.onEnterTab();
@@ -614,7 +750,8 @@ class ChzzkApp {
       const data = await res.json();
       if (data.success && data.lives && data.lives.length > 0) {
         this.followingLives = data.lives;
-        this.followingLivesSection.style.display = 'block';
+        const hideDup = this.isMobileUIMode() && this.homeBookmarkFilterActive;
+        this.followingLivesSection.style.display = hideDup ? 'none' : 'block';
         this.followingCountBadge.textContent = data.lives.length;
         this.renderCards(this.followingLives, this.followingLivesGrid);
       } else {
@@ -644,14 +781,15 @@ class ChzzkApp {
       );
     }
 
+    const hideDupFollowing = this.isMobileUIMode() && this.homeBookmarkFilterActive;
     const isFiltered = Boolean(this.searchKeyword || this.selectedCategory);
     if (isFiltered) {
       this.popularLivesSection.style.display = 'none';
       if (this.followingLivesSection) this.followingLivesSection.style.display = 'none';
     } else {
       this.popularLivesSection.style.display = 'block';
-      if (this.followingLives.length > 0) {
-        this.followingLivesSection.style.display = 'block';
+      if (this.followingLivesSection) {
+        this.followingLivesSection.style.display = (!hideDupFollowing && this.followingLives.length > 0) ? 'block' : 'none';
       }
     }
 
@@ -665,13 +803,29 @@ class ChzzkApp {
     // Remaining or all
     const remaining = isFiltered ? filtered : filtered.slice(8);
     this.renderCards(remaining, this.livesGrid);
+
+    if (this.isMobileUIMode() && this.homeBookmarkFilterActive) {
+      this.renderMobileHomeBookmarks();
+    }
+  }
+
+  renderCardThumbMedia(thumbUrl, avatarUrl, nameEsc, isOnline = true) {
+    const safeAvatar = escapeHtml(avatarUrl || './static/img/favicon.png');
+    if (isOnline) {
+      const safeThumb = escapeHtml(thumbUrl || avatarUrl || './static/img/favicon.png');
+      return `<img src="${safeThumb}" loading="lazy" decoding="async" alt="${nameEsc}" onerror="this.onerror=null; this.src='./static/img/favicon.png';">`;
+    }
+    return `
+      <div class="card-offline-backdrop" style="background-image: url('${safeAvatar}');"></div>
+      <img class="card-offline-center-avatar" src="${safeAvatar}" loading="lazy" decoding="async" alt="${nameEsc}" onerror="this.onerror=null; this.src='./static/img/favicon.png';">
+    `;
   }
 
   renderCards(items, container) {
     if (!container) return;
     if (items.length === 0) {
       const searchBtnHtml = this.searchKeyword 
-        ? `<div style="margin-top: 14px;"><button class="btn btn-sm btn-outline" onclick="window.app.toggleOfflineChannelSearch(true)"><span style="color:var(--accent-color); margin-right:4px;">🌐</span>'${escapeHtml(this.searchKeyword)}' 오프라인 채널 검색하기</button></div>`
+        ? `<div style="margin-top: 14px;"><button class="btn btn-sm btn-outline" onclick="window.app.toggleOfflineChannelSearch(true)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" style="margin-right:4px; vertical-align:-2px;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'${escapeHtml(this.searchKeyword)}' 오프라인 채널 검색하기</button></div>`
         : '';
       container.innerHTML = `<div style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--text-muted);">조건에 맞는 실시간 방송이 없습니다.${searchBtnHtml}</div>`;
       return;
@@ -682,35 +836,33 @@ class ChzzkApp {
 
     container.innerHTML = items.map(item => {
       const viewers = Number(item.userCount || 0).toLocaleString();
-      const thumb = escapeHtml(item.thumbUrl || '');
-      const avatar = escapeHtml(item.channelImageUrl || '');
+      const thumb = escapeHtml(item.thumbUrl || item.channelImageUrl || './static/img/favicon.png');
+      const avatar = escapeHtml(item.channelImageUrl || './static/img/favicon.png');
       const titleEsc = escapeHtml(item.liveTitle || item.title || '');
       const nameEsc = escapeHtml(item.channelName || '');
       const genre = escapeHtml(item.categoryValue || '종합 / 토크');
       const isBookmarked = bookmarkIds.has(item.channelId);
-      const isFollowed = followingIds.has(item.channelId);
       const notifyEnabled = this.isChannelNotifyEnabled(item.channelId);
 
       return `
         <div class="live-card" data-channel-id="${item.channelId}">
           <div class="card-thumb-wrap" onclick="window.app.handleCardClick('${item.channelId}')" oncontextmenu="event.preventDefault(); window.app.openInMultiviewBackground('${item.channelId}')" title="클릭하여 멀티뷰 슬롯에서 시청 (우클릭: 현재 화면 유지하며 멀티뷰에 추가)">
-            <img src="${thumb}" loading="lazy" decoding="async" alt="${nameEsc}">
+            <img src="${thumb}" loading="lazy" decoding="async" alt="${nameEsc}" onerror="this.onerror=null; this.src='./static/img/favicon.png';">
             <div class="card-badge-live">LIVE</div>
             <div class="card-badge-category" title="클릭하여 '${genre}' 방송 모아보기" onclick="event.stopPropagation(); window.app.filterByCategory('${genre.replace(/'/g, "\\'")}')">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px;"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/></svg>${genre}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/></svg><span class="card-cat-text">${genre}</span>
             </div>
             <div class="card-badge-viewers">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>${viewers}명
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>${viewers}명</span>
             </div>
           </div>
           <div class="card-info">
-            ${avatar ? `<img class="card-avatar" src="${avatar}" loading="lazy" decoding="async" alt="" onclick="event.stopPropagation(); window.app.openChannelPage('${item.channelId}')" title="스트리머 채널 방문" style="cursor: pointer;">` : `<div class="card-avatar" style="display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="event.stopPropagation(); window.app.openChannelPage('${item.channelId}')" title="스트리머 채널 방문"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg></div>`}
+            <img class="card-avatar" src="${avatar}" loading="lazy" decoding="async" alt="" onerror="this.onerror=null; this.src='./static/img/favicon.png';" onclick="event.stopPropagation(); window.app.openChannelPage('${item.channelId}')" title="스트리머 채널 방문" style="cursor: pointer;">
             <div class="card-details">
               <div class="card-title" onclick="window.app.handleCardClick('${item.channelId}')" oncontextmenu="event.preventDefault(); window.app.openInMultiviewBackground('${item.channelId}')" title="${titleEsc}" style="cursor: pointer;">${titleEsc}</div>
               <div class="card-channel-row">
                 <div class="card-channel-name" onclick="event.stopPropagation(); window.app.openChannelPage('${item.channelId}')" title="스트리머 채널 방문" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                   <span style="font-weight:700; color:#fff;">${nameEsc}</span>
-                  ${item.verifiedMark ? '<span style="color:var(--accent-color); margin-left: 2px;">✓</span>' : ''}
                 </div>
                 <div class="card-inline-actions">
                   <button class="icon-btn-inline" onclick="event.stopPropagation(); window.app.goToChannelClips('${item.channelId}')" title="클립 목록 보기">
@@ -865,20 +1017,18 @@ class ChzzkApp {
         const followingIds = this.followingChannelIds || new Set();
 
         this.channelSearchResultsGrid.innerHTML = channels.map(ch => {
-          const avatar = escapeHtml(ch.channelImageUrl || './static/img/default_avatar.png');
+          const avatar = escapeHtml(ch.channelImageUrl || './static/img/favicon.png');
           const nameEsc = escapeHtml(ch.channelName || ch.channelId);
           const followers = Number(ch.followerCount || 0).toLocaleString();
           const isLive = Boolean(ch.openLive);
           const isBookmarked = bookmarkIds.has(ch.channelId);
-          const isFollowed = followingIds.has(ch.channelId);
 
           return `
             <div class="channel-search-card" data-channel-id="${ch.channelId}">
-              <img class="channel-search-avatar" src="${avatar}" loading="lazy" alt="${nameEsc}" onclick="window.app.openChannelPage('${ch.channelId}')" style="cursor: pointer;">
+              <img class="channel-search-avatar" src="${avatar}" loading="lazy" alt="${nameEsc}" onerror="this.onerror=null; this.src='./static/img/favicon.png';" onclick="window.app.openChannelPage('${ch.channelId}')" style="cursor: pointer;">
               <div class="channel-search-info">
                 <div class="channel-search-name" onclick="window.app.openChannelPage('${ch.channelId}')" style="cursor: pointer;" title="${nameEsc}">
                   <span>${nameEsc}</span>
-                  ${ch.verifiedMark ? '<span style="color:var(--accent-color); font-size: 11px;">✓</span>' : ''}
                 </div>
                 <div class="channel-search-meta">
                   ${isLive 
@@ -954,12 +1104,17 @@ class ChzzkApp {
     const offlineCount = offlineBookmarks.length;
 
     if (this.bookmarksBadge) this.bookmarksBadge.textContent = onlineCount;
+    if (this.mobileHomeBookmarksCount) this.mobileHomeBookmarksCount.textContent = onlineCount;
     if (this.bookmarksSummaryDisplay) {
       this.bookmarksSummaryDisplay.textContent = `등록: ${total}명 (방송 중: ${onlineCount}명 / 오프라인: ${offlineCount}명)`;
     }
 
     if (this.bookmarksOnlineCountBadge) this.bookmarksOnlineCountBadge.textContent = onlineCount;
     if (this.bookmarksOfflineCountBadge) this.bookmarksOfflineCountBadge.textContent = offlineCount;
+
+    if (this.isMobileUIMode() && this.homeBookmarkFilterActive) {
+      this.renderMobileHomeBookmarks();
+    }
 
     if (total === 0) {
       if (this.bookmarksOnlineSection) this.bookmarksOnlineSection.style.display = 'none';
@@ -1012,25 +1167,23 @@ class ChzzkApp {
   }
 
   renderBookmarkCardHtml(b, isOnline, followingIds) {
-    const isFollowed = followingIds.has(b.channelId);
     const notifyEnabled = this.isChannelNotifyEnabled(b.channelId);
     const statusBadge = isOnline 
-      ? `<div class="card-badge-live">LIVE</div><div class="card-badge-category"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px;"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/></svg>${escapeHtml(b.categoryValue || '방송')}</div><div class="card-badge-viewers"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>${Number(b.userCount || 0).toLocaleString()}명</div>`
+      ? `<div class="card-badge-live">LIVE</div><div class="card-badge-category"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/></svg><span class="card-cat-text">${escapeHtml(b.categoryValue || '방송')}</span></div><div class="card-badge-viewers"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>${Number(b.userCount || 0).toLocaleString()}명</span></div>`
       : `<div class="card-badge-offline">오프라인</div>`;
 
-    const thumb = escapeHtml(b.thumbUrl || b.channelImageUrl || '');
-    const avatar = escapeHtml(b.channelImageUrl || '');
+    const avatar = escapeHtml(b.channelImageUrl || './static/img/favicon.png');
     const titleEsc = escapeHtml(b.liveTitle || b.title || '');
     const nameEsc = escapeHtml(b.channelName || '');
 
     return `
       <div class="live-card ${isOnline ? 'card-online' : 'card-offline'}">
-        <div class="card-thumb-wrap" style="cursor: ${isOnline ? 'pointer' : 'default'};" onclick="${isOnline ? `window.app.watchInMultiview('${b.channelId}')` : `window.app.openChannelPage('${b.channelId}')`}" oncontextmenu="event.preventDefault(); ${isOnline ? `window.app.openInMultiviewBackground('${b.channelId}')` : `window.app.openChannelPage('${b.channelId}')`}" title="${isOnline ? '클릭: 멀티뷰 이동 / 우클릭: 현재 화면 유지하며 멀티뷰에 추가' : '클릭: 채널 방문'}">
-          <img src="${thumb}" loading="lazy" decoding="async" alt="${nameEsc}">
+        <div class="card-thumb-wrap ${isOnline ? '' : 'card-thumb-offline'}" style="cursor: pointer;" onclick="${isOnline ? `window.app.watchInMultiview('${b.channelId}')` : `window.app.openChannelPage('${b.channelId}')`}" oncontextmenu="event.preventDefault(); ${isOnline ? `window.app.openInMultiviewBackground('${b.channelId}')` : `window.app.openChannelPage('${b.channelId}')`}" title="${isOnline ? '클릭: 멀티뷰 이동 / 우클릭: 현재 화면 유지하며 멀티뷰에 추가' : '클릭: 채널 방문'}">
+          ${this.renderCardThumbMedia(b.thumbUrl, b.channelImageUrl, nameEsc, isOnline)}
           ${statusBadge}
         </div>
         <div class="card-info">
-          <img class="card-avatar" src="${avatar}" loading="lazy" decoding="async" onclick="event.stopPropagation(); window.app.openChannelPage('${b.channelId}')" title="채널 방문" style="cursor: pointer;">
+          <img class="card-avatar" src="${avatar}" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='./static/img/favicon.png';" onclick="event.stopPropagation(); window.app.openChannelPage('${b.channelId}')" title="채널 방문" style="cursor: pointer;">
           <div class="card-details">
             <div class="card-title" onclick="${isOnline ? `window.app.watchInMultiview('${b.channelId}')` : `window.app.openChannelPage('${b.channelId}')`}" oncontextmenu="event.preventDefault(); ${isOnline ? `window.app.openInMultiviewBackground('${b.channelId}')` : `window.app.openChannelPage('${b.channelId}')`}" style="cursor: pointer;">${isOnline ? titleEsc : '<span style="color:var(--text-muted);">현재 오프라인 (클릭하여 채널 방문)</span>'}</div>
             <div class="card-channel-row">
@@ -1068,6 +1221,92 @@ class ChzzkApp {
         </div>
       </div>
     `;
+  }
+
+  toggleHomeBookmarkFilter() {
+    this.homeBookmarkFilterActive = !this.homeBookmarkFilterActive;
+    if (this.mobileHomeBookmarkFilterBtn) {
+      this.mobileHomeBookmarkFilterBtn.classList.toggle('active', this.homeBookmarkFilterActive);
+    }
+    if (this.homeBookmarkFilterActive) {
+      this.fetchBookmarks();
+    }
+    this.renderMobileHomeBookmarks();
+    this.filterAndRenderLives();
+  }
+
+  async addBookmarkFromMobileHome() {
+    if (!this.mobileHomeAddBookmarkInput) return;
+    const val = this.mobileHomeAddBookmarkInput.value.trim();
+    if (!val) {
+      this.showToast('스트리머명, 채널 ID 또는 치지직 링크를 입력하세요.', 'error');
+      return;
+    }
+    try {
+      this.showToast('채널 정보를 확인하여 즐겨찾기에 등록하는 중...', 'info');
+      const res = await fetch('/api/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_id: val })
+      });
+      const data = await res.json();
+      if (data.success && data.bookmark) {
+        this.showToast(`'${data.bookmark.channelName || '스트리머'}' 즐겨찾기에 등록되었습니다!`, 'success');
+        this.mobileHomeAddBookmarkInput.value = '';
+        await this.fetchBookmarks();
+        this.renderMobileHomeBookmarks();
+      } else {
+        this.showToast(data.error || '해당 채널 또는 스트리머를 찾을 수 없습니다.', 'error');
+      }
+    } catch (e) {
+      this.showToast('즐겨찾기 추가 중 오류가 발생했습니다.', 'error');
+    }
+  }
+
+  renderMobileHomeBookmarks() {
+    if (!this.mobileHomeBookmarksSection) return;
+    if (!this.isMobileUIMode() || !this.homeBookmarkFilterActive) {
+      this.mobileHomeBookmarksSection.style.display = 'none';
+      return;
+    }
+    this.mobileHomeBookmarksSection.style.display = 'block';
+
+    const kw = (this.searchKeyword || '').toLowerCase();
+    const filterFn = (b) => {
+      if (!kw) return true;
+      return (b.channelName && b.channelName.toLowerCase().includes(kw)) ||
+             (b.liveTitle && b.liveTitle.toLowerCase().includes(kw)) ||
+             (b.categoryValue && b.categoryValue.toLowerCase().includes(kw));
+    };
+
+    const online = (this.bookmarks || []).filter(b => b.isOnline && filterFn(b));
+    const offline = (this.bookmarks || []).filter(b => !b.isOnline && filterFn(b));
+    const followingIds = this.followingChannelIds || new Set();
+
+    if (this.mobileHomeBmOnlineBadge) this.mobileHomeBmOnlineBadge.textContent = online.length;
+    if (this.mobileHomeBmOfflineBadge) this.mobileHomeBmOfflineBadge.textContent = offline.length;
+
+    if (this.mobileHomeBookmarksOnlineSection && this.mobileHomeBookmarksOnlineGrid) {
+      this.mobileHomeBookmarksOnlineSection.style.display = 'block';
+      if (online.length === 0) {
+        this.mobileHomeBookmarksOnlineGrid.innerHTML = `
+          <div style="grid-column: 1 / -1; padding: 18px; text-align: center; color: var(--text-muted); font-size: 12.5px; background: rgba(0,0,0,0.22); border-radius: 8px; border: 1px dashed rgba(255,255,255,0.08);">
+            ${(this.bookmarks || []).length === 0 ? '등록된 즐겨찾기가 없습니다. 카드의 별표를 눌러 추가하세요.' : '현재 방송 중인 즐겨찾기 채널이 없습니다.'}
+          </div>
+        `;
+      } else {
+        this.mobileHomeBookmarksOnlineGrid.innerHTML = online.map(b => this.renderBookmarkCardHtml(b, true, followingIds)).join('');
+      }
+    }
+
+    if (this.mobileHomeBookmarksOfflineSection && this.mobileHomeBookmarksOfflineGrid) {
+      if (offline.length === 0) {
+        this.mobileHomeBookmarksOfflineSection.style.display = 'none';
+      } else {
+        this.mobileHomeBookmarksOfflineSection.style.display = 'block';
+        this.mobileHomeBookmarksOfflineGrid.innerHTML = offline.map(b => this.renderBookmarkCardHtml(b, false, followingIds)).join('');
+      }
+    }
   }
 
   async addBookmark() {
@@ -1331,7 +1570,7 @@ class ChzzkApp {
           (this.lives || []).find(l => l.channelId === channelId)?.channelName || 
           '채널';
 
-        this.showToast(`'${chName}' 방송 시작 알림이 ${newState ? '켜졌습니다 🔔' : '꺼졌습니다 🔕'}.`, 'info');
+        this.showToast(`'${chName}' 방송 시작 알림이 ${newState ? '켜졌습니다' : '꺼졌습니다'}.`, 'info');
 
         if (window.channelUI && window.channelUI.currentChannelId === channelId) {
           window.channelUI.updateNotifyButtonState();
@@ -1625,17 +1864,17 @@ class ChzzkApp {
       const notifyEnabled = this.isChannelNotifyEnabled(chId);
 
       const statusBadge = isLive
-        ? `<div class="card-badge-live">LIVE</div><div class="card-badge-viewers"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>${Number((liveInfo && liveInfo.userCount) || 0).toLocaleString()}명</div>`
+        ? `<div class="card-badge-live">LIVE</div><div class="card-badge-viewers"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>${Number((liveInfo && liveInfo.userCount) || 0).toLocaleString()}명</span></div>`
         : `<div class="card-badge-offline">오프라인</div>`;
 
       return `
         <div class="live-card ${isLive ? 'card-online' : 'card-offline'}">
-          <div class="card-thumb-wrap" style="cursor: ${isLive ? 'pointer' : 'default'};" onclick="${isLive ? `window.app.watchInMultiview('${chId}')` : `window.app.openChannelPage('${chId}')`}" oncontextmenu="event.preventDefault(); ${isLive ? `window.app.openInMultiviewBackground('${chId}')` : `window.app.openChannelPage('${chId}')`}" title="${isLive ? '클릭: 멀티뷰 이동 / 우클릭: 현재 화면 유지하며 멀티뷰에 추가' : '클릭하여 채널 방문'}">
-            <img src="${thumb}" loading="lazy" decoding="async" alt="${nameEsc}">
+          <div class="card-thumb-wrap ${isLive ? '' : 'card-thumb-offline'}" style="cursor: pointer;" onclick="${isLive ? `window.app.watchInMultiview('${chId}')` : `window.app.openChannelPage('${chId}')`}" oncontextmenu="event.preventDefault(); ${isLive ? `window.app.openInMultiviewBackground('${chId}')` : `window.app.openChannelPage('${chId}')`}" title="${isLive ? '클릭: 멀티뷰 이동 / 우클릭: 현재 화면 유지하며 멀티뷰에 추가' : '클릭하여 채널 방문'}">
+            ${this.renderCardThumbMedia(liveInfo ? liveInfo.thumbUrl : '', ch.channelImageUrl, nameEsc, isLive)}
             ${statusBadge}
           </div>
           <div class="card-info">
-            <img class="card-avatar" src="${avatar}" loading="lazy" decoding="async" onclick="event.stopPropagation(); window.app.openChannelPage('${chId}')" title="채널 방문" style="cursor: pointer;">
+            <img class="card-avatar" src="${avatar || './static/img/favicon.png'}" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='./static/img/favicon.png';" onclick="event.stopPropagation(); window.app.openChannelPage('${chId}')" title="채널 방문" style="cursor: pointer;">
             <div class="card-details">
               <div class="card-title" onclick="${isLive ? `window.app.watchInMultiview('${chId}')` : `window.app.openChannelPage('${chId}')`}" oncontextmenu="event.preventDefault(); ${isLive ? `window.app.openInMultiviewBackground('${chId}')` : `window.app.openChannelPage('${chId}')`}" style="cursor: pointer;">
                 ${isLive ? escapeHtml((liveInfo && liveInfo.liveTitle) || '생방송 중') : '<span style="color:var(--text-muted);">현재 오프라인 (클릭하여 채널 방문)</span>'}
@@ -2250,8 +2489,12 @@ class ChzzkApp {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    const icon = type === 'success' ? '✓' : (type === 'error' ? '⚠️' : 'ℹ️');
-    toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+    const iconSvg = type === 'success'
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>'
+      : (type === 'error'
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>');
+    toast.innerHTML = `<span style="display:inline-flex;align-items:center;">${iconSvg}</span><span>${escapeHtml(message)}</span>`;
 
     container.appendChild(toast);
     setTimeout(() => {
