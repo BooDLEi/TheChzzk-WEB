@@ -233,9 +233,18 @@ class RecorderUI {
   }
 
   startPolling() {
+    if (this.pollInterval) clearInterval(this.pollInterval);
+    this._idlePollTick = 0;
     this.pollInterval = setInterval(() => {
-      this.loadJobs();
-    }, 2000);
+      if (window.webBackendPolyfill && window.webBackendPolyfill.isStaticWeb()) return;
+      const hasActive = Array.isArray(this.jobs) && this.jobs.some(j => j.status === 'recording' || j.status === 'paused' || j.status === 'finalizing');
+      const isVisibleUi = this.isHeaderPopupOpen || (window.app && window.app.currentTab === 'recorder');
+      this._idlePollTick = (this._idlePollTick + 1) % 6;
+      // Poll every 2.5s only when recording/finalizing or popup/tab open; otherwise every 15s
+      if (hasActive || isVisibleUi || this._idlePollTick === 0) {
+        this.loadJobs();
+      }
+    }, 2500);
   }
 
   async loadData() {

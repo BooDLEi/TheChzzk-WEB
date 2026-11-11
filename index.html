@@ -25,10 +25,14 @@
   <link rel="icon" type="image/x-icon" href="./static/favicon.ico">
   <link rel="apple-touch-icon" href="./static/img/favicon.png">
   <link rel="manifest" href="./static/manifest.json">
-  <link rel="stylesheet" href="./static/css/style.css?v=1.5.2">
-  <link rel="stylesheet" href="./static/css/responsive.css?v=1.5.2">
-  <script src="./static/js/web_backend_polyfill.js?v=1.5.2"></script>
-  <script src="./static/js/hls.min.js?v=1.5.2"></script>
+  <link rel="preconnect" href="https://www.youtube.com">
+  <link rel="preconnect" href="https://i.ytimg.com">
+  <link rel="preconnect" href="https://yt3.ggpht.com">
+  <link rel="preconnect" href="https://yt3.googleusercontent.com">
+  <link rel="stylesheet" href="./static/css/style.css?v=1.5.3">
+  <link rel="stylesheet" href="./static/css/responsive.css?v=1.5.3">
+  <script src="./static/js/web_backend_polyfill.js?v=1.5.3"></script>
+  <script src="./static/js/hls.min.js?v=1.5.3"></script>
 </head>
 <body>
 
@@ -109,8 +113,9 @@
         </div>
         <div style="padding: 8px 12px; background: #111520; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 11.5px; color: var(--text-muted);">진행률, 파일 크기 및 에러 실시간 감시</span>
-          <button class="btn btn-sm btn-secondary" onclick="window.recorderUI.toggleHeaderPopup(event); window.app.switchTab('recorder');" style="font-size: 11px; padding: 4px 10px;">
-            녹화 보관함 열기 →
+          <button class="btn btn-sm btn-secondary" onclick="window.recorderUI.toggleHeaderPopup(event); window.app.switchTab('recorder');" style="font-size: 11px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px;">
+            <span>녹화 보관함 열기</span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
       </div>
@@ -415,7 +420,7 @@
           <!-- Channel View Detail Overlay -->
           <div id="ytChannelViewSection" class="yt-channel-view-section" style="display: none;">
             <div class="yt-channel-banner">
-              <img class="yt-channel-banner-avatar" id="ytChannelBannerAvatar" src="./static/img/favicon.png" alt="Channel Avatar">
+              <img class="yt-channel-banner-avatar" id="ytChannelBannerAvatar" src="./static/img/favicon.png" referrerpolicy="no-referrer" onerror="this.onerror=null; this.src='./static/img/favicon.png';" alt="Channel Avatar">
               <div class="yt-channel-banner-info">
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <h2 id="ytChannelBannerTitle" style="margin: 0; font-size: 17px; font-weight: 800; color: #fff;">채널명</h2>
@@ -1407,7 +1412,10 @@
             <button class="btn btn-primary" id="recordPreviewSendEditorBtn">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg> 컷편집기로 보내기
             </button>
-            <button class="btn" onclick="window.recorderUI.closePreviewModal()">✕ 닫기</button>
+            <button class="btn" onclick="window.recorderUI.closePreviewModal()" style="display:inline-flex;align-items:center;gap:5px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <span>닫기</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1563,7 +1571,9 @@
         <button class="pip-btn" id="pipMuteBtn" title="소리 켜기 / 끄기">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
         </button>
-        <button class="pip-btn" id="pipCloseBtn" title="PiP 닫기">✕</button>
+        <button class="pip-btn" id="pipCloseBtn" title="PiP 닫기" style="display:inline-flex;align-items:center;justify-content:center;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
     </div>
     <div class="pip-video-body" id="pipVideoBody" title="더블클릭 시 플레이어로 이동">
@@ -1579,13 +1589,13 @@
   <div id="liveNotificationContainer" class="live-notification-container"></div>
 
   <!-- Scripts -->
-  <script src="./static/js/multiview.js?v=1.5.2"></script>
-  <script src="./static/js/mobile_shortform.js?v=1.5.2"></script>
-  <script src="./static/js/channel_ui.js?v=1.5.2"></script>
-  <script src="./static/js/clips_ui.js?v=1.5.2"></script>
-  <script src="./static/js/recorder_ui.js?v=1.5.2"></script>
-  <script src="./static/js/editor_ui.js?v=1.5.2"></script>
-  <script src="./static/js/youtube_ui.js?v=1.5.2"></script>
-  <script src="./static/js/app.js?v=1.5.2"></script>
+  <script src="./static/js/multiview.js?v=1.5.3"></script>
+  <script src="./static/js/mobile_shortform.js?v=1.5.3"></script>
+  <script src="./static/js/channel_ui.js?v=1.5.3"></script>
+  <script src="./static/js/clips_ui.js?v=1.5.3"></script>
+  <script src="./static/js/recorder_ui.js?v=1.5.3"></script>
+  <script src="./static/js/editor_ui.js?v=1.5.3"></script>
+  <script src="./static/js/youtube_ui.js?v=1.5.3"></script>
+  <script src="./static/js/app.js?v=1.5.3"></script>
 </body>
 </html>

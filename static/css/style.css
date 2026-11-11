@@ -402,6 +402,16 @@ main {
   flex-wrap: wrap;
 }
 
+#exploreToolbar {
+  position: sticky;
+  top: -20px;
+  margin-top: -20px;
+  padding: 18px 0 12px 0;
+  background: var(--bg-primary);
+  z-index: 95;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 /* ================= Live Grid & Cards ================= */
 .lives-grid {
   display: grid;
@@ -1112,7 +1122,7 @@ main {
 }
 
 .player-slot.drag-swap-target::after {
-  content: '⇄ 슬롯 위치 맞교환';
+  content: '슬롯 위치 맞교환';
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1305,7 +1315,7 @@ body.is-slot-resizing iframe {
   pointer-events: none;
 }
 
-.player-slot iframe {
+.player-slot .video-container > iframe {
   width: 100%;
   height: 100%;
   border: none;
@@ -5747,16 +5757,13 @@ body.is-slot-resizing iframe {
    Requirements: Fullscreen Idle UI Hide & YouTube Playlists, Watch Later, Bookmarks
    ========================================================================== */
 
-/* 1. Fullscreen Idle UI Hide (Requirement 1) */
+/* 1. Fullscreen Idle UI Hide (Keep chat, subtitles, playlist & related panels visible) */
 .player-slot.fs-idle-hide {
   cursor: none !important;
 }
-.player-slot.fs-idle-hide .slot-top-bar,
-.player-slot.fs-idle-hide .slot-bottom-bar,
-.player-slot.fs-idle-hide .slot-chat-column,
-.player-slot.fs-idle-hide .slot-playlist-column,
-.player-slot.fs-idle-hide .slot-related-column,
-.player-slot.fs-idle-hide .slot-yt-subtitles-overlay {
+.player-slot.fs-idle-hide .slot-overlay-top,
+.player-slot.fs-idle-hide .slot-overlay-bottom,
+.player-slot.fs-idle-hide .slot-unmute-btn {
   opacity: 0 !important;
   pointer-events: none !important;
   transition: opacity 0.4s ease;
@@ -6370,6 +6377,14 @@ body.is-slot-resizing iframe {
   height: 100%;
   overflow: hidden;
   background: #0d111a;
+}
+
+.yt-livechat-iframe-box iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #0d111a;
+  pointer-events: auto;
 }
 
 .yt-livechat-list {

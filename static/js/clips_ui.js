@@ -29,6 +29,18 @@ class ClipsUI {
     this.bindEvents();
   }
 
+  _cacheClipPlayback(clipUID, data) {
+    if (!clipUID || !data) return;
+    if (!this._playbackCache) this._playbackCache = {};
+    this._playbackCache[clipUID] = data;
+    const keys = Object.keys(this._playbackCache);
+    if (keys.length > 40) {
+      for (let i = 0; i < keys.length - 40; i++) {
+        delete this._playbackCache[keys[i]];
+      }
+    }
+  }
+
   initElements() {
     this.clipsChannelSelect = document.getElementById('clipsChannelSelect');
     this.clipsChannelSearchInput = document.getElementById('clipsChannelSearchInput');
@@ -323,7 +335,7 @@ class ClipsUI {
         const res = await fetch(`/api/clips/${encodeURIComponent(clip.clipUID)}/playback`);
         const data = await res.json();
         if (data && data.success && data.primaryMp4Url) {
-          this._playbackCache[clip.clipUID] = data;
+          this._cacheClipPlayback(clip.clipUID, data);
           this.prefetchNextClipPlayback();
           return data;
         }
@@ -408,7 +420,7 @@ class ClipsUI {
       .then(r => r.json())
       .then(d => {
         if (d && d.success && d.primaryMp4Url) {
-          this._playbackCache[nextItem.clipUID] = d;
+          this._cacheClipPlayback(nextItem.clipUID, d);
         }
       })
       .catch(() => {});

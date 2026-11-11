@@ -382,7 +382,7 @@ class YouTubeUI {
             seedType: 'channel',
             channelId: ch.channelId,
             label: ch.channelName || '채널',
-            avatar: ch.thumbnail || './static/img/favicon.png',
+            avatar: ch.avatar || ch.thumbnail || './static/img/favicon.png',
             active: this.shortsFeedChannelId === ch.channelId
           });
         });
@@ -422,11 +422,11 @@ class YouTubeUI {
         const res = await fetch(`/api/youtube/comments/${encodeURIComponent(v.videoId)}`);
         const data = await res.json();
         const comments = (data && Array.isArray(data.comments)) ? data.comments.map(c => ({
-          userName: c.author || '사용자',
-          profileUrl: c.authorThumbnail || './static/img/favicon.png',
-          contents: c.text || '',
-          regTime: c.publishedTime || '',
-          likeCount: c.likes || 0
+          userName: c.author || c.userName || '사용자',
+          profileUrl: c.avatar || c.authorThumbnail || c.profileUrl || './static/img/favicon.png',
+          contents: c.content || c.text || c.contents || '',
+          regTime: c.published || c.publishedTime || c.regTime || '',
+          likeCount: c.likeCount || c.likes || 0
         })) : [];
         return {
           success: Boolean(data && data.success),
@@ -439,7 +439,7 @@ class YouTubeUI {
         if (v && (v.channelId || v.channelName)) {
           this.pauseShortsFeed();
           this.switchSubTab('recommendations', false);
-          this.openChannelView(v.channelId || '', v.channelName || '', '', '');
+          this.openChannelView(v.channelId || '', v.channelName || '', v.channelImageUrl || v.channelThumbnail || '', '');
         }
       },
       getMoreActions: (v, mediaMeta, player) => {
@@ -484,7 +484,7 @@ class YouTubeUI {
               if (v.channelId || v.channelName) {
                 this.pauseShortsFeed();
                 this.switchSubTab('recommendations', false);
-                this.openChannelView(v.channelId || '', v.channelName || '', '', '');
+                this.openChannelView(v.channelId || '', v.channelName || '', v.channelImageUrl || v.channelThumbnail || '', '');
               } else {
                 window.open(`https://www.youtube.com/shorts/${encodeURIComponent(v.videoId)}`, '_blank', 'noopener,noreferrer');
               }
@@ -804,7 +804,7 @@ class YouTubeUI {
 
       html += `
         <div class="yt-channel-card" onclick="window.youtubeUI.openSearchChannelByIdx(${idx})">
-          <img class="yt-channel-avatar" src="${escapeHtml(ch.thumbnail || './static/img/favicon.png')}" onerror="this.src='./static/img/favicon.png'" alt="${nameEsc}">
+          <img class="yt-channel-avatar" src="${escapeHtml(ch.thumbnail || './static/img/favicon.png')}" referrerpolicy="no-referrer" onerror="this.onerror=null; this.src='./static/img/favicon.png'" alt="${nameEsc}">
           <div class="yt-channel-info">
             <div class="yt-channel-title" title="${nameEsc}">${nameEsc}</div>
             <div class="yt-channel-subs">${escapeHtml(ch.subscriberCount || '채널')}</div>
@@ -877,7 +877,7 @@ class YouTubeUI {
       // Requirement 1: If channelId is missing, resolve it via search API
       if (!channelId && channelName) {
         try {
-          const sRes = await fetch(`/api/youtube/search?q=${encodeURIComponent(channelName)}`);
+          const sRes = await fetch(`/api/youtube/search?query=${encodeURIComponent(channelName)}`);
           const sData = await sRes.json();
           if (sData.channels && sData.channels.length > 0) {
             const ch = sData.channels[0];
@@ -906,11 +906,20 @@ class YouTubeUI {
       if (channelId) {
         const res = await fetch(`/api/youtube/channel/${encodeURIComponent(channelId)}?size=48`);
         const data = await res.json();
+        if (data && data.avatar && !data.avatar.includes('favicon.png')) {
+          avatarUrl = data.avatar;
+          this.currentChannelView.avatarUrl = data.avatar;
+          if (this.ytChannelBannerAvatar) this.ytChannelBannerAvatar.src = data.avatar;
+        }
+        if (data && data.channelName && this.ytChannelBannerTitle) {
+          this.currentChannelView.channelName = data.channelName;
+          this.ytChannelBannerTitle.textContent = data.channelName;
+        }
+        if (data && data.subscriberCount && this.ytChannelBannerSubs) {
+          this.currentChannelView.subs = data.subscriberCount;
+          this.ytChannelBannerSubs.textContent = data.subscriberCount;
+        }
         if (data.success && data.videos && data.videos.length > 0) {
-          if (data.channelName && this.ytChannelBannerTitle) this.ytChannelBannerTitle.textContent = data.channelName;
-          if (data.avatar && this.ytChannelBannerAvatar) this.ytChannelBannerAvatar.src = data.avatar;
-          if (data.subscriberCount && this.ytChannelBannerSubs) this.ytChannelBannerSubs.textContent = data.subscriberCount;
-
           this.channelVideos = data.videos;
           this.channelVideosCount = 12;
           this.channelContinuationToken = data.continuationToken || null;
@@ -921,8 +930,14 @@ class YouTubeUI {
 
       // If channel videos still empty, fallback search by channelName
       if (channelName) {
-        const sRes = await fetch(`/api/youtube/search?q=${encodeURIComponent(channelName)}`);
+        const sRes = await fetch(`/api/youtube/search?query=${encodeURIComponent(channelName)}`);
         const sData = await sRes.json();
+        if (sData.channels && sData.channels.length > 0 && sData.channels[0].thumbnail && !avatarUrl) {
+          avatarUrl = sData.channels[0].thumbnail;
+          this.currentChannelView.avatarUrl = avatarUrl;
+          if (this.ytChannelBannerAvatar) this.ytChannelBannerAvatar.src = avatarUrl;
+        }
+        if (sData.videos && sData.videos.length > 0) {
         if (sData.videos && sData.videos.length > 0) {
           this.channelVideos = sData.videos;
           this.channelVideosCount = 12;
@@ -983,14 +998,17 @@ class YouTubeUI {
     if (moreWrap && moreBtn) {
       if (hasMore) {
         moreWrap.style.display = 'block';
+        moreBtn.style.display = 'inline-flex';
+        moreBtn.style.alignItems = 'center';
+        moreBtn.style.gap = '5px';
         if (remainingCached > 0) {
-          moreBtn.textContent = `더보기 (${remainingCached}개 남음) ▼`;
+          moreBtn.innerHTML = `<span>더보기 (${remainingCached}개 남음)</span>${YT_SVGS.chevronDown}`;
           moreBtn.onclick = () => {
             this.channelVideosCount += 6;
             this.renderChannelVideos();
           };
         } else {
-          moreBtn.textContent = '더 많은 영상 불러오기 ▼';
+          moreBtn.innerHTML = `<span>더 많은 영상 불러오기</span>${YT_SVGS.chevronDown}`;
           moreBtn.onclick = () => {
             this.loadMoreChannelVideosFromApi();
           };
@@ -1132,7 +1150,7 @@ class YouTubeUI {
 
       html += `
         <div class="yt-bookmark-card" onclick="window.youtubeUI.openBookmarkedChannelByIdx(${idx})">
-          <img class="yt-bookmark-avatar" src="${escapeHtml(bm.thumbnail || './static/img/favicon.png')}" onerror="this.src='./static/img/favicon.png'" alt="${nameEsc}">
+          <img class="yt-bookmark-avatar" src="${escapeHtml(bm.thumbnail || './static/img/favicon.png')}" referrerpolicy="no-referrer" onerror="this.onerror=null; this.src='./static/img/favicon.png'" alt="${nameEsc}">
           <div class="yt-bookmark-body">
             <div class="yt-bookmark-name" title="${nameEsc}">${nameEsc}</div>
             <div class="yt-bookmark-subs">${escapeHtml(bm.subscriberCount || '즐겨찾기 채널')}</div>
@@ -1806,6 +1824,17 @@ class YouTubeUI {
     }
   }
 
+  _setVideoCache(vKey, item) {
+    if (!this._videoCache) this._videoCache = {};
+    this._videoCache[vKey] = item;
+    const keys = Object.keys(this._videoCache);
+    if (keys.length > 300) {
+      for (let i = 0; i < keys.length - 300; i++) {
+        delete this._videoCache[keys[i]];
+      }
+    }
+  }
+
   renderHistory() {
     if (!this.ytHistoryGrid) return;
     if (this.history.length === 0) {
@@ -1821,7 +1850,7 @@ class YouTubeUI {
     this.history.forEach((h, idx) => {
       const vid = h.videoId || `hist_${idx}_${Date.now()}`;
       const vKey = String(vid);
-      this._videoCache[vKey] = h;
+      this._setVideoCache(vKey, h);
 
       const titleEsc = escapeHtml(h.title);
       const nameEsc = escapeHtml(h.channelName || 'YouTube');
@@ -1883,7 +1912,7 @@ class YouTubeUI {
     videos.forEach((v, idx) => {
       const vid = v.videoId || v.id || `v_${context}_${idx}_${Date.now()}`;
       const vKey = String(vid);
-      this._videoCache[vKey] = v;
+      this._setVideoCache(vKey, v);
 
       const vidEsc = escapeHtml(vid);
       const titleEsc = escapeHtml(v.title || '');

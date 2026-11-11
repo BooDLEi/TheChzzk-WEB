@@ -301,7 +301,9 @@ class VideoEditorUI {
             </div>
             <div style="display: flex; gap: 4px;">
               <button class="btn btn-sm" onclick="window.editorUI.seekTo(${sub.start})" title="이 위치로 이동" style="padding: 2px 6px; font-size: 11px;">이동</button>
-              <button class="btn btn-sm btn-danger" onclick="window.editorUI.removeSubtitle(${sub.id})" title="자막 삭제" style="padding: 2px 6px; font-size: 11px;">✕</button>
+              <button class="btn btn-sm btn-danger" onclick="window.editorUI.removeSubtitle(${sub.id})" title="자막 삭제" style="padding: 2px 6px; font-size: 11px; display:inline-flex; align-items:center; justify-content:center;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
           </div>
           <input type="text" value="${escapeEditorHtml(sub.text)}" placeholder="자막 내용 입력..." style="width: 100%; padding: 4px 8px; font-size: 12px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 3px;" oninput="window.editorUI.updateSubtitleText(${sub.id}, this.value)">
@@ -376,12 +378,21 @@ class VideoEditorUI {
   handleLocalFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
+    if (this._localBlobUrl) {
+      try { URL.revokeObjectURL(this._localBlobUrl); } catch (_) {}
+      this._localBlobUrl = null;
+    }
     const blobUrl = URL.createObjectURL(file);
+    this._localBlobUrl = blobUrl;
     this.loadVideo(blobUrl, file.name);
     if (window.app) window.app.showToast(`'${file.name}' 파일을 불러왔습니다.`, 'success');
   }
 
   loadVideo(filePath, customDisplayName = null) {
+    if (this._localBlobUrl && filePath !== this._localBlobUrl) {
+      try { URL.revokeObjectURL(this._localBlobUrl); } catch (_) {}
+      this._localBlobUrl = null;
+    }
     this.currentPath = filePath;
     const v = this.video;
     if (!v) return;
@@ -549,6 +560,7 @@ class VideoEditorUI {
     };
 
     rec.onstop = () => {
+      try { stream.getTracks().forEach(t => t.stop()); } catch (_) {}
       const blob = new Blob(chunks, { type: mimeType });
       const blobUrl = URL.createObjectURL(blob);
       const safeOut = outputName.replace(/\.mp4$/i, '.webm');
@@ -558,6 +570,9 @@ class VideoEditorUI {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      setTimeout(() => {
+        try { URL.revokeObjectURL(blobUrl); } catch (_) {}
+      }, 10000);
 
       if (window.app) window.app.showToast(`'${safeOut}' 브라우저 다운로드 완료!`, 'success');
       if (exportBtn) {

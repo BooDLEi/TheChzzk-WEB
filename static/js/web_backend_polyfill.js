@@ -554,17 +554,112 @@
     return `${m}:${String(r).padStart(2, '0')}`;
   }
 
+  const ytChannelMetaCache = {};
+
+  function normalizeYtThumbUrl(rawUrl) {
+    if (!rawUrl || typeof rawUrl !== 'string') return '';
+    const u = rawUrl.trim();
+    if (!u) return '';
+    if (u.startsWith('./static/') || u.startsWith('./static/')) return u;
+    if (u.startsWith('//')) return 'https:' + u;
+    if (u.startsWith('/ggpht/')) return 'https://yt3.ggpht.com' + u.slice(6);
+    if (u.startsWith('/ytc/')) return 'https://yt3.ggpht.com' + u;
+    if (u.startsWith('/vi/')) return 'https://i.ytimg.com' + u;
+    if (u.startsWith('/')) return invidiousBase + u;
+    if (u.startsWith('http://')) return 'https://' + u.slice(7);
+    if (u.startsWith('https://')) return u;
+    return '';
+  }
+
+  function resolveAvatarUrl(c, allowPlaceholder = true) {
+    if (!c || typeof c !== 'object') return allowPlaceholder ? './static/img/favicon.png' : '';
+    let rawUrl = '';
+    if (Array.isArray(c.authorThumbnails) && c.authorThumbnails.length > 0) {
+      const sorted = c.authorThumbnails.filter(t => t && t.url);
+      const preferred = sorted.find(t => (t.width || 0) >= 88 && (t.width || 0) <= 240)
+        || sorted[Math.min(2, sorted.length - 1)]
+        || sorted[0];
+      rawUrl = preferred ? (preferred.url || '') : '';
+    } else if (c.avatarUrl) {
+      rawUrl = c.avatarUrl;
+    } else if (c.uploaderAvatar) {
+      rawUrl = c.uploaderAvatar;
+    } else if (c.channelAvatar) {
+      rawUrl = c.channelAvatar;
+    } else if (c.channelThumbnail) {
+      rawUrl = c.channelThumbnail;
+    } else if (c.channelImageUrl) {
+      rawUrl = c.channelImageUrl;
+    } else if (c.authorThumbnail) {
+      rawUrl = c.authorThumbnail;
+    } else if (c.thumbnail) {
+      rawUrl = c.thumbnail;
+    }
+    const normalized = normalizeYtThumbUrl(rawUrl);
+    if (normalized) return normalized;
+    return allowPlaceholder ? './static/img/favicon.png' : '';
+  }
+
+  async function fetchYoutubeChannelMetaCached(cid, seedMeta = null) {
+    const cleanId = cleanYtId(cid);
+    if (!cleanId) return { channelId: '', channelName: '', avatar: '', subscriberCount: '' };
+    const cached = ytChannelMetaCache[cleanId];
+    if (cached && cached.avatar && (Date.now() - cached.ts) < 600000) {
+      return cached;
+    }
+    let chName = (seedMeta && seedMeta.channelName) || '';
+    let avatar = normalizeYtThumbUrl((seedMeta && seedMeta.avatar) || '');
+    let subCount = (seedMeta && seedMeta.subscriberCount) || '';
+
+    if (!avatar || !chName) {
+      const chInfo = await invidiousFetchJson(`/api/v1/channels/${cleanId}?hl=ko`);
+      if (chInfo && (chInfo.author || chInfo.authorThumbnails)) {
+        chName = chName || sanitizeText(chInfo.author || '');
+        avatar = avatar || resolveAvatarUrl(chInfo, false);
+        if (!subCount && chInfo.subCount) subCount = `${Number(chInfo.subCount).toLocaleString()}명`;
+      }
+      if (!avatar) {
+        const pCh = await pipedFetchJson(`/channel/${cleanId}`);
+        if (pCh && (pCh.name || pCh.avatarUrl)) {
+          chName = chName || sanitizeText(pCh.name || '');
+          avatar = avatar || normalizeYtThumbUrl(pCh.avatarUrl || '');
+          if (!subCount && pCh.subscriberCount >= 0) subCount = `${Number(pCh.subscriberCount).toLocaleString()}명`;
+        }
+      }
+    }
+
+    const meta = {
+      ts: Date.now(),
+      channelId: cleanId,
+      channelName: chName,
+      avatar: avatar || '',
+      subscriberCount: subCount || ''
+    };
+    if (meta.avatar || meta.channelName) {
+      ytChannelMetaCache[cleanId] = meta;
+    }
+    return meta;
+  }
+
   function mapInvidiousVideo(item) {
     const vid = cleanYtId(item.videoId);
     const officialThumb = vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : './static/img/favicon.png';
+    const cid = cleanYtId(item.authorId || '');
+    const parsedAvatar = resolveAvatarUrl({ authorThumbnails: item.authorThumbnails }, false);
+    const chAvatar = parsedAvatar || (cid && ytChannelMetaCache[cid] && ytChannelMetaCache[cid].avatar) || '';
+    if (cid && parsedAvatar && !ytChannelMetaCache[cid]) {
+      ytChannelMetaCache[cid] = { ts: Date.now(), channelId: cid, channelName: sanitizeText(item.author || ''), avatar: parsedAvatar, subscriberCount: '' };
+    }
     return {
       videoId: vid,
       id: vid,
       title: sanitizeText(item.title || ''),
       channelName: sanitizeText(item.author || 'YouTube'),
       channelTitle: sanitizeText(item.author || 'YouTube'),
-      channelId: cleanYtId(item.authorId || ''),
+      channelId: cid,
       channelUrl: item.authorUrl || '',
+      channelThumbnail: chAvatar,
+      channelImageUrl: chAvatar,
       thumbnail: officialThumb,
       thumbnails: [{ url: officialThumb }],
       duration: formatDuration(item.lengthSeconds),
@@ -582,6 +677,11 @@
     const officialThumb = vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : './static/img/favicon.png';
     const upUrl = String(item.uploaderUrl || '');
     const cid = cleanYtId(upUrl.startsWith('/channel/') ? upUrl.slice(9) : upUrl.split('/').pop());
+    const parsedAvatar = resolveAvatarUrl({ uploaderAvatar: item.uploaderAvatar }, false);
+    const chAvatar = parsedAvatar || (cid && ytChannelMetaCache[cid] && ytChannelMetaCache[cid].avatar) || '';
+    if (cid && parsedAvatar) {
+      ytChannelMetaCache[cid] = { ts: Date.now(), channelId: cid, channelName: sanitizeText(item.uploaderName || ''), avatar: parsedAvatar, subscriberCount: '' };
+    }
     return {
       videoId: vid,
       id: vid,
@@ -590,6 +690,8 @@
       channelTitle: sanitizeText(item.uploaderName || 'YouTube'),
       channelId: cid,
       channelUrl: upUrl,
+      channelThumbnail: chAvatar,
+      channelImageUrl: chAvatar,
       thumbnail: officialThumb,
       thumbnails: [{ url: officialThumb }],
       duration: item.duration > 0 ? formatDuration(item.duration) : '',
@@ -601,12 +703,12 @@
   }
 
   // 사용자 브라우저의 한국어 환경(ko-KR)에서 공식 YouTube oEmbed로 영문 자동번역 제목을 한국어 원제목으로 복원 (순수 비동기 fetch로 JavaBridge 부하 0%)
-  async function fetchYoutubeOembed(vid) {
+  async function fetchYoutubeOembed(vid, timeoutMs = 2000) {
     if (!vid) return null;
     if (ytOembedCache[vid]) return ytOembedCache[vid];
     const target = `https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + vid)}&format=json`;
     try {
-      const res = await fetchWithTimeout(target, { credentials: 'omit' }, 2600);
+      const res = await fetchWithTimeout(target, { credentials: 'omit' }, timeoutMs);
       if (res.ok) {
         const d = await res.json();
         if (d && d.title) {
@@ -618,11 +720,14 @@
     return null;
   }
 
-  async function localizeVideosWithOEmbed(videos, maxCount = 24) {
+  async function localizeVideosWithOEmbed(videos, maxCount = 24, timeoutMs = 1800) {
     if (!Array.isArray(videos) || videos.length === 0) return videos;
-    const targets = videos.slice(0, maxCount).filter(v => v && v.videoId);
+    const targets = videos
+      .slice(0, maxCount)
+      .filter(v => v && v.videoId && !/[\uac00-\ud7af]/.test(v.title || ''));
+    if (targets.length === 0) return videos;
     await Promise.all(targets.map(async (v) => {
-      const oem = await fetchYoutubeOembed(v.videoId);
+      const oem = await fetchYoutubeOembed(v.videoId, timeoutMs);
       if (oem) {
         if (oem.title) v.title = sanitizeText(oem.title);
         if (oem.author_name) {
@@ -634,22 +739,6 @@
     return videos;
   }
 
-  function resolveAvatarUrl(c) {
-    let rawUrl = '';
-    if (Array.isArray(c.authorThumbnails) && c.authorThumbnails.length > 0) {
-      rawUrl = c.authorThumbnails[0].url || '';
-    } else if (c.authorThumbnail) {
-      rawUrl = c.authorThumbnail;
-    } else if (c.thumbnail) {
-      rawUrl = c.thumbnail;
-    }
-    if (!rawUrl) return './static/img/favicon.png';
-    if (rawUrl.startsWith('//')) return 'https:' + rawUrl;
-    if (rawUrl.startsWith('/')) return invidiousBase + rawUrl;
-    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) return rawUrl;
-    return './static/img/favicon.png';
-  }
-
   function jsonResp(obj, status = 200) {
     return new Response(JSON.stringify(obj), {
       status,
@@ -657,11 +746,13 @@
     });
   }
 
-  // YouTube IFrame Embed HTML 생성기 (iframe_api 로드 레이스 방지 + 다중 미러 스트림 폴백 + 한국어 기본화)
+  // YouTube IFrame Embed HTML 생성기 (iframe_api 로드 레이스 방지 + 다중 미러 스트림 폴백 + 한국어 기본화 + 쇼츠 프리로드 지원)
   function generateYoutubeEmbedHtml(videoId, slotIndex = 0, autoplay = true, startSeconds = 0, options = {}) {
     const cleanVid = cleanYtId(videoId);
     const safeSlot = parseInt(slotIndex, 10) || 0;
-    const autoplayVal = autoplay ? 1 : 0;
+    const initialPreload = Boolean(options && options.preload);
+    const isShortMode = Boolean(options && options.isShort);
+    const autoplayVal = (autoplay || initialPreload) ? 1 : 0;
     const startSecVal = Math.max(0, parseInt(startSeconds, 10) || 0);
     const initialLoop = Boolean(options && options.loop);
     const safeOrigin = (window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file:'))
@@ -682,10 +773,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="referrer" content="strict-origin-when-cross-origin">
+  <link rel="preconnect" href="https://www.youtube.com">
+  <link rel="preconnect" href="https://i.ytimg.com">
+  <link rel="preconnect" href="https://www.google.com">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; position: relative; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    #player { width: 100% !important; height: 100% !important; border: none; }
+    #player { width: 100% !important; height: 100% !important; border: none; ${isShortMode ? 'pointer-events: none;' : ''} }
     #tapToPlayOverlay {
       position: absolute; inset: 0; z-index: 20;
       display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
@@ -727,6 +821,9 @@
     var hlsJsUrl = ${JSON.stringify(hlsJsUrl)};
     var isReady = false;
     var isLooping = ${initialLoop ? 'true' : 'false'};
+    var isPreloadOnly = ${initialPreload ? 'true' : 'false'};
+    var isShortMode = ${isShortMode ? 'true' : 'false'};
+    var playingNotified = false;
     var manualPaused = false;
     var playerInited = false;
     var errorTriggered = false;
@@ -817,6 +914,7 @@
                 var cur2 = (typeof player.getCurrentTime === 'function') ? (player.getCurrentTime() || 0) : 0;
                 if (cur2 < 0.05 && st2 !== 1 && st2 !== 3 && tapOverlay) {
                   tapOverlay.style.display = 'flex';
+                  postParent({ type: 'yt_tap_required' });
                 } else {
                   hideTapOverlay();
                 }
@@ -866,7 +964,7 @@
         autoplay: ${autoplayVal},
         controls: 0,
         disablekb: 1,
-        fs: 1,
+        fs: isShortMode ? 0 : 1,
         hl: 'ko',
         modestbranding: 1,
         rel: 0,
@@ -889,6 +987,14 @@
             isReady = true;
             applyCaptionState();
             startTimeTracker();
+            if (isPreloadOnly) {
+              try {
+                player.mute();
+                player.playVideo();
+              } catch (_) {}
+              postParent({ type: 'yt_preloaded' });
+              return;
+            }
             postParent({ type: 'yt_ready' });
             attemptAutoplay();
           },
@@ -896,12 +1002,28 @@
             applyCaptionState();
           },
           onStateChange: function(e) {
+            if (isPreloadOnly) {
+              if (e.data === YT.PlayerState.PLAYING) {
+                try {
+                  player.pauseVideo();
+                  player.seekTo(0, true);
+                } catch (_) {}
+                postParent({ type: 'yt_preloaded' });
+              }
+              return;
+            }
             var stateName = 'unknown';
+            var cur = 0, dur = 0;
+            try { cur = player.getCurrentTime() || 0; dur = player.getDuration() || 0; } catch(_) {}
             if (e.data === YT.PlayerState.PLAYING) {
               stateName = 'playing';
               manualPaused = false;
               hideTapOverlay();
               applyCaptionState();
+              if (!playingNotified) {
+                playingNotified = true;
+                postParent({ type: 'yt_playing_started', currentTime: cur, duration: dur });
+              }
               if (!nativeCaptionsEnabled) {
                 setTimeout(applyCaptionState, 350);
               }
@@ -918,8 +1040,6 @@
               stateName = 'ended';
               postParent({ type: 'yt_ended' });
             }
-            var cur = 0, dur = 0;
-            try { cur = player.getCurrentTime() || 0; dur = player.getDuration() || 0; } catch(_) {}
             postParent({ type: 'yt_statechange', state: stateName, currentTime: cur, duration: dur });
           },
           onError: function(e) {
@@ -1024,7 +1144,15 @@
         startPlay();
       }
 
-      fallbackVideo.addEventListener('play', function() { postParent({ type: 'yt_statechange', state: 'playing', currentTime: fallbackVideo.currentTime || 0, duration: fallbackVideo.duration || 0 }); });
+      fallbackVideo.addEventListener('play', function() {
+        var cur = fallbackVideo.currentTime || 0;
+        var dur = fallbackVideo.duration || 0;
+        if (!playingNotified) {
+          playingNotified = true;
+          postParent({ type: 'yt_playing_started', currentTime: cur, duration: dur });
+        }
+        postParent({ type: 'yt_statechange', state: 'playing', currentTime: cur, duration: dur });
+      });
       fallbackVideo.addEventListener('pause', function() { if (!fallbackVideo.ended) postParent({ type: 'yt_statechange', state: 'paused', currentTime: fallbackVideo.currentTime || 0, duration: fallbackVideo.duration || 0 }); });
       fallbackVideo.addEventListener('ended', function() { postParent({ type: 'yt_statechange', state: 'ended', currentTime: fallbackVideo.duration || 0, duration: fallbackVideo.duration || 0 }); });
       isReady = true;
@@ -1054,11 +1182,16 @@
     function startTimeTracker() {
       if (timeTimer) clearInterval(timeTimer);
       timeTimer = setInterval(function() {
+        if (isPreloadOnly) return;
         try {
           var cur = 0, dur = 0, isLive = false, st = -1;
           if (fallbackVideo) {
             cur = fallbackVideo.currentTime || 0;
             dur = fallbackVideo.duration || 0;
+            if (!playingNotified && !fallbackVideo.paused && cur > 0.05) {
+              playingNotified = true;
+              postParent({ type: 'yt_playing_started', currentTime: cur, duration: dur });
+            }
           } else if (player && typeof player.getCurrentTime === 'function') {
             cur = player.getCurrentTime() || 0;
             dur = player.getDuration() || 0;
@@ -1068,6 +1201,10 @@
             if (cur > 0.05 || st === 1 || st === 3) {
               hideTapOverlay();
             }
+            if (!playingNotified && (cur > 0.08 || (st === 1 && cur >= 0.03))) {
+              playingNotified = true;
+              postParent({ type: 'yt_playing_started', currentTime: cur, duration: dur });
+            }
           } else {
             return;
           }
@@ -1075,7 +1212,7 @@
             postParent({ type: 'yt_timeupdate', currentTime: cur, duration: isLive ? 0 : dur, isLive: isLive });
           }
         } catch(err) {}
-      }, 400);
+      }, 220);
     }
 
     window.addEventListener('mousemove', function() { postParent({ type: 'yt_mousemove' }); }, { passive: true });
@@ -1114,13 +1251,33 @@
 
       if (!player) return;
       try {
-        if (d.action === 'play') {
+        if (d.action === 'activatePreloaded') {
+          isPreloadOnly = false;
+          manualPaused = false;
+          errorTriggered = false;
+          playingNotified = false;
+          if (typeof d.loop === 'boolean') isLooping = d.loop;
+          try {
+            var pCur = (typeof player.getCurrentTime === 'function') ? (player.getCurrentTime() || 0) : 0;
+            if (pCur > 0.35 && typeof player.seekTo === 'function') player.seekTo(0, true);
+          } catch (_) {}
+          if (d.muted) {
+            player.mute();
+          } else {
+            player.unMute();
+            if (typeof d.volume === 'number') player.setVolume(d.volume);
+          }
+          attemptAutoplay();
+          postParent({ type: 'yt_ready' });
+        } else if (d.action === 'play') {
+          isPreloadOnly = false;
           manualPaused = false;
           player.playVideo();
         } else if (d.action === 'pause') {
           manualPaused = true;
           player.pauseVideo();
         } else if (d.action === 'togglePlay') {
+          isPreloadOnly = false;
           var st = (typeof player.getPlayerState === 'function') ? player.getPlayerState() : -1;
           if (st === YT.PlayerState.PLAYING) { manualPaused = true; player.pauseVideo(); }
           else { manualPaused = false; player.playVideo(); }
@@ -1142,8 +1299,10 @@
           if (typeof player.setPlaybackQuality === 'function') player.setPlaybackQuality(q);
         } else if (d.action === 'loadVideo' && d.videoId && typeof player.loadVideoById === 'function') {
           videoId = String(d.videoId);
+          isPreloadOnly = false;
           manualPaused = false;
           errorTriggered = false;
+          playingNotified = false;
           hideTapOverlay();
           var fbBoxReset = document.getElementById('ytFallbackBox');
           if (fbBoxReset) fbBoxReset.style.display = 'none';
@@ -2141,7 +2300,39 @@
         seenVid.add(s.videoId);
         uniqueShorts.push(s);
       }
-      await localizeVideosWithOEmbed(uniqueShorts, 18);
+
+      // 쇼츠 초기 로딩 속도 대폭 개선: 상위 4개만 짧은 타임아웃으로 한국어화, 나머지는 논블로킹/패스트패스
+      if (reqChannelId) {
+        const chMeta = await fetchYoutubeChannelMetaCached(reqChannelId);
+        uniqueShorts.forEach(s => {
+          s.channelId = s.channelId || reqChannelId;
+          s.channelName = s.channelName || chMeta.channelName || 'YouTube';
+          s.channelThumbnail = s.channelThumbnail || chMeta.avatar || '';
+          s.channelImageUrl = s.channelImageUrl || chMeta.avatar || '';
+        });
+        await localizeVideosWithOEmbed(uniqueShorts, 4, 1300);
+      } else {
+        const uniqueCids = [];
+        for (const s of uniqueShorts) {
+          if (s.channelId && !s.channelThumbnail && !uniqueCids.includes(s.channelId)) {
+            uniqueCids.push(s.channelId);
+            if (uniqueCids.length >= 6) break;
+          }
+        }
+        await Promise.all([
+          localizeVideosWithOEmbed(uniqueShorts, 4, 1300),
+          Promise.race([
+            Promise.all(uniqueCids.map(cid => fetchYoutubeChannelMetaCached(cid))),
+            new Promise(r => setTimeout(r, 1500))
+          ])
+        ]);
+        uniqueShorts.forEach(s => {
+          if (s.channelId && !s.channelThumbnail && ytChannelMetaCache[s.channelId]) {
+            s.channelThumbnail = ytChannelMetaCache[s.channelId].avatar || '';
+            s.channelImageUrl = s.channelThumbnail;
+          }
+        });
+      }
       return jsonResp({
         success: true,
         shorts: uniqueShorts,
@@ -2177,23 +2368,37 @@
       let channels = [];
       if (Array.isArray(raw) && raw.length > 0) {
         videos = raw.filter(x => x.type === 'video' || x.videoId).map(mapInvidiousVideo);
-        channels = raw.filter(x => x.type === 'channel').map(c => ({
-          channelId: cleanYtId(c.authorId),
-          channelName: sanitizeText(c.author),
-          thumbnail: (c.authorThumbnails && c.authorThumbnails[0]) ? c.authorThumbnails[0].url : './static/img/favicon.png',
-          subscriberCount: c.subCount ? `${Number(c.subCount).toLocaleString()}명` : ''
-        }));
+        channels = raw.filter(x => x.type === 'channel').map(c => {
+          const cid = cleanYtId(c.authorId);
+          const cname = sanitizeText(c.author);
+          const subStr = c.subCount ? `${Number(c.subCount).toLocaleString()}명` : '';
+          const thumb = resolveAvatarUrl(c, true);
+          if (cid && thumb && !thumb.includes('favicon.png')) {
+            ytChannelMetaCache[cid] = { ts: Date.now(), channelId: cid, channelName: cname, avatar: thumb, subscriberCount: subStr };
+          }
+          return { channelId: cid, channelName: cname, thumbnail: thumb, subscriberCount: subStr };
+        });
       } else {
         const pData = await pipedFetchJson(`/search?q=${encodeURIComponent(q)}&filter=all&region=KR`);
         const pItems = (pData && Array.isArray(pData.items)) ? pData.items : [];
         videos = pItems.filter(x => x.type === 'stream' || (x.url && x.url.includes('watch?v='))).map(mapPipedVideo);
-        channels = pItems.filter(x => x.type === 'channel').map(c => ({
-          channelId: cleanYtId((c.url || '').split('/').pop()),
-          channelName: sanitizeText(c.name || ''),
-          thumbnail: c.thumbnail || './static/img/favicon.png',
-          subscriberCount: (c.subscribers >= 0) ? `${Number(c.subscribers).toLocaleString()}명` : ''
-        }));
+        channels = pItems.filter(x => x.type === 'channel').map(c => {
+          const cid = cleanYtId((c.url || '').split('/').pop());
+          const cname = sanitizeText(c.name || '');
+          const subStr = (c.subscribers >= 0) ? `${Number(c.subscribers).toLocaleString()}명` : '';
+          const thumb = resolveAvatarUrl(c, true);
+          if (cid && thumb && !thumb.includes('favicon.png')) {
+            ytChannelMetaCache[cid] = { ts: Date.now(), channelId: cid, channelName: cname, avatar: thumb, subscriberCount: subStr };
+          }
+          return { channelId: cid, channelName: cname, thumbnail: thumb, subscriberCount: subStr };
+        });
       }
+      videos.forEach(v => {
+        if (v.channelId && !v.channelThumbnail && ytChannelMetaCache[v.channelId]) {
+          v.channelThumbnail = ytChannelMetaCache[v.channelId].avatar || '';
+          v.channelImageUrl = v.channelThumbnail;
+        }
+      });
       await localizeVideosWithOEmbed(videos, 24);
       return jsonResp({ success: true, query: q, videos, channels, total: videos.length });
     }
@@ -2325,16 +2530,55 @@
     }
     if (path.startsWith('/api/youtube/channel/')) {
       const cid = cleanYtId(path.split('/').pop());
-      const data = await invidiousFetchJson(`/api/v1/channels/${cid}/videos?hl=ko`);
+      const metaOnly = urlObj.searchParams.get('metaOnly') === '1';
+      if (metaOnly) {
+        const chMeta = await fetchYoutubeChannelMetaCached(cid);
+        return jsonResp({
+          success: true,
+          channelId: cid,
+          channelName: chMeta.channelName,
+          avatar: chMeta.avatar || './static/img/favicon.png',
+          subscriberCount: chMeta.subscriberCount
+        });
+      }
+      const [chMeta, data] = await Promise.all([
+        fetchYoutubeChannelMetaCached(cid),
+        invidiousFetchJson(`/api/v1/channels/${cid}/videos?hl=ko`)
+      ]);
       let videos = (data && Array.isArray(data.videos)) ? data.videos.map(mapInvidiousVideo) : [];
-      if (videos.length === 0) {
+      let avatar = chMeta.avatar || '';
+      let chName = chMeta.channelName || '';
+      let subCount = chMeta.subscriberCount || '';
+
+      if (videos.length === 0 || !avatar) {
         const pCh = await pipedFetchJson(`/channel/${cid}`);
-        if (pCh && Array.isArray(pCh.relatedStreams)) {
-          videos = pCh.relatedStreams.map(mapPipedVideo);
+        if (pCh) {
+          if (!avatar && pCh.avatarUrl) avatar = normalizeYtThumbUrl(pCh.avatarUrl);
+          if (!chName && pCh.name) chName = sanitizeText(pCh.name);
+          if (!subCount && pCh.subscriberCount >= 0) subCount = `${Number(pCh.subscriberCount).toLocaleString()}명`;
+          if (videos.length === 0 && Array.isArray(pCh.relatedStreams)) {
+            videos = pCh.relatedStreams.map(mapPipedVideo);
+          }
+          if (cid && (avatar || chName)) {
+            ytChannelMetaCache[cid] = { ts: Date.now(), channelId: cid, channelName: chName, avatar, subscriberCount: subCount };
+          }
         }
       }
+      videos.forEach(v => {
+        if (!v.channelThumbnail && avatar) {
+          v.channelThumbnail = avatar;
+          v.channelImageUrl = avatar;
+        }
+      });
       await localizeVideosWithOEmbed(videos, 24);
-      return jsonResp({ success: true, videos });
+      return jsonResp({
+        success: true,
+        channelId: cid,
+        channelName: chName,
+        avatar: avatar || './static/img/favicon.png',
+        subscriberCount: subCount,
+        videos
+      });
     }
     if (path.startsWith('/api/youtube/subtitles/')) {
       return jsonResp({ success: false, cues: [] });
@@ -2374,13 +2618,20 @@
     }
 
     // YouTube Local Storage CRUD (camelCase + snake_case 통합 정규화)
-    const normalizeYtChannelBm = (x) => ({
-      channelId: cleanYtId(x.channelId || x.channel_id || ''),
-      channelName: sanitizeText(x.channelName || x.channel_name || x.channelId || x.channel_id || 'YouTube'),
-      thumbnail: x.thumbnail || './static/img/favicon.png',
-      subscriberCount: sanitizeText(x.subscriberCount || x.subscriber_count || ''),
-      addedAt: x.addedAt || x.added_at || new Date().toISOString()
-    });
+    const normalizeYtChannelBm = (x) => {
+      const cid = cleanYtId(x.channelId || x.channel_id || '');
+      let thumb = normalizeYtThumbUrl(x.thumbnail || '');
+      if (!thumb && cid && ytChannelMetaCache[cid] && ytChannelMetaCache[cid].avatar) {
+        thumb = ytChannelMetaCache[cid].avatar;
+      }
+      return {
+        channelId: cid,
+        channelName: sanitizeText(x.channelName || x.channel_name || x.channelId || x.channel_id || 'YouTube'),
+        thumbnail: thumb || './static/img/favicon.png',
+        subscriberCount: sanitizeText(x.subscriberCount || x.subscriber_count || ''),
+        addedAt: x.addedAt || x.added_at || new Date().toISOString()
+      };
+    };
 
     const normalizeYtVideoItem = (x) => {
       const vid = cleanYtId(x.videoId || x.video_id || x.id || '');
@@ -2409,12 +2660,29 @@
 
     if (path.startsWith('/api/youtube/bookmarks')) {
       if (method === 'GET') {
-        const list = lsGet('yt_bookmarks', []).map(normalizeYtChannelBm).filter(x => x.channelId);
-        return jsonResp({ success: true, bookmarks: list });
+        const rawList = lsGet('yt_bookmarks', []).map(normalizeYtChannelBm).filter(x => x.channelId);
+        // 저장된 즐겨찾기 중 프로필 이미지가 비어있는 채널은 백그라운드 또는 캐시로 보완
+        const missing = rawList.filter(x => !x.thumbnail || x.thumbnail.includes('favicon.png')).slice(0, 4);
+        if (missing.length > 0) {
+          await Promise.race([
+            Promise.all(missing.map(async (b) => {
+              const m = await fetchYoutubeChannelMetaCached(b.channelId);
+              if (m && m.avatar) b.thumbnail = m.avatar;
+            })),
+            new Promise(r => setTimeout(r, 1500))
+          ]);
+          lsSet('yt_bookmarks', rawList);
+        }
+        return jsonResp({ success: true, bookmarks: rawList });
       }
       if (method === 'POST') {
         const list = lsGet('yt_bookmarks', []).map(normalizeYtChannelBm).filter(x => x.channelId);
         const item = normalizeYtChannelBm(bodyObj);
+        if (item.channelId && (!item.thumbnail || item.thumbnail.includes('favicon.png'))) {
+          const m = await fetchYoutubeChannelMetaCached(item.channelId);
+          if (m && m.avatar) item.thumbnail = m.avatar;
+          if (!item.subscriberCount && m && m.subscriberCount) item.subscriberCount = m.subscriberCount;
+        }
         if (item.channelId && !list.some(x => x.channelId === item.channelId)) {
           list.unshift(item);
           lsSet('yt_bookmarks', list);

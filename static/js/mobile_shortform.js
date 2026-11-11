@@ -74,6 +74,12 @@
       this.activeIframeEl = null;
       this.activeMediaMeta = null; // playback details / quality tracks
       this.playSeq = 0;
+      this.shortSlidePool = new Map();
+      this._ytChAvatarCache = {};
+      this._preloadTimer = null;
+      this._posterTimer = null;
+      this._navAnimating = false;
+      this._navTimer = null;
 
       this._boundMessageHandler = (e) => this.handleYoutubeMessage(e);
       window.addEventListener('message', this._boundMessageHandler);
@@ -85,20 +91,33 @@
       if (!this.host) return;
       this.host.innerHTML = `
         <div class="sf-shell">
+          <!-- 상단 전용 접이식 즐겨찾기 채널 / 알고리즘 바 (영상 상단 가림 없음) -->
+          <div class="sf-top-bar">
+            <button type="button" class="sf-top-handle" title="채널 또는 필터 목록 열기/닫기">
+              <span class="sf-top-handle-label">불러오는 중...</span>
+              <span class="sf-top-handle-chevron">${SF_ICONS.chevronDown}</span>
+            </button>
+            <div class="sf-top-drawer">
+              <div class="sf-top-scroll"></div>
+            </div>
+          </div>
+
+          <div class="sf-body-row">
           <div class="sf-stage">
             <div class="sf-slide-viewport">
               <div class="sf-media-layer"></div>
+              <div class="sf-poster-mask" style="display: none;">
+                <img class="sf-poster-img" referrerpolicy="no-referrer" alt="">
+              </div>
               <div class="sf-iframe-touch-layer" style="display: none;"></div>
             </div>
 
-            <!-- 상단 접이식 채널 / 알고리즘 선택 바 -->
-            <div class="sf-top-overlay">
-              <button type="button" class="sf-top-handle" title="채널 또는 필터 목록 열기/닫기">
-                <span class="sf-top-handle-label">불러오는 중...</span>
-                <span class="sf-top-handle-chevron">${SF_ICONS.chevronDown}</span>
-              </button>
-              <div class="sf-top-drawer">
-                <div class="sf-top-scroll"></div>
+            <!-- 위/아래 풀슬라이드 전환용 인접 프리뷰 카드 -->
+            <div class="sf-peek-card" style="display: none;" aria-hidden="true">
+              <img class="sf-peek-poster" referrerpolicy="no-referrer" alt="">
+              <div class="sf-peek-meta">
+                <div class="sf-peek-author"></div>
+                <div class="sf-peek-title"></div>
               </div>
             </div>
 
@@ -134,7 +153,7 @@
             <!-- 하단 좌측 스트리머/제목 + 진행바 -->
             <div class="sf-bottom-info">
               <div class="sf-author-row">
-                <img class="sf-author-avatar" src="./static/img/favicon.png" alt="" onerror="this.src='./static/img/favicon.png'">
+                <img class="sf-author-avatar" src="./static/img/favicon.png" referrerpolicy="no-referrer" alt="" onerror="this.onerror=null; this.src='./static/img/favicon.png'">
                 <span class="sf-author-name">-</span>
               </div>
               <div class="sf-video-title">영상을 불러오는 중...</div>
@@ -164,13 +183,21 @@
             </div>
             <div class="sf-comments-body"></div>
           </div>
+          </div>
         </div>
       `;
 
       this.shell = this.host.querySelector('.sf-shell');
+      this.topBar = this.host.querySelector('.sf-top-bar');
       this.stage = this.host.querySelector('.sf-stage');
       this.slideViewport = this.host.querySelector('.sf-slide-viewport');
       this.mediaLayer = this.host.querySelector('.sf-media-layer');
+      this.posterMask = this.host.querySelector('.sf-poster-mask');
+      this.posterImg = this.host.querySelector('.sf-poster-img');
+      this.peekCard = this.host.querySelector('.sf-peek-card');
+      this.peekPoster = this.host.querySelector('.sf-peek-poster');
+      this.peekAuthor = this.host.querySelector('.sf-peek-author');
+      this.peekTitle = this.host.querySelector('.sf-peek-title');
       this.iframeTouchLayer = this.host.querySelector('.sf-iframe-touch-layer');
       this.topHandle = this.host.querySelector('.sf-top-handle');
       this.topHandleLabel = this.host.querySelector('.sf-top-handle-label');
@@ -286,25 +313,32 @@
         });
       }
 
-      // Touch swipe navigation (vertical slide: swipe up -> next, swipe down -> prev)
+      // Touch swipe navigation (100% full edge-to-edge slide tracking + seamless peek preview)
       let startY = 0;
       let startX = 0;
       let startTs = 0;
+      let lastDy = 0;
+      let peekDir = 0;
       let tracking = false;
       let swipedVertical = false;
 
       const onTouchStart = (e) => {
-        if (!e.touches || e.touches.length !== 1) return;
-        if (e.target.closest('.sf-actions-col, .sf-top-overlay, .sf-more-sheet, .sf-comments-panel, .sf-bottom-info, .sf-progress-wrap, .sf-unmute-pill, .sf-status-overlay')) {
+        if (!e.touches || e.touches.length !== 1 || this._navAnimating) return;
+        if (e.target.closest('.sf-actions-col, .sf-top-bar, .sf-more-sheet, .sf-comments-panel, .sf-bottom-info, .sf-progress-wrap, .sf-unmute-pill, .sf-status-overlay')) {
           return;
         }
         tracking = true;
         swipedVertical = false;
+        lastDy = 0;
+        peekDir = 0;
         startY = e.touches[0].clientY;
         startX = e.touches[0].clientX;
         startTs = Date.now();
         if (this.slideViewport) {
           this.slideViewport.style.transition = 'none';
+        }
+        if (this.peekCard) {
+          this.peekCard.style.transition = 'none';
         }
       };
 
@@ -315,9 +349,35 @@
         if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx) * 1.15) {
           swipedVertical = true;
           e.preventDefault();
-          if (this.slideViewport) {
-            const clamped = Math.max(-140, Math.min(140, dy * 0.65));
-            this.slideViewport.style.transform = `translateY(${clamped}px)`;
+          const stageH = (this.stage && this.stage.clientHeight) ? this.stage.clientHeight : 600;
+          const dir = dy < 0 ? 1 : -1;
+          const targetIdx = this.currentIndex + dir;
+          const hasTarget = (targetIdx >= 0 && targetIdx < this.items.length);
+
+          if (hasTarget) {
+            const clampedDy = Math.max(-stageH, Math.min(stageH, dy));
+            lastDy = clampedDy;
+            if (peekDir !== dir) {
+              peekDir = dir;
+              this.preparePeekCard(targetIdx);
+            }
+            if (this.slideViewport) {
+              this.slideViewport.style.transform = `translateY(${clampedDy}px)`;
+            }
+            if (this.peekCard) {
+              const peekOffset = dir > 0 ? (stageH + clampedDy) : (-stageH + clampedDy);
+              this.peekCard.style.transition = 'none';
+              this.peekCard.style.transform = `translateY(${peekOffset}px)`;
+            }
+          } else {
+            lastDy = Math.max(-85, Math.min(85, dy * 0.24));
+            if (peekDir !== 0) {
+              peekDir = 0;
+              this.hidePeekCard();
+            }
+            if (this.slideViewport) {
+              this.slideViewport.style.transform = `translateY(${lastDy}px)`;
+            }
           }
         }
       };
@@ -326,21 +386,36 @@
         if (!tracking) return;
         tracking = false;
         const touch = (e.changedTouches && e.changedTouches[0]) || null;
-        const dy = touch ? (touch.clientY - startY) : 0;
+        const dy = touch ? (touch.clientY - startY) : lastDy;
         const elapsed = Math.max(1, Date.now() - startTs);
         const velocity = Math.abs(dy) / elapsed;
+        const stageH = (this.stage && this.stage.clientHeight) ? this.stage.clientHeight : 600;
+        const threshold = Math.min(84, stageH * 0.14);
+        const dir = dy < 0 ? 1 : -1;
+        const targetIdx = this.currentIndex + dir;
+        const canNav = swipedVertical && (Math.abs(dy) >= threshold || (Math.abs(dy) >= 24 && velocity > 0.35));
 
-        if (this.slideViewport) {
-          this.slideViewport.style.transition = 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)';
-          this.slideViewport.style.transform = 'translateY(0)';
+        if (canNav && targetIdx >= 0 && targetIdx < this.items.length) {
+          this.navigate(dir, true);
+          return;
         }
 
-        if (swipedVertical && (Math.abs(dy) >= 48 || (Math.abs(dy) >= 24 && velocity > 0.35))) {
-          if (dy < 0) {
-            this.navigate(1);
-          } else {
-            this.navigate(-1);
-          }
+        if (canNav && dir > 0 && targetIdx >= this.items.length) {
+          this.maybePreloadMore();
+        }
+
+        if (this.slideViewport) {
+          this.slideViewport.style.transition = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
+          this.slideViewport.style.transform = 'translateY(0)';
+        }
+        if (this.peekCard && peekDir !== 0) {
+          this.peekCard.style.transition = 'transform 0.24s cubic-bezier(0.22, 1, 0.36, 1)';
+          this.peekCard.style.transform = `translateY(${peekDir > 0 ? '100%' : '-100%'})`;
+          setTimeout(() => {
+            if (!tracking && !this._navAnimating) this.hidePeekCard();
+          }, 250);
+        } else {
+          this.hidePeekCard();
         }
       };
 
@@ -350,14 +425,15 @@
       this.stage.addEventListener('touchcancel', () => {
         tracking = false;
         if (this.slideViewport) {
-          this.slideViewport.style.transition = 'transform 0.18s ease';
+          this.slideViewport.style.transition = 'transform 0.22s ease';
           this.slideViewport.style.transform = 'translateY(0)';
         }
+        this.hidePeekCard();
       }, { passive: true });
 
       // Tap to toggle play/pause (also recovers audio if browser started muted)
       this.stage.addEventListener('click', (e) => {
-        if (e.target.closest('.sf-actions-col, .sf-top-overlay, .sf-more-sheet, .sf-comments-panel, .sf-bottom-info, .sf-progress-wrap, .sf-unmute-pill, .sf-status-overlay')) {
+        if (e.target.closest('.sf-actions-col, .sf-top-bar, .sf-more-sheet, .sf-comments-panel, .sf-bottom-info, .sf-progress-wrap, .sf-unmute-pill, .sf-status-overlay')) {
           return;
         }
         if (this.isTopDrawerOpen) {
@@ -437,7 +513,7 @@
         return `
           <button type="button" class="sf-top-avatar-chip ${activeCls}" data-chip-idx="${idx}" title="${esc(ch.label || '')}">
             <div class="sf-top-avatar-ring">
-              <img src="${esc(ch.avatar || './static/img/favicon.png')}" alt="" onerror="this.src='./static/img/favicon.png'">
+              <img src="${esc(ch.avatar || './static/img/favicon.png')}" referrerpolicy="no-referrer" alt="" onerror="this.onerror=null; this.src='./static/img/favicon.png'">
               ${ch.isLive ? '<span class="sf-top-live-dot"></span>' : ''}
             </div>
             <span class="sf-top-avatar-name">${esc(ch.label || '')}</span>
@@ -475,8 +551,81 @@
       }
     }
 
+    getThumbUrlForItem(item) {
+      if (!item) return './static/img/favicon.png';
+      if (item.thumbnailImageUrl) return item.thumbnailImageUrl;
+      if (item.thumbnail) return item.thumbnail;
+      const vid = item.videoId || item.id;
+      if (vid && this.mode === 'youtube_shorts') {
+        return `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
+      }
+      return './static/img/favicon.png';
+    }
+
+    preparePeekCard(targetIndex) {
+      const targetItem = this.items[targetIndex];
+      if (!this.peekCard || !targetItem) return;
+      const thumb = this.getThumbUrlForItem(targetItem);
+      const author = targetItem.channelName || (targetItem.ownerChannel && targetItem.ownerChannel.channelName) || '';
+      const title = targetItem.clipTitle || targetItem.title || '';
+      if (this.peekPoster) {
+        this.peekPoster.src = thumb;
+      }
+      if (this.peekAuthor) this.peekAuthor.textContent = author;
+      if (this.peekTitle) this.peekTitle.textContent = title;
+      this.peekCard.style.display = 'flex';
+    }
+
+    hidePeekCard() {
+      if (!this.peekCard) return;
+      this.peekCard.style.transition = 'none';
+      this.peekCard.style.display = 'none';
+      this.peekCard.style.transform = 'translateY(100%)';
+    }
+
+    showPosterMask(thumbUrl, fallbackTimeoutMs = 3400) {
+      if (this._posterTimer) {
+        clearTimeout(this._posterTimer);
+        this._posterTimer = null;
+      }
+      if (!this.posterMask || !this.posterImg) return;
+      if (thumbUrl) {
+        this.posterImg.src = thumbUrl;
+      }
+      this.posterMask.classList.remove('sf-poster-fading');
+      this.posterMask.style.display = 'flex';
+      this.posterMask.style.opacity = '1';
+      this._posterTimer = setTimeout(() => {
+        this.fadeOutPosterMask(0);
+      }, fallbackTimeoutMs);
+    }
+
+    fadeOutPosterMask(delayMs = 100) {
+      if (this._posterTimer) {
+        clearTimeout(this._posterTimer);
+        this._posterTimer = null;
+      }
+      if (!this.posterMask || this.posterMask.style.display === 'none') return;
+      const execFade = () => {
+        if (!this.posterMask) return;
+        this.posterMask.classList.add('sf-poster-fading');
+        this.posterMask.style.opacity = '0';
+        setTimeout(() => {
+          if (this.posterMask && this.posterMask.classList.contains('sf-poster-fading')) {
+            this.posterMask.style.display = 'none';
+          }
+        }, 180);
+      };
+      if (delayMs > 0) {
+        this._posterTimer = setTimeout(execFade, delayMs);
+      } else {
+        execFade();
+      }
+    }
+
     setFeed(items, startIndex = 0) {
       this.items = Array.isArray(items) ? items.slice() : [];
+      this.clearAllShortSlides();
       this.refreshTopDrawer();
       if (this.items.length === 0) {
         this.currentIndex = -1;
@@ -498,6 +647,9 @@
           seen.add(key);
           this.items.push(it);
         }
+      }
+      if (this.mode === 'youtube_shorts' && this.currentIndex >= 0) {
+        this.preloadNeighborShorts(this.currentIndex);
       }
     }
 
@@ -527,8 +679,8 @@
       }
     }
 
-    navigate(direction) {
-      if (this.items.length === 0) return;
+    navigate(direction, fromDrag = false) {
+      if (this.items.length === 0 || this._navAnimating) return;
       const target = this.currentIndex + direction;
       if (target < 0) return;
       if (target >= this.items.length) {
@@ -536,24 +688,65 @@
         return;
       }
 
-      if (this.slideViewport) {
-        const outCls = direction > 0 ? 'sf-anim-out-up' : 'sf-anim-out-down';
-        const prepCls = direction > 0 ? 'sf-anim-prep-down' : 'sf-anim-prep-up';
-        this.slideViewport.classList.add(outCls);
-        setTimeout(() => {
-          this.slideViewport.classList.remove(outCls);
-          this.slideViewport.classList.add(prepCls);
-          void this.slideViewport.offsetWidth;
+      if (this.slideViewport && this.peekCard) {
+        this._navAnimating = true;
+        if (this._navTimer) {
+          clearTimeout(this._navTimer);
+          this._navTimer = null;
+        }
+        this.preparePeekCard(target);
+        if (!fromDrag) {
+          this.slideViewport.style.transition = 'none';
+          this.slideViewport.style.transform = 'translateY(0)';
+          this.peekCard.style.transition = 'none';
+          this.peekCard.style.transform = `translateY(${direction > 0 ? '100%' : '-100%'})`;
+          void this.stage.offsetHeight;
+        }
+
+        requestAnimationFrame(() => {
+          if (this.slideViewport) {
+            this.slideViewport.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
+            this.slideViewport.style.transform = `translateY(${direction > 0 ? '-100%' : '100%'})`;
+          }
+          if (this.peekCard) {
+            this.peekCard.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)';
+            this.peekCard.style.transform = 'translateY(0%)';
+          }
+        });
+
+        this._navTimer = setTimeout(() => {
+          if (this.slideViewport) {
+            this.slideViewport.style.transition = 'none';
+            this.slideViewport.style.transform = 'translateY(0)';
+          }
           this.playAtIndex(target);
-          this.slideViewport.classList.remove(prepCls);
-        }, 160);
+          requestAnimationFrame(() => {
+            this.hidePeekCard();
+            this._navAnimating = false;
+          });
+        }, 255);
       } else {
         this.playAtIndex(target);
       }
     }
 
+    clearAllShortSlides() {
+      if (this._preloadTimer) {
+        clearTimeout(this._preloadTimer);
+        this._preloadTimer = null;
+      }
+      if (this.shortSlidePool) {
+        this.shortSlidePool.forEach((slot) => {
+          try { if (slot.iframe) slot.iframe.src = 'about:blank'; } catch (_) {}
+          try { if (slot.wrapper) slot.wrapper.remove(); } catch (_) {}
+        });
+        this.shortSlidePool.clear();
+      }
+    }
+
     clearMedia() {
       this.activeMediaMeta = null;
+      this.fadeOutPosterMask(0);
       if (this.activeVideoEl) {
         try {
           this.activeVideoEl.pause();
@@ -562,14 +755,29 @@
         } catch (_) {}
         this.activeVideoEl = null;
       }
-      if (this.activeIframeEl) {
-        try {
-          this.activeIframeEl.src = 'about:blank';
-        } catch (_) {}
+      if (this.mode === 'youtube_shorts') {
+        if (this.activeIframeEl && this.activeIframeEl.contentWindow) {
+          try {
+            this.activeIframeEl.contentWindow.postMessage({ action: 'pause', slotIndex: this.slotMsgTag }, '*');
+          } catch (_) {}
+        }
+        this.shortSlidePool.forEach((slot) => {
+          if (slot.wrapper) {
+            slot.wrapper.classList.remove('active');
+            slot.wrapper.classList.add('preloading');
+          }
+        });
         this.activeIframeEl = null;
-      }
-      if (this.mediaLayer) {
-        this.mediaLayer.innerHTML = '';
+      } else {
+        if (this.activeIframeEl) {
+          try {
+            this.activeIframeEl.src = 'about:blank';
+          } catch (_) {}
+          this.activeIframeEl = null;
+        }
+        if (this.mediaLayer) {
+          this.mediaLayer.innerHTML = '';
+        }
       }
       if (this.iframeTouchLayer) {
         this.iframeTouchLayer.style.display = 'none';
@@ -609,7 +817,12 @@
     renderMetaForItem(item) {
       if (!item) return;
       const authorName = item.channelName || (item.ownerChannel && item.ownerChannel.channelName) || '채널';
-      const authorAvatar = item.channelImageUrl || (item.ownerChannel && item.ownerChannel.channelImageUrl) || './static/img/favicon.png';
+      let authorAvatar = item.channelImageUrl
+        || item.channelThumbnail
+        || item.authorThumbnail
+        || (item.ownerChannel && item.ownerChannel.channelImageUrl)
+        || (item.channelId && this._ytChAvatarCache && this._ytChAvatarCache[item.channelId])
+        || './static/img/favicon.png';
       const title = item.clipTitle || item.title || '제목 없음';
       const subParts = [];
       if (item.clipCategory) subParts.push(item.clipCategory);
@@ -617,11 +830,32 @@
       else if (item.viewCount) subParts.push(item.viewCount);
       if (item.publishedTime) subParts.push(item.publishedTime);
 
-      if (this.authorAvatar) this.authorAvatar.src = authorAvatar;
+      if (this.authorAvatar) {
+        this.authorAvatar.referrerPolicy = 'no-referrer';
+        this.authorAvatar.src = authorAvatar;
+      }
       if (this.authorNameEl) this.authorNameEl.textContent = authorName;
       if (this.videoTitleEl) this.videoTitleEl.textContent = title;
       if (this.videoSubmetaEl) this.videoSubmetaEl.textContent = subParts.join(' • ');
       this.syncBookmarkIcon();
+
+      if (this.mode === 'youtube_shorts' && (!authorAvatar || authorAvatar.includes('favicon.png')) && item.channelId) {
+        const curSeq = this.playSeq;
+        const cid = item.channelId;
+        fetch(`/api/youtube/channel/${encodeURIComponent(cid)}?metaOnly=1`)
+          .then(r => r.json())
+          .then(d => {
+            if (d && d.avatar && !d.avatar.includes('favicon.png')) {
+              this._ytChAvatarCache[cid] = d.avatar;
+              item.channelImageUrl = d.avatar;
+              item.channelThumbnail = d.avatar;
+              if (curSeq === this.playSeq && this.authorAvatar) {
+                this.authorAvatar.src = d.avatar;
+              }
+            }
+          })
+          .catch(() => {});
+      }
     }
 
     syncBookmarkIcon() {
@@ -716,6 +950,75 @@
       }
     }
 
+    _createShortSlideSlot(vid, isPreload = false) {
+      const wrapper = document.createElement('div');
+      wrapper.className = isPreload ? 'sf-yt-slide preloading' : 'sf-yt-slide active';
+      wrapper.dataset.videoId = vid;
+
+      const iframe = document.createElement('iframe');
+      iframe.className = 'sf-yt-iframe';
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+      iframe.allowFullscreen = true;
+
+      if (window.webBackendPolyfill && typeof window.webBackendPolyfill.generateYoutubeEmbedHtml === 'function') {
+        iframe.srcdoc = window.webBackendPolyfill.generateYoutubeEmbedHtml(vid, this.slotMsgTag, !isPreload && !this.paused, 0, {
+          loop: true,
+          isShort: true,
+          preload: isPreload
+        });
+      } else {
+        iframe.src = `/api/youtube/embed/${encodeURIComponent(vid)}?slot=${this.slotMsgTag}&autoplay=${(!isPreload && !this.paused) ? 1 : 0}`;
+      }
+
+      wrapper.appendChild(iframe);
+      if (this.mediaLayer) {
+        this.mediaLayer.appendChild(wrapper);
+      }
+      const slot = { vid, wrapper, iframe, ready: false, preloaded: false };
+      this.shortSlidePool.set(vid, slot);
+      return slot;
+    }
+
+    _pruneShortSlidePool(centerIndex) {
+      const keepIds = new Set();
+      for (let off = -1; off <= 2; off++) {
+        const it = this.items[centerIndex + off];
+        const vId = it && (it.videoId || it.id);
+        if (vId) keepIds.add(vId);
+      }
+      this.shortSlidePool.forEach((slot, vidKey) => {
+        if (!keepIds.has(vidKey)) {
+          try { if (slot.iframe) slot.iframe.src = 'about:blank'; } catch (_) {}
+          try { if (slot.wrapper) slot.wrapper.remove(); } catch (_) {}
+          this.shortSlidePool.delete(vidKey);
+        }
+      });
+    }
+
+    preloadNeighborShorts(centerIndex) {
+      if (this.mode !== 'youtube_shorts') return;
+      if (this._preloadTimer) {
+        clearTimeout(this._preloadTimer);
+        this._preloadTimer = null;
+      }
+      this._pruneShortSlidePool(centerIndex);
+
+      const enqueueIdx = (idx) => {
+        const it = this.items[idx];
+        const nVid = it && (it.videoId || it.id);
+        if (!nVid || this.shortSlidePool.has(nVid)) return;
+        this._createShortSlideSlot(nVid, true);
+      };
+
+      enqueueIdx(centerIndex + 1);
+      this._preloadTimer = setTimeout(() => {
+        if (this.currentIndex === centerIndex) {
+          enqueueIdx(centerIndex + 2);
+        }
+      }, 280);
+    }
+
     mountYoutubeShort(item, seq) {
       if (seq !== this.playSeq) return;
       this.hideStatus();
@@ -726,41 +1029,88 @@
         currentQuality: 'auto'
       };
 
-      const iframe = document.createElement('iframe');
-      iframe.className = 'sf-yt-iframe';
-      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-      iframe.allowFullscreen = true;
+      // 재생 프레임이 시작되기 전까지 섬네일 마스크로 로딩·유튜브 초기 UI 완전 은닉
+      const posterUrl = this.getThumbUrlForItem(item);
+      this.showPosterMask(posterUrl, 3400);
 
-      if (window.webBackendPolyfill && typeof window.webBackendPolyfill.generateYoutubeEmbedHtml === 'function') {
-        iframe.srcdoc = window.webBackendPolyfill.generateYoutubeEmbedHtml(vid, this.slotMsgTag, true, 0, { loop: true });
+      let slot = this.shortSlidePool.get(vid);
+      const isWarmPreload = Boolean(slot && slot.wrapper && slot.iframe);
+
+      this.shortSlidePool.forEach((s, key) => {
+        if (key !== vid && s.wrapper) {
+          s.wrapper.classList.remove('active');
+          s.wrapper.classList.add('preloading');
+          if (s.iframe && s.iframe.contentWindow) {
+            try { s.iframe.contentWindow.postMessage({ action: 'pause', slotIndex: this.slotMsgTag }, '*'); } catch (_) {}
+          }
+        }
+      });
+
+      if (!slot) {
+        slot = this._createShortSlideSlot(vid, false);
       } else {
-        iframe.src = `/api/youtube/embed/${encodeURIComponent(vid)}?slot=${this.slotMsgTag}&autoplay=1`;
+        slot.wrapper.classList.remove('preloading');
+        slot.wrapper.classList.add('active');
       }
 
-      this.mediaLayer.appendChild(iframe);
-      this.activeIframeEl = iframe;
+      this.activeIframeEl = slot.iframe;
+
+      if (isWarmPreload && slot.iframe && slot.iframe.contentWindow) {
+        const audio = this._getTargetAudio();
+        try {
+          slot.iframe.contentWindow.postMessage({
+            action: this.paused ? 'pause' : 'activatePreloaded',
+            loop: true,
+            muted: audio.muted,
+            volume: audio.muted ? 0 : Math.round(audio.volume * 100),
+            slotIndex: this.slotMsgTag
+          }, '*');
+        } catch (_) {}
+      }
+
       if (this.iframeTouchLayer) {
         this.iframeTouchLayer.style.display = 'block';
         this.iframeTouchLayer.style.pointerEvents = 'auto';
       }
+
+      this.preloadNeighborShorts(this.currentIndex);
     }
 
     handleYoutubeMessage(e) {
-      if (this.mode !== 'youtube_shorts' || !this.activeIframeEl) return;
+      if (this.mode !== 'youtube_shorts') return;
       const d = e.data;
       if (!d || typeof d !== 'object' || !String(d.type || '').startsWith('yt_')) return;
-      if (e.source !== this.activeIframeEl.contentWindow && d.slotIndex !== this.slotMsgTag) return;
+
+      if (d.type === 'yt_preloaded' && d.videoId && this.shortSlidePool.has(d.videoId)) {
+        const s = this.shortSlidePool.get(d.videoId);
+        if (s) { s.ready = true; s.preloaded = true; }
+        return;
+      }
+
+      if (!this.activeIframeEl) return;
+      const fromActive = (e.source === this.activeIframeEl.contentWindow)
+        || (d.videoId && this.activeMediaMeta && d.videoId === this.activeMediaMeta.videoId);
+      if (!fromActive) return;
 
       if (d.type === 'yt_ready') {
         const audio = this._getTargetAudio();
         this.postToActiveIframe({ action: 'setLoop', loop: true });
         if (this.paused) {
           this.postToActiveIframe({ action: 'pause' });
+          this.fadeOutPosterMask(0);
         } else {
           this.postToActiveIframe({ action: audio.muted ? 'mute' : 'unmute' });
           this.postToActiveIframe({ action: 'setVolume', volume: audio.muted ? 0 : Math.round(audio.volume * 100) });
           this.postToActiveIframe({ action: 'play' });
+        }
+      } else if (d.type === 'yt_playing_started') {
+        this.fadeOutPosterMask(110);
+      } else if (d.type === 'yt_statechange' && d.state === 'playing' && (d.currentTime || 0) > 0.05) {
+        this.fadeOutPosterMask(90);
+      } else if (d.type === 'yt_tap_required') {
+        this.fadeOutPosterMask(0);
+        if (this.iframeTouchLayer) {
+          this.iframeTouchLayer.style.pointerEvents = 'none';
         }
       } else if (d.type === 'yt_autoplay_muted') {
         this.autoplayMuted = true;
@@ -769,10 +1119,14 @@
         if (this.activeMediaMeta && d.duration > 0) {
           this.activeMediaMeta.duration = d.duration;
         }
+        if ((d.currentTime || 0) > 0.06) {
+          this.fadeOutPosterMask(40);
+        }
         if (this.progressFill && d.duration > 0) {
           this.progressFill.style.width = `${Math.min(100, (d.currentTime / d.duration) * 100)}%`;
         }
       } else if (d.type === 'yt_error') {
+        this.fadeOutPosterMask(0);
         // Allow user to click "YouTube에서 직접 보기" fallback link inside iframe
         if (this.iframeTouchLayer) {
           this.iframeTouchLayer.style.pointerEvents = 'none';
@@ -1025,7 +1379,7 @@
           const likes = c.likeCount || c.likes || 0;
           return `
             <div class="sf-comment-item">
-              <img class="sf-comment-avatar" src="${esc(avatar)}" alt="" onerror="this.src='./static/img/favicon.png'">
+              <img class="sf-comment-avatar" src="${esc(avatar)}" referrerpolicy="no-referrer" alt="" onerror="this.onerror=null; this.src='./static/img/favicon.png'">
               <div class="sf-comment-main">
                 <div class="sf-comment-meta">
                   <span class="sf-comment-author">${esc(author)}</span>

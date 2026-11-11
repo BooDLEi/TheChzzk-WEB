@@ -1213,7 +1213,7 @@ class ChzzkApp {
             <div style="font-size: 15px; font-weight: 700;">등록된 즐겨찾기 채널이 없습니다.</div>
             <div style="font-size: 13px; margin-top: 6px; color: var(--text-dim); line-height: 1.6;">
               로그인 없이도 위 입력창에 스트리머명 또는 치지직 링크를 입력하여 바로 즐겨찾기에 등록할 수 있습니다.<br>
-              (홈 화면 카드의 [★ 즐겨찾기 버튼]을 누르거나, 필요 시 [치지직 팔로우 불러오기]로 기존 팔로우 목록을 한 번에 가져올 수도 있습니다)
+              (홈 화면 카드의 [즐겨찾기] 버튼을 누르거나, 필요 시 [치지직 팔로우 불러오기]로 기존 팔로우 목록을 한 번에 가져올 수도 있습니다)
             </div>
           </div>
         `;
@@ -1630,37 +1630,25 @@ class ChzzkApp {
   }
 
   async checkLiveNotifications() {
-    if (this.isMobileUIMode()) return;
+    if (this.isMobileUIMode() || this._checkingNotifications) return;
+    this._checkingNotifications = true;
     try {
-      const promises = [
-        fetch('/api/user/following-lives').then(r => r.json()).catch(() => ({})),
-        fetch('/api/bookmarks').then(r => r.json()).catch(() => ({}))
-      ];
-      const [followingRes, bookmarksRes] = await Promise.all(promises);
-
+      const bookmarksRes = await fetch('/api/bookmarks').then(r => r.json()).catch(() => ({}));
       const activeLivesMap = new Map();
-
-      if (followingRes && followingRes.success && Array.isArray(followingRes.lives)) {
-        followingRes.lives.forEach(l => {
-          if (l && l.channelId) activeLivesMap.set(l.channelId, l);
-        });
-      }
 
       if (bookmarksRes && Array.isArray(bookmarksRes.bookmarks)) {
         bookmarksRes.bookmarks.forEach(b => {
-          if (b && b.channelId && b.isOnline) {
-            if (!activeLivesMap.has(b.channelId)) {
+          if (b && b.channelId) {
+            this.channelNotifications.set(b.channelId, b.notify !== false);
+            if (b.isOnline) {
               activeLivesMap.set(b.channelId, {
                 channelId: b.channelId,
                 channelName: b.channelName,
                 channelImageUrl: b.channelImageUrl,
-                liveTitle: b.title,
-                categoryValue: b.categoryValue
+                liveTitle: b.liveTitle || b.title || '',
+                categoryValue: b.categoryValue || ''
               });
             }
-          }
-          if (b && b.channelId) {
-            this.channelNotifications.set(b.channelId, b.notify !== false);
           }
         });
       }
@@ -1695,6 +1683,8 @@ class ChzzkApp {
       }
     } catch (e) {
       console.warn('Live notification check error:', e);
+    } finally {
+      this._checkingNotifications = false;
     }
   }
 
@@ -1998,7 +1988,7 @@ class ChzzkApp {
             this.importFollowPollInterval = null;
             this.showToast(sData.message || '치지직 팔로우 불러오기 완료! 로그인 정보는 즉시 파기되었습니다.', 'success');
             if (this.cookieStatusText) {
-              this.cookieStatusText.textContent = `✓ 보안 모드: 팔로우 ${sData.imported || 0}명 불러옴 (로그인 쿠키 즉시 파기됨)`;
+              this.cookieStatusText.textContent = `보안 모드: 팔로우 ${sData.imported || 0}명 불러옴 (로그인 쿠키 즉시 파기됨)`;
               this.cookieStatusText.style.color = 'var(--accent-color)';
             }
             await this.fetchBookmarks();
@@ -2182,9 +2172,12 @@ class ChzzkApp {
         this.proxyTestResult.style.border = '1px solid rgba(0, 255, 163, 0.3)';
         this.proxyTestResult.style.color = 'var(--accent-color)';
         this.proxyTestResult.innerHTML = `
-          <div style="font-weight: 800; margin-bottom: 4px;">✓ ${escapeHtml(data.message)}</div>
+          <div style="font-weight: 800; margin-bottom: 4px; display:flex; align-items:center; gap:5px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>${escapeHtml(data.message)}</span>
+          </div>
           <div style="font-size: 11.5px; color: var(--text-muted);">
-            • 외부 IP: <span style="color:#fff;">${escapeHtml(data.ip || '')}</span> | 데이터센터(Colo): <span style="color:#fff;">${escapeHtml(data.colo || '')}</span> | 응답속도: <span style="color:#fff;">${data.latency_ms || 0}ms</span> | WARP: <span style="color:#fff;">${escapeHtml(data.warp || 'off')}</span>
+            외부 IP: <span style="color:#fff;">${escapeHtml(data.ip || '')}</span> | 데이터센터(Colo): <span style="color:#fff;">${escapeHtml(data.colo || '')}</span> | 응답속도: <span style="color:#fff;">${data.latency_ms || 0}ms</span> | WARP: <span style="color:#fff;">${escapeHtml(data.warp || 'off')}</span>
           </div>
         `;
       } else {
@@ -2192,7 +2185,10 @@ class ChzzkApp {
         this.proxyTestResult.style.border = '1px solid rgba(239, 68, 68, 0.3)';
         this.proxyTestResult.style.color = '#f87171';
         this.proxyTestResult.innerHTML = `
-          <div style="font-weight: 800; margin-bottom: 4px;">✗ 연결 실패</div>
+          <div style="font-weight: 800; margin-bottom: 4px; display:flex; align-items:center; gap:5px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <span>연결 실패</span>
+          </div>
           <div style="font-size: 11.5px;">${escapeHtml(data.error || '연결할 수 없습니다.')}</div>
         `;
       }
@@ -2229,7 +2225,7 @@ class ChzzkApp {
     } else if (target === 'media') {
       confirmMsg = '저장된 모든 녹화 파일(recordings/)과 클립 파일(clips/)을 삭제하시겠습니까?\n삭제된 파일은 복구할 수 없습니다.';
     } else if (target === 'factory') {
-      confirmMsg = '⚠️ 경고: 모든 설정, 북마크, 시청 기록, 로그인 세션, 녹화 및 클립 파일이 완전히 삭제되고 최초 설치 상태로 되돌아갑니다.\n\n정말로 전체 공장 초기화를 진행하시겠습니까?';
+      confirmMsg = '[경고] 모든 설정, 북마크, 시청 기록, 로그인 세션, 녹화 및 클립 파일이 완전히 삭제되고 최초 설치 상태로 되돌아갑니다.\n\n정말로 전체 공장 초기화를 진행하시겠습니까?';
     }
 
     if (!confirm(confirmMsg)) return;
@@ -2297,7 +2293,7 @@ class ChzzkApp {
     }
     try {
       await navigator.clipboard.writeText(el.textContent);
-      this.showToast('📋 최신 상황 로그가 클립보드에 복사되었습니다.', 'success');
+      this.showToast('최신 상황 로그가 클립보드에 복사되었습니다.', 'success');
     } catch (e) {
       const ta = document.createElement('textarea');
       ta.value = el.textContent;
@@ -2305,7 +2301,7 @@ class ChzzkApp {
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      this.showToast('📋 최신 상황 로그가 클립보드에 복사되었습니다.', 'success');
+      this.showToast('최신 상황 로그가 클립보드에 복사되었습니다.', 'success');
     }
   }
 
@@ -2314,7 +2310,7 @@ class ChzzkApp {
       const res = await fetch('/api/diagnostics/open-file', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        this.showToast('📄 상황 로그 파일(playback_diagnostics.log)을 열었습니다.', 'info');
+        this.showToast('상황 로그 파일(playback_diagnostics.log)을 열었습니다.', 'info');
       } else {
         this.showToast('로그 파일 열기 실패: ' + (data.error || ''), 'error');
       }
@@ -2385,7 +2381,7 @@ class ChzzkApp {
           }
           if (descEl) {
             const msgPart = data.commitMessage ? ` — "${data.commitMessage}"` : '';
-            descEl.textContent = `현재 v${data.localVersion} (${data.localCommit}) → 최신 v${data.remoteVersion} (${data.latestCommit || 'latest'})${msgPart}`;
+            descEl.textContent = `현재 v${data.localVersion} (${data.localCommit}) -> 최신 v${data.remoteVersion} (${data.latestCommit || 'latest'})${msgPart}`;
           }
           if (applyBtn) {
             applyBtn.style.display = 'inline-flex';

@@ -28,7 +28,9 @@ const ICONS = {
   chevronDown: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>`,
   chevronUp: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>`,
   spinner: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>`,
-  film: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>`
+  film: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>`,
+  user: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  liveDot: `<svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;"><circle cx="8" cy="8" r="6"/></svg>`
 };
 
 class MultiViewManager {
@@ -57,27 +59,9 @@ class MultiViewManager {
     this.updateBadge();
 
     // Periodic live viewer count updater (every 30 seconds)
-    setInterval(() => {
+    this._viewerCountTimer = setInterval(() => {
       this.refreshSlotViewerCounts();
     }, 30000);
-
-    // Global Key Listener: Press 'C' for In-Slot Chat Toggle
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'c' || e.key === 'C') {
-        const fsEl = document.fullscreenElement;
-        if (fsEl && fsEl.classList.contains('player-slot')) {
-          const idx = parseInt(fsEl.id.replace('slot-', ''), 10);
-          if (!isNaN(idx)) {
-            this.toggleSlotChat(idx);
-          }
-        } else {
-          const activeIdx = this.slots.findIndex(s => s.active);
-          if (activeIdx !== -1) {
-            this.toggleSlotChat(activeIdx);
-          }
-        }
-      }
-    });
   }
 
   initElements() {
@@ -299,14 +283,27 @@ class MultiViewManager {
       }
     });
 
-    // Keyboard Shortcut 'C' to toggle slot chat
+    // Keyboard Shortcut 'C' to toggle slot chat (single unified handler with input guard)
     document.addEventListener('keydown', (e) => {
-      if (e.target.matches('input, textarea, select')) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const tgt = e.target;
+      if (tgt && ((typeof tgt.matches === 'function' && tgt.matches('input, textarea, select, [contenteditable]')) || tgt.isContentEditable)) {
+        return;
+      }
       if (e.key === 'c' || e.key === 'C') {
-        if (window.app && window.app.currentTab === 'multiview') {
-          const activeSlot = this.slots.find(s => s.active && !s.muted) || this.slots.find(s => s.active);
-          if (activeSlot) {
-            this.toggleSlotChat(activeSlot.index);
+        const fsEl = document.fullscreenElement;
+        if (fsEl && fsEl.classList.contains('player-slot')) {
+          const idx = parseInt(fsEl.id.replace('slot-', ''), 10);
+          if (!isNaN(idx)) {
+            this.toggleSlotChat(idx);
+          }
+        } else if (window.app && window.app.currentTab === 'multiview') {
+          const hoveredSlot = typeof this.hoveredSlotIndex === 'number' ? this.slots[this.hoveredSlotIndex] : null;
+          const targetSlot = (hoveredSlot && hoveredSlot.active)
+            ? hoveredSlot
+            : (this.slots.find(s => s.active && !s.muted) || this.slots.find(s => s.active));
+          if (targetSlot) {
+            this.toggleSlotChat(targetSlot.index);
           }
         }
       }
@@ -933,7 +930,7 @@ class MultiViewManager {
       this.renderSlots();
       this.updateBadge();
     } else {
-      if (window.app) window.app.showToast('비어있는 슬롯이 없습니다. 슬롯 우측 상단 [✕] 버튼을 눌러 방송을 닫으면 슬롯이 제거됩니다.', 'info');
+      if (window.app) window.app.showToast('비어있는 슬롯이 없습니다. 슬롯 우측 상단 닫기 버튼을 눌러 방송을 닫으면 슬롯이 제거됩니다.', 'info');
     }
   }
 
@@ -2477,8 +2474,8 @@ class MultiViewManager {
             + 클립 추가
           </button>
           ${this.slotCount > 1 ? `
-          <button class="btn btn-sm btn-ghost" style="color: #f87171; border: 1px solid rgba(248, 113, 113, 0.4);" onclick="window.multiview.removeSpecificSlot(${i})" title="이 빈 슬롯 제거">
-            ✕ 슬롯 제거
+          <button class="btn btn-sm btn-ghost" style="color: #f87171; border: 1px solid rgba(248, 113, 113, 0.4); display: inline-flex; align-items: center; gap: 4px;" onclick="window.multiview.removeSpecificSlot(${i})" title="이 빈 슬롯 제거">
+            ${ICONS.close}<span>슬롯 제거</span>
           </button>` : ''}
         </div>
       </div>
@@ -2494,13 +2491,13 @@ class MultiViewManager {
         recordBtnHtml = `<button class="slot-ctrl-btn" onclick="window.multiview.startRecordingSlot(${i})" title="[원본 녹화] 실시간 원본 신호 녹화">${ICONS.recordDot}</button>`;
       } else if (slot.recordStatus === 'recording') {
         recordBtnHtml = `
-          <div class="slot-record-indicator">● 원본 녹화 중</div>
+          <div class="slot-record-indicator">${ICONS.recordDot} 원본 녹화 중</div>
           <button class="slot-ctrl-btn" onclick="window.multiview.pauseRecordingSlot(${i})" title="녹화 일시정지">${ICONS.recordPause}</button>
           <button class="slot-ctrl-btn" onclick="window.multiview.stopRecordingSlot(${i})" title="녹화 종료">${ICONS.recordStop}</button>
         `;
       } else if (slot.recordStatus === 'paused') {
         recordBtnHtml = `
-          <div class="slot-record-indicator paused">❚❚ 일시정지</div>
+          <div class="slot-record-indicator paused">${ICONS.recordPause} 일시정지</div>
           <button class="slot-ctrl-btn" onclick="window.multiview.resumeRecordingSlot(${i})" title="녹화 재개">${ICONS.recordResume}</button>
           <button class="slot-ctrl-btn" onclick="window.multiview.stopRecordingSlot(${i})" title="녹화 종료">${ICONS.recordStop}</button>
         `;
@@ -2577,7 +2574,7 @@ class MultiViewManager {
           ${ICONS.rewind10}
         </button>
         <button class="slot-live-status-btn ${slot.isTimeshifted && slot.timeshiftSeconds > 0 ? 'timeshifted' : 'live-now'}" id="slot-live-btn-${i}" onclick="window.multiview.jumpToLive(${i})" title="${slot.isTimeshifted ? '클릭하여 실시간(LIVE)으로 즉시 복귀' : '현재 실시간 시청 중'}">
-          ${slot.isTimeshifted && slot.timeshiftSeconds > 0 ? `-${slot.timeshiftSeconds}초` : '● LIVE'}
+          ${slot.isTimeshifted && slot.timeshiftSeconds > 0 ? `-${slot.timeshiftSeconds}초` : `${ICONS.liveDot}<span>LIVE</span>`}
         </button>
       `;
     }
@@ -2606,7 +2603,7 @@ class MultiViewManager {
         <div class="slot-stream-info">
           ${badgeHtml}
           ${slot.userCount != null && slot.type === 'live' ? `
-            <span class="slot-user-count" id="slot-user-count-${i}" title="실시간 시청자 수">👤 ${Number(slot.userCount).toLocaleString()}명</span>
+            <span class="slot-user-count" id="slot-user-count-${i}" title="실시간 시청자 수">${ICONS.user} ${Number(slot.userCount).toLocaleString()}명</span>
           ` : `<span class="slot-user-count" id="slot-user-count-${i}" style="display:none;"></span>`}
           ${streamInfoContentHtml}
         </div>
@@ -2689,7 +2686,7 @@ class MultiViewManager {
             ${slot.type === 'youtube' ? `
               <button class="slot-ctrl-btn" id="slot-play-btn-${i}" onclick="window.multiview.toggleYouTubeSlot(${i})" title="재생/일시정지">${slot.isPlaying !== false ? ICONS.pause : ICONS.play}</button>
               <button class="slot-ctrl-btn" onclick="window.multiview.rewindYouTubeSlot(${i}, 10)" title="10초 뒤로">${ICONS.rewind10}</button>
-              <span id="slot-yt-time-${i}" class="slot-vod-time">${slot.isLive ? '<span style="color:#ef4444;font-weight:800;">● LIVE</span>' : '00:00 / 00:00'}</span>
+              <span id="slot-yt-time-${i}" class="slot-vod-time">${slot.isLive ? `<span style="color:#ef4444;font-weight:800;display:inline-flex;align-items:center;gap:4px;">${ICONS.liveDot}<span>LIVE</span></span>` : '00:00 / 00:00'}</span>
             ` : (slot.type === 'vod' ? `
               <button class="slot-ctrl-btn" id="slot-play-btn-${i}" onclick="window.multiview.togglePlaySlot(${i})" title="재생/일시정지">${ICONS.pause}</button>
               <span id="slot-vod-time-${i}" class="slot-vod-time">00:00 / 00:00</span>
@@ -2706,7 +2703,7 @@ class MultiViewManager {
                 ${ICONS.rewind10}
               </button>
               <button class="slot-live-status-btn ${slot.isTimeshifted && slot.timeshiftSeconds > 0 ? 'timeshifted' : 'live-now'}" id="slot-live-btn-${i}" onclick="window.multiview.jumpToLive(${i})" title="${slot.isTimeshifted ? '클릭하여 실시간(LIVE)으로 즉시 복귀' : '현재 실시간 시청 중'}">
-                ${slot.isTimeshifted && slot.timeshiftSeconds > 0 ? `-${slot.timeshiftSeconds}초` : '● LIVE'}
+                ${slot.isTimeshifted && slot.timeshiftSeconds > 0 ? `-${slot.timeshiftSeconds}초` : `${ICONS.liveDot}<span>LIVE</span>`}
               </button>
             `))}
           </div>
@@ -2800,7 +2797,7 @@ class MultiViewManager {
             ${dur ? `<span class="slot-pl-dur">${escapeHtml(dur)}</span>` : ''}
           </div>
           <div class="slot-pl-info">
-            <div class="slot-pl-title">${isActive ? '▶ ' : ''}${escapeHtml(title)}</div>
+            <div class="slot-pl-title" style="display:flex;align-items:center;gap:4px;">${isActive ? `<span style="display:inline-flex;color:var(--accent-color);flex-shrink:0;">${ICONS.play}</span>` : ''}<span>${escapeHtml(title)}</span></div>
             ${chName ? `<div class="slot-pl-author">${escapeHtml(chName)}</div>` : ''}
           </div>
         </div>
@@ -3398,7 +3395,7 @@ class MultiViewManager {
       let stallStartTime = 0;
       slot.stallTimer = null;
       slot.stallCount = 0;
-      let lastStallResetTimer = null;
+      slot.lastStallResetTimer = null;
 
       video.addEventListener('waiting', () => {
         if (!slot.active) return;
@@ -3456,8 +3453,8 @@ class MultiViewManager {
         }
 
         // 2분 동안 버퍼링 없이 안정적으로 재생되면 원래의 저지연 타겟(4.8s)으로 서서히 복귀
-        if (lastStallResetTimer) clearTimeout(lastStallResetTimer);
-        lastStallResetTimer = setTimeout(() => {
+        if (slot.lastStallResetTimer) clearTimeout(slot.lastStallResetTimer);
+        slot.lastStallResetTimer = setTimeout(() => {
           if (slot.active && slot.hls && slot.hls.config && !slot.isTimeshifted) {
             slot.hls.config.liveSyncDuration = 4.8;
             slot.stallCount = 0;
@@ -3550,7 +3547,13 @@ class MultiViewManager {
 
       if (data.isHls || (data.streamUrl && data.streamUrl.includes('.m3u8'))) {
         if (window.Hls && window.Hls.isSupported()) {
-          const hls = new Hls({ enableWorker: true, backBufferLength: 60 });
+          const hls = new Hls({
+            enableWorker: true,
+            backBufferLength: 30,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            maxBufferSize: 35 * 1000 * 1000
+          });
           slot.hls = hls;
           hls.loadSource(data.streamUrl);
           hls.attachMedia(video);
@@ -4136,8 +4139,8 @@ class MultiViewManager {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
             다시보기
           </button>
-          <button class="btn btn-sm btn-secondary yt-endscreen-btn yt-endscreen-close-btn" onclick="window.multiview.resetSlotToEmpty(${i})" title="이 영상을 닫고 슬롯을 비웁니다">
-            ✕ 슬롯 비우기 (닫기)
+          <button class="btn btn-sm btn-secondary yt-endscreen-btn yt-endscreen-close-btn" onclick="window.multiview.resetSlotToEmpty(${i})" title="이 영상을 닫고 슬롯을 비웁니다" style="display:inline-flex;align-items:center;gap:4px;">
+            ${ICONS.close}<span>슬롯 비우기 (닫기)</span>
           </button>
         </div>
       </div>
@@ -4302,6 +4305,10 @@ class MultiViewManager {
     slot.vodChatFetchedUpToMs = 0;
     slot.vodChatLastSyncMs = 0;
     slot.vodChatFetching = false;
+    if (slot._commentsObserver) {
+      try { slot._commentsObserver.disconnect(); } catch (_) {}
+      slot._commentsObserver = null;
+    }
     if (this.pipActiveSlot && this.pipActiveSlot.index === slot.index) {
       this.hidePiP();
     }
@@ -4309,7 +4316,13 @@ class MultiViewManager {
       clearTimeout(slot.stallTimer);
       slot.stallTimer = null;
     }
+    if (slot.lastStallResetTimer) {
+      clearTimeout(slot.lastStallResetTimer);
+      slot.lastStallResetTimer = null;
+    }
     if (slot.hls) {
+      try { slot.hls.stopLoad(); } catch (e) {}
+      try { slot.hls.detachMedia(); } catch (e) {}
       try { slot.hls.destroy(); } catch (e) {}
       slot.hls = null;
     }
@@ -4326,16 +4339,39 @@ class MultiViewManager {
     }
     if (slot.iframeEl) {
       try {
+        if (slot.iframeEl.contentWindow) {
+          slot.iframeEl.contentWindow.postMessage({ action: 'destroy', slotIndex: slot.index }, '*');
+        }
+      } catch (_) {}
+      try {
+        slot.iframeEl.removeAttribute('srcdoc');
         slot.iframeEl.src = 'about:blank';
         slot.iframeEl.remove();
       } catch (e) {}
       slot.iframeEl = null;
     }
-    if (slot.isScreenRecording && slot.screenRecorder) {
+    if (slot.slotEl) {
       try {
-        if (slot.screenRecorder.state !== 'inactive') slot.screenRecorder.stop();
+        const chatIframes = slot.slotEl.querySelectorAll('.yt-livechat-iframe-box iframe');
+        chatIframes.forEach(ifr => {
+          try { ifr.src = 'about:blank'; } catch (_) {}
+          try { ifr.remove(); } catch (_) {}
+        });
+      } catch (_) {}
+    }
+    if (slot.isScreenRecording || slot.screenRecorder || slot._screenStream) {
+      slot._screenRecordCancelled = true;
+      try {
+        if (slot.screenRecorder && slot.screenRecorder.state !== 'inactive') slot.screenRecorder.stop();
       } catch (e) {}
-      clearInterval(slot.screenRecTimer);
+      if (slot._screenStream) {
+        try { slot._screenStream.getTracks().forEach(t => t.stop()); } catch (_) {}
+        slot._screenStream = null;
+      }
+      if (slot.screenRecTimer) {
+        clearInterval(slot.screenRecTimer);
+        slot.screenRecTimer = null;
+      }
       slot.isScreenRecording = false;
       slot.screenRecorder = null;
       slot.screenChunks = [];
@@ -4351,15 +4387,40 @@ class MultiViewManager {
     if (slot.type) slot.lastType = slot.type;
     if (slot.videoNo) slot.lastVodNo = slot.videoNo;
     if (slot.videoId || slot.ytVideoId) slot.lastYtVideoId = slot.videoId || slot.ytVideoId;
+    if (slot.clipUID) slot.lastClipUID = slot.clipUID;
+    if (slot.clipList && slot.clipList.length > 0) {
+      slot.lastClipList = slot.clipList;
+      slot.lastClipIndex = slot.clipIndex;
+    }
     if (slot.clipData) slot.lastClipData = slot.clipData;
+    if (slot.type === 'youtube') {
+      slot.lastIsLive = !!slot.isLive;
+      if (slot.playlistId) {
+        slot.lastPlaylistOptions = {
+          playlistId: slot.playlistId,
+          playlistTitle: slot.playlistTitle,
+          items: slot.playlistItems,
+          currentIndex: slot.playlistIndex,
+          isLive: !!slot.isLive
+        };
+      } else {
+        slot.lastPlaylistOptions = null;
+      }
+    }
 
     this.resetSlotMedia(slot);
 
     slot.type = 'live';
     slot.videoNo = null;
+    slot.videoId = null;
+    slot.isLive = false;
     slot.clipUID = null;
     slot.clipList = [];
     slot.clipIndex = -1;
+    slot.playlistId = null;
+    slot.playlistTitle = null;
+    slot.playlistItems = null;
+    slot.playlistIndex = 0;
     slot.channelId = null;
     slot.channelName = null;
     slot.title = null;
@@ -4426,9 +4487,10 @@ class MultiViewManager {
       enableWorker: true,
       lowLatencyMode: true,           // LL-HLS 저지연 모드
       startFragPrefetch: true,        // 매니페스트 파싱 직후 초기 세그먼트 동시 프리페치 (첫 화면 로딩 단축)
-      backBufferLength: 60,           // 60초 백버퍼 유지 (타임머신 되돌려보기용)
-      maxBufferLength: 45,            // 45초 전방 버퍼
-      maxMaxBufferLength: 90,
+      backBufferLength: 30,           // 30초 백버퍼 유지 (타임머신 + 멀티뷰 메모리 균형)
+      maxBufferLength: 30,            // 30초 전방 버퍼
+      maxMaxBufferLength: 60,
+      maxBufferSize: 35 * 1000 * 1000, // 35MB MSE 버퍼 상한 (다중 슬롯 RAM 점유 억제)
       liveSyncDuration: 4.8,          // 안정적인 저지연 타겟 (기존 3.8s에서 상향하여 버퍼 여유 확보, 끊김 완벽 방지)
       liveMaxLatencyDuration: 25.0,   // 급격한 점프 방지 (미세 배속 추격으로 흡수)
       maxLiveSyncPlaybackRate: 1.08,  // 8% 부드러운 미세 배속으로 지연 누적 없이 지속 동기화
@@ -4625,10 +4687,22 @@ class MultiViewManager {
     const type = slot.type || slot.lastType || 'live';
     const vodNo = slot.videoNo || slot.vodNo || slot.lastVodNo;
     const ytVideoId = slot.videoId || slot.ytVideoId || slot.lastYtVideoId;
+    const clipUID = slot.clipUID || slot.lastClipUID;
+    const clipList = (slot.clipList && slot.clipList.length > 0) ? slot.clipList : (slot.lastClipList || []);
+    const clipIndex = (typeof slot.clipIndex === 'number' && slot.clipIndex >= 0) ? slot.clipIndex : (slot.lastClipIndex || 0);
     const clipData = slot.clipData || slot.lastClipData;
+    const playlistOptions = slot.playlistId
+      ? {
+          playlistId: slot.playlistId,
+          playlistTitle: slot.playlistTitle,
+          items: slot.playlistItems,
+          currentIndex: slot.playlistIndex,
+          isLive: !!slot.isLive
+        }
+      : (slot.lastPlaylistOptions || ((slot.isLive || slot.lastIsLive) ? { isLive: true } : null));
     const isYt = Boolean(type === 'youtube' && ytVideoId);
 
-    if (!channelId && !ytVideoId && !vodNo && !clipData) {
+    if (!channelId && !ytVideoId && !vodNo && !clipUID && !clipData) {
       if (window.app) window.app.showToast('새로고침하거나 재접속할 영상·방송 정보가 없습니다.', 'warning');
       return;
     }
@@ -4660,14 +4734,24 @@ class MultiViewManager {
           slot.title || slot.lastTitle,
           slot.channelName || slot.lastChannelName,
           channelId || '',
-          slot.thumbnail || slot.lastThumbnail || ''
+          slot.thumbnail || slot.lastThumbnail || '',
+          false,
+          playlistOptions
         );
         if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] 유튜브 영상을 새로고침했습니다.`, 'success');
       } else if (type === 'vod' && vodNo) {
         await this.loadVodIntoSlot(slotIndex, vodNo, slot.title || slot.lastTitle, slot.channelName || slot.lastChannelName, channelId);
         if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] 다시보기에 재접속되었습니다.`, 'success');
-      } else if (type === 'clip' && clipData) {
-        await this.loadClipIntoSlot(slotIndex, clipData);
+      } else if (type === 'clip' && (clipUID || (clipData && clipData.clipUID))) {
+        const targetClipUID = clipUID || clipData.clipUID;
+        await this.loadClipIntoSlot(
+          slotIndex,
+          targetClipUID,
+          slot.title || slot.lastTitle || (clipData && clipData.clipTitle) || '클립',
+          clipList,
+          clipIndex,
+          slot.channelName || slot.lastChannelName || ''
+        );
         if (window.app) window.app.showToast(`[슬롯 ${slotIndex + 1}] 클립에 재접속되었습니다.`, 'success');
       } else if (channelId) {
         this.resetSlotMedia(slot);
@@ -4760,7 +4844,7 @@ class MultiViewManager {
         }
 
         if (prevChatOpen) {
-          this.connectSlotChat(slotIndex);
+          this.connectSlotChat(slot);
         }
 
         this.renderSlots();
@@ -5096,8 +5180,8 @@ class MultiViewManager {
 
     if (!document.fullscreenElement) {
       slotEl.requestFullscreen().catch(e => console.log(e));
-      if (slot && slot.active && slot.channelId) {
-        this.connectChatSocket(slot.channelId);
+      if (slot && slot.active && slot.type === 'live' && slot.channelId && slot.chatOpen && !slot.chatSocket) {
+        this.connectSlotChat(slot);
       }
     } else {
       document.exitFullscreen();
@@ -5230,13 +5314,17 @@ class MultiViewManager {
     const liveBtn = document.getElementById(`slot-live-btn-${slotIndex}`);
     if (!liveBtn) return;
 
+    const stateKey = diffSeconds > 0 ? `ts_${diffSeconds}` : 'live';
+    if (liveBtn.dataset.liveState === stateKey) return;
+    liveBtn.dataset.liveState = stateKey;
+
     if (diffSeconds > 0) {
       liveBtn.className = 'slot-live-status-btn timeshifted';
       liveBtn.innerHTML = `<span>-${diffSeconds}초</span>`;
       liveBtn.title = '클릭하여 최신 실시간(LIVE) 방송으로 복귀';
     } else {
       liveBtn.className = 'slot-live-status-btn live-now';
-      liveBtn.innerHTML = `<span>● LIVE</span>`;
+      liveBtn.innerHTML = `${ICONS.liveDot}<span>LIVE</span>`;
       liveBtn.title = '현재 실시간 시청 중';
     }
   }
@@ -5252,6 +5340,12 @@ class MultiViewManager {
         const data = await resp.json();
         if (data.success && data.emojis) {
           this.channelEmojiCache[channelId] = data.emojis;
+          const keys = Object.keys(this.channelEmojiCache);
+          if (keys.length > 30) {
+            for (let k = 0; k < keys.length - 30; k++) {
+              delete this.channelEmojiCache[keys[k]];
+            }
+          }
         }
       }
     } catch (e) {
@@ -6503,23 +6597,35 @@ class MultiViewManager {
 
       const options = mimeType ? { mimeType } : {};
       const recorder = new MediaRecorder(stream, options);
+      slot._screenStream = stream;
+      slot._screenRecordCancelled = false;
       slot.screenChunks = [];
       slot.screenRecorder = recorder;
       slot.isScreenRecording = true;
       slot.screenRecSecs = 0;
 
       recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
+        if (e.data && e.data.size > 0 && !slot._screenRecordCancelled) {
           slot.screenChunks.push(e.data);
         }
       };
 
       recorder.onstop = async () => {
         clearInterval(slot.screenRecTimer);
-        const recordedBlob = new Blob(slot.screenChunks, { type: mimeType || 'video/webm' });
+        slot.screenRecTimer = null;
+        if (slot._screenStream) {
+          try { slot._screenStream.getTracks().forEach(t => t.stop()); } catch (_) {}
+          slot._screenStream = null;
+        }
+        const wasCancelled = !!slot._screenRecordCancelled;
+        const chunksCopy = slot.screenChunks || [];
         slot.screenChunks = [];
         slot.isScreenRecording = false;
         slot.screenRecorder = null;
+        slot._screenRecordCancelled = false;
+        if (wasCancelled || chunksCopy.length === 0) return;
+
+        const recordedBlob = new Blob(chunksCopy, { type: mimeType || 'video/webm' });
         this.renderSlots();
 
         if (recordedBlob.size > 0) {
@@ -6554,7 +6660,7 @@ class MultiViewManager {
         const slotEl = document.getElementById(`slot-${slotIndex}`);
         const indicator = slotEl ? slotEl.querySelector('.slot-screen-indicator') : null;
         if (indicator) {
-          indicator.textContent = `⏺ 화면 녹화 중: ${slot.screenRecSecs}s`;
+          indicator.innerHTML = `${ICONS.screenRecord} 화면 녹화 중: ${slot.screenRecSecs}s`;
         }
       }, 1000);
 
@@ -7052,7 +7158,7 @@ class MultiViewManager {
       slot.recordStatus = 'paused';
       this.updateSlotRecordUI(slotIndex);
       if (window.recorderUI) window.recorderUI.loadJobs();
-      if (window.app) window.app.showToast(`❚❚ '${slot.channelName}' 녹화가 일시정지되었습니다.`, 'info');
+      if (window.app) window.app.showToast(`'${slot.channelName}' 녹화가 일시정지되었습니다.`, 'info');
     } catch (e) {
       console.error(e);
     }
@@ -7067,7 +7173,7 @@ class MultiViewManager {
       slot.recordStatus = 'recording';
       this.updateSlotRecordUI(slotIndex);
       if (window.recorderUI) window.recorderUI.loadJobs();
-      if (window.app) window.app.showToast(`▶ '${slot.channelName}' 녹화가 재개되었습니다.`, 'success');
+      if (window.app) window.app.showToast(`'${slot.channelName}' 녹화가 재개되었습니다.`, 'success');
     } catch (e) {
       console.error(e);
     }
@@ -7083,7 +7189,7 @@ class MultiViewManager {
     slot.recordStatus = null;
     this.updateSlotRecordUI(slotIndex);
 
-    if (window.app) window.app.showToast(`⏹ '${name}' 녹화를 종료하고 MP4로 저장 중입니다...`, 'info');
+    if (window.app) window.app.showToast(`'${name}' 녹화를 종료하고 MP4로 저장 중입니다...`, 'info');
     try {
       await fetch(`/api/recorder/stop/${jid}`, { method: 'POST' });
       if (window.recorderUI) {
@@ -7109,13 +7215,13 @@ class MultiViewManager {
         recordBtnHtml = `<button class="slot-ctrl-btn" onclick="window.multiview.startRecordingSlot(${slotIndex})" title="[원본 녹화] 실시간 원본 신호 녹화">${ICONS.recordDot}</button>`;
       } else if (slot.recordStatus === 'recording') {
         recordBtnHtml = `
-          <div class="slot-record-indicator">● 원본 녹화 중</div>
+          <div class="slot-record-indicator">${ICONS.recordDot} 원본 녹화 중</div>
           <button class="slot-ctrl-btn" onclick="window.multiview.pauseRecordingSlot(${slotIndex})" title="녹화 일시정지">${ICONS.recordPause}</button>
           <button class="slot-ctrl-btn" onclick="window.multiview.stopRecordingSlot(${slotIndex})" title="녹화 종료">${ICONS.recordStop}</button>
         `;
       } else if (slot.recordStatus === 'paused') {
         recordBtnHtml = `
-          <div class="slot-record-indicator paused">❚❚ 일시정지</div>
+          <div class="slot-record-indicator paused">${ICONS.recordPause} 일시정지</div>
           <button class="slot-ctrl-btn" onclick="window.multiview.resumeRecordingSlot(${slotIndex})" title="녹화 재개">${ICONS.recordResume}</button>
           <button class="slot-ctrl-btn" onclick="window.multiview.stopRecordingSlot(${slotIndex})" title="녹화 종료">${ICONS.recordStop}</button>
         `;
@@ -7144,28 +7250,34 @@ class MultiViewManager {
   }
 
   async refreshSlotViewerCounts() {
-    // Snapshot active live slots (excluding clips and VODs - Fix Request 4)
-    const liveSlots = this.slots.filter(s => s && s.active && s.type === 'live' && s.channelId);
-    for (const slot of liveSlots) {
-      try {
-        const res = await fetch(`/api/live/${slot.channelId}`);
-        const data = await res.json();
-        if (data && data.isOnline === false) {
-          const chName = slot.channelName || '스트리머';
-          this.sendDiagnosticLog('STREAM_END', 'AUTO_CLOSE', `Broadcast ended for ${chName}. Auto-closing slot.`, slot.index, chName);
-          if (window.app) window.app.showToast(`'${chName}' 방송이 종료되어 멀티뷰 슬롯에서 자동으로 닫혔습니다.`, 'info');
-          this.closeSlot(slot.index);
-          continue;
-        }
-        if (data && data.success && data.userCount != null) {
-          slot.userCount = data.userCount;
-          const el = document.getElementById(`slot-user-count-${slot.index}`);
-          if (el) {
-            el.textContent = `👤 ${Number(data.userCount).toLocaleString()}명`;
-            el.style.display = 'inline-flex';
+    if (this._refreshingViewerCounts) return;
+    this._refreshingViewerCounts = true;
+    try {
+      // Snapshot active live slots (excluding clips and VODs - Fix Request 4)
+      const liveSlots = this.slots.filter(s => s && s.active && s.type === 'live' && s.channelId);
+      for (const slot of liveSlots) {
+        try {
+          const res = await fetch(`/api/live/${slot.channelId}`);
+          const data = await res.json();
+          if (data && data.isOnline === false) {
+            const chName = slot.channelName || '스트리머';
+            this.sendDiagnosticLog('STREAM_END', 'AUTO_CLOSE', `Broadcast ended for ${chName}. Auto-closing slot.`, slot.index, chName);
+            if (window.app) window.app.showToast(`'${chName}' 방송이 종료되어 멀티뷰 슬롯에서 자동으로 닫혔습니다.`, 'info');
+            this.closeSlot(slot.index);
+            continue;
           }
-        }
-      } catch (_) {}
+          if (data && data.success && data.userCount != null) {
+            slot.userCount = data.userCount;
+            const el = document.getElementById(`slot-user-count-${slot.index}`);
+            if (el) {
+              el.innerHTML = `${ICONS.user} ${Number(data.userCount).toLocaleString()}명`;
+              el.style.display = 'inline-flex';
+            }
+          }
+        } catch (_) {}
+      }
+    } finally {
+      this._refreshingViewerCounts = false;
     }
   }
 

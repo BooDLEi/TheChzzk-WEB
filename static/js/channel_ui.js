@@ -277,10 +277,16 @@ class ChannelUI {
     if (!window.app || !this.currentChannelId) return;
     const isBookmarked = window.app.bookmarks.some(b => b.channelId === this.currentChannelId);
     if (isBookmarked) {
-      this.channelBookmarkToggleBtn.textContent = '★ 즐겨찾기 해제';
+      this.channelBookmarkToggleBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>즐겨찾기 해제</span>
+      `;
       this.channelBookmarkToggleBtn.style.color = '#f59e0b';
     } else {
-      this.channelBookmarkToggleBtn.textContent = '☆ 즐겨찾기 추가';
+      this.channelBookmarkToggleBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>즐겨찾기 추가</span>
+      `;
       this.channelBookmarkToggleBtn.style.color = '#fff';
     }
   }
@@ -327,7 +333,7 @@ class ChannelUI {
       } else {
         // Offline
         this.channelLiveBadge.style.display = 'none';
-        this.channelLiveStatusText.textContent = '⚪ 오프라인';
+        this.channelLiveStatusText.textContent = '오프라인';
         this.channelLiveStatusText.style.color = 'var(--text-muted)';
         this.channelMultiviewBtn.style.display = 'none';
         this.channelLivePlayerSection.style.display = 'none';
@@ -354,8 +360,10 @@ class ChannelUI {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
-        backBufferLength: 30,
+        backBufferLength: 20,
         maxBufferLength: 15,
+        maxMaxBufferLength: 30,
+        maxBufferSize: 25 * 1000 * 1000,
         liveSyncDuration: 3.8,
         liveMaxLatencyDuration: 25.0,
         maxLiveSyncPlaybackRate: 1.08
@@ -380,6 +388,8 @@ class ChannelUI {
 
   destroyLivePlayer() {
     if (this.hlsLivePlayer) {
+      try { this.hlsLivePlayer.stopLoad(); } catch (e) {}
+      try { this.hlsLivePlayer.detachMedia(); } catch (e) {}
       try { this.hlsLivePlayer.destroy(); } catch (e) {}
       this.hlsLivePlayer = null;
     }
@@ -498,7 +508,10 @@ class ChannelUI {
           const hls = new Hls({
             enableWorker: true,
             lowLatencyMode: false,
-            backBufferLength: 60
+            backBufferLength: 30,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            maxBufferSize: 35 * 1000 * 1000
           });
           hls.loadSource(data.streamUrl);
           hls.attachMedia(this.vodModalVideo);
@@ -523,6 +536,8 @@ class ChannelUI {
 
   destroyVodHls() {
     if (this.vodHls) {
+      try { this.vodHls.stopLoad(); } catch (e) {}
+      try { this.vodHls.detachMedia(); } catch (e) {}
       try { this.vodHls.destroy(); } catch (e) {}
       this.vodHls = null;
     }
