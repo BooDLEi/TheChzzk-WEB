@@ -41,6 +41,8 @@ class ChzzkApp {
     this.isFirstLiveCheck = true;
     this.audioCtx = null;
     this.liveNotificationContainer = null;
+    this._liveNotifyTimer = null;
+    this._lastIsMobileUI = null;
 
     this.initElements();
     this.bindEvents();
@@ -114,7 +116,6 @@ class ChzzkApp {
     this.mobileHomeBookmarksOfflineSection = document.getElementById('mobileHomeBookmarksOfflineSection');
     this.mobileHomeBookmarksOfflineGrid = document.getElementById('mobileHomeBookmarksOfflineGrid');
     this.mobileHomeBmOfflineBadge = document.getElementById('mobileHomeBmOfflineBadge');
-    this.mobileHomeAddBookmarkInput = document.getElementById('mobileHomeAddBookmarkInput');
     this.vaultBadge = document.getElementById('vault-badge');
 
     // Settings & Secure 1-Time Follow Import
@@ -207,11 +208,6 @@ class ChzzkApp {
     if (this.addBookmarkInput) {
       this.addBookmarkInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') this.addBookmark();
-      });
-    }
-    if (this.mobileHomeAddBookmarkInput) {
-      this.mobileHomeAddBookmarkInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') this.addBookmarkFromMobileHome();
       });
     }
 
@@ -574,7 +570,24 @@ class ChzzkApp {
     }
 
     this.updateMobileVaultHeaderState(this.currentTab);
-    if (isMobile && this.homeBookmarkFilterActive && this.currentTab === 'explore') {
+    const modeChanged = this._lastIsMobileUI !== null && this._lastIsMobileUI !== isMobile;
+    this._lastIsMobileUI = isMobile;
+    if (modeChanged) {
+      if (isMobile) {
+        if (this._liveNotifyTimer) {
+          clearInterval(this._liveNotifyTimer);
+          this._liveNotifyTimer = null;
+        }
+        if (this.liveNotificationContainer) this.liveNotificationContainer.innerHTML = '';
+      } else {
+        this.initLiveNotificationWatcher();
+      }
+      if (this.lives && this.lives.length > 0) this.filterAndRenderLives();
+      if (this.bookmarks && this.bookmarks.length > 0) this.renderBookmarks();
+      if (window.channelUI && typeof window.channelUI.updateNotifyButtonState === 'function') {
+        window.channelUI.updateNotifyButtonState();
+      }
+    } else if (isMobile && this.homeBookmarkFilterActive && this.currentTab === 'explore') {
       this.renderMobileHomeBookmarks();
     }
     if (window.multiview && (window.multiview.layoutMode === 'focus' || window.multiview.layoutMode === 'auto')) {
@@ -855,6 +868,48 @@ class ChzzkApp {
     `;
   }
 
+  renderCardInlineActionsHtml(channelId, channelName, channelImageUrl, opts = {}) {
+    const isMobile = this.isMobileUIMode();
+    const isBookmarked = Boolean(opts.isBookmarked);
+    const notifyEnabled = Boolean(opts.notifyEnabled);
+    const bookmarkTitle = opts.bookmarkTitle || (isBookmarked ? '즐겨찾기 해제' : '즐겨찾기 추가');
+    const safeName = escapeHtml(channelName || '').replace(/'/g, "\\'");
+    const safeImg = escapeHtml(channelImageUrl || '').replace(/'/g, "\\'");
+    const bookmarkOnclick = opts.bookmarkOnclick || `window.app.toggleBookmark('${channelId}', '${safeName}', '${safeImg}')`;
+    const clipsAndNotifyHtml = isMobile ? '' : `
+      <button class="icon-btn-inline btn-clips" onclick="event.stopPropagation(); window.app.goToChannelClips('${channelId}')" title="클립 목록 보기">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+          <line x1="7" y1="2" x2="7" y2="22"/>
+          <line x1="17" y1="2" x2="17" y2="22"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <line x1="2" y1="7" x2="7" y2="7"/>
+          <line x1="2" y1="17" x2="7" y2="17"/>
+          <line x1="17" y1="17" x2="22" y2="17"/>
+          <line x1="17" y1="7" x2="22" y2="7"/>
+        </svg>
+      </button>
+      <button class="icon-btn-inline btn-notify ${notifyEnabled ? 'notified' : ''}" data-channel-id="${channelId}" onclick="event.stopPropagation(); window.app.toggleChannelNotify('${channelId}')" title="${notifyEnabled ? '방송 시작 알림 켜짐 (클릭시 끄기)' : '방송 시작 알림 꺼짐 (클릭시 켜기)'}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="${notifyEnabled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+      </button>
+    `;
+    const extraHtml = (!isMobile && opts.extraBeforeBookmarkHtml) ? opts.extraBeforeBookmarkHtml : '';
+    return `
+      <div class="card-inline-actions">
+        ${clipsAndNotifyHtml}
+        ${extraHtml}
+        <button class="icon-btn-inline btn-bookmark ${isBookmarked ? 'bookmarked' : ''}" data-channel-id="${channelId}" onclick="event.stopPropagation(); ${bookmarkOnclick}" title="${bookmarkTitle}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="${isBookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+        </button>
+      </div>
+    `;
+  }
+
   renderCards(items, container) {
     if (!container) return;
     if (items.length === 0) {
@@ -898,31 +953,7 @@ class ChzzkApp {
                 <div class="card-channel-name" onclick="event.stopPropagation(); window.app.openChannelPage('${item.channelId}')" title="스트리머 채널 방문" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                   <span style="font-weight:700; color:#fff;">${nameEsc}</span>
                 </div>
-                <div class="card-inline-actions">
-                  <button class="icon-btn-inline" onclick="event.stopPropagation(); window.app.goToChannelClips('${item.channelId}')" title="클립 목록 보기">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
-                      <line x1="7" y1="2" x2="7" y2="22"/>
-                      <line x1="17" y1="2" x2="17" y2="22"/>
-                      <line x1="2" y1="12" x2="22" y2="12"/>
-                      <line x1="2" y1="7" x2="7" y2="7"/>
-                      <line x1="2" y1="17" x2="7" y2="17"/>
-                      <line x1="17" y1="17" x2="22" y2="17"/>
-                      <line x1="17" y1="7" x2="22" y2="7"/>
-                    </svg>
-                  </button>
-                  <button class="icon-btn-inline btn-notify ${notifyEnabled ? 'notified' : ''}" data-channel-id="${item.channelId}" onclick="event.stopPropagation(); window.app.toggleChannelNotify('${item.channelId}')" title="${notifyEnabled ? '방송 시작 알림 켜짐 (클릭시 끄기)' : '방송 시작 알림 꺼짐 (클릭시 켜기)'}">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="${notifyEnabled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                    </svg>
-                  </button>
-                  <button class="icon-btn-inline btn-bookmark ${isBookmarked ? 'bookmarked' : ''}" data-channel-id="${item.channelId}" onclick="event.stopPropagation(); window.app.toggleBookmark('${item.channelId}', '${escapeHtml(item.channelName || '').replace(/'/g, "\\'")}', '${escapeHtml(item.channelImageUrl || '').replace(/'/g, "\\'")}')" title="${isBookmarked ? '즐겨찾기 해제' : '즐겨찾기 추가'}">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="${isBookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                    </svg>
-                  </button>
-                </div>
+                ${this.renderCardInlineActionsHtml(item.channelId, item.channelName, item.channelImageUrl, { isBookmarked, notifyEnabled })}
               </div>
             </div>
           </div>
@@ -1099,12 +1130,14 @@ class ChzzkApp {
                       시청
                     </button>
                   ` : ''}
-                  <button class="icon-btn-inline btn-notify ${this.isChannelNotifyEnabled(ch.channelId) ? 'notified' : ''}" data-channel-id="${ch.channelId}" onclick="event.stopPropagation(); window.app.toggleChannelNotify('${ch.channelId}')" title="${this.isChannelNotifyEnabled(ch.channelId) ? '방송 시작 알림 켜짐' : '방송 시작 알림 꺼짐'}">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="${this.isChannelNotifyEnabled(ch.channelId) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                    </svg>
-                  </button>
+                  ${this.isMobileUIMode() ? '' : `
+                    <button class="icon-btn-inline btn-notify ${this.isChannelNotifyEnabled(ch.channelId) ? 'notified' : ''}" data-channel-id="${ch.channelId}" onclick="event.stopPropagation(); window.app.toggleChannelNotify('${ch.channelId}')" title="${this.isChannelNotifyEnabled(ch.channelId) ? '방송 시작 알림 켜짐' : '방송 시작 알림 꺼짐'}">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="${this.isChannelNotifyEnabled(ch.channelId) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                      </svg>
+                    </button>
+                  `}
                   <button class="icon-btn-inline btn-bookmark ${isBookmarked ? 'bookmarked' : ''}" data-channel-id="${ch.channelId}" onclick="window.app.toggleBookmark('${ch.channelId}', '${escapeHtml(ch.channelName || '').replace(/'/g, "\\'")}', '${escapeHtml(ch.channelImageUrl || '').replace(/'/g, "\\'")}')" title="${isBookmarked ? '즐겨찾기 해제' : '즐겨찾기 추가'}">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="${isBookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                   </button>
@@ -1242,31 +1275,12 @@ class ChzzkApp {
                 <span style="font-weight:700; color:#fff;">${nameEsc}</span>
                 ${(isOnline && b.categoryValue) ? `<span style="font-size:11px; color:var(--accent-color); margin-left:4px;">${escapeHtml(b.categoryValue)}</span>` : ''}
               </div>
-              <div class="card-inline-actions">
-                <button class="icon-btn-inline" onclick="event.stopPropagation(); window.app.goToChannelClips('${b.channelId}')" title="클립 목록 보기">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
-                    <line x1="7" y1="2" x2="7" y2="22"/>
-                    <line x1="17" y1="2" x2="17" y2="22"/>
-                    <line x1="2" y1="12" x2="22" y2="12"/>
-                    <line x1="2" y1="7" x2="7" y2="7"/>
-                    <line x1="2" y1="17" x2="7" y2="17"/>
-                    <line x1="17" y1="17" x2="22" y2="17"/>
-                    <line x1="17" y1="7" x2="22" y2="7"/>
-                  </svg>
-                </button>
-                <button class="icon-btn-inline btn-notify ${notifyEnabled ? 'notified' : ''}" data-channel-id="${b.channelId}" onclick="event.stopPropagation(); window.app.toggleChannelNotify('${b.channelId}')" title="${notifyEnabled ? '방송 시작 알림 켜짐 (클릭시 끄기)' : '방송 시작 알림 꺼짐 (클릭시 켜기)'}">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="${notifyEnabled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                  </svg>
-                </button>
-                <button class="icon-btn-inline btn-bookmark bookmarked" data-channel-id="${b.channelId}" onclick="event.stopPropagation(); window.app.removeBookmark('${b.channelId}')" title="즐겨찾기 삭제">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                  </svg>
-                </button>
-              </div>
+              ${this.renderCardInlineActionsHtml(b.channelId, b.channelName, b.channelImageUrl, {
+                isBookmarked: true,
+                notifyEnabled,
+                bookmarkOnclick: `window.app.removeBookmark('${b.channelId}')`,
+                bookmarkTitle: '즐겨찾기 삭제'
+              })}
             </div>
           </div>
         </div>
@@ -1286,34 +1300,6 @@ class ChzzkApp {
     this.filterAndRenderLives();
   }
 
-  async addBookmarkFromMobileHome() {
-    if (!this.mobileHomeAddBookmarkInput) return;
-    const val = this.mobileHomeAddBookmarkInput.value.trim();
-    if (!val) {
-      this.showToast('스트리머명, 채널 ID 또는 치지직 링크를 입력하세요.', 'error');
-      return;
-    }
-    try {
-      this.showToast('채널 정보를 확인하여 즐겨찾기에 등록하는 중...', 'info');
-      const res = await fetch('/api/bookmarks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel_id: val })
-      });
-      const data = await res.json();
-      if (data.success && data.bookmark) {
-        this.showToast(`'${data.bookmark.channelName || '스트리머'}' 즐겨찾기에 등록되었습니다!`, 'success');
-        this.mobileHomeAddBookmarkInput.value = '';
-        await this.fetchBookmarks();
-        this.renderMobileHomeBookmarks();
-      } else {
-        this.showToast(data.error || '해당 채널 또는 스트리머를 찾을 수 없습니다.', 'error');
-      }
-    } catch (e) {
-      this.showToast('즐겨찾기 추가 중 오류가 발생했습니다.', 'error');
-    }
-  }
-
   renderMobileHomeBookmarks() {
     if (!this.mobileHomeBookmarksSection) return;
     if (!this.isMobileUIMode() || !this.homeBookmarkFilterActive) {
@@ -1322,16 +1308,8 @@ class ChzzkApp {
     }
     this.mobileHomeBookmarksSection.style.display = 'block';
 
-    const kw = (this.searchKeyword || '').toLowerCase();
-    const filterFn = (b) => {
-      if (!kw) return true;
-      return (b.channelName && b.channelName.toLowerCase().includes(kw)) ||
-             (b.liveTitle && b.liveTitle.toLowerCase().includes(kw)) ||
-             (b.categoryValue && b.categoryValue.toLowerCase().includes(kw));
-    };
-
-    const online = (this.bookmarks || []).filter(b => b.isOnline && filterFn(b));
-    const offline = (this.bookmarks || []).filter(b => !b.isOnline && filterFn(b));
+    const online = (this.bookmarks || []).filter(b => b.isOnline);
+    const offline = (this.bookmarks || []).filter(b => !b.isOnline);
     const followingIds = this.followingChannelIds || new Set();
 
     if (this.mobileHomeBmOnlineBadge) this.mobileHomeBmOnlineBadge.textContent = online.length;
@@ -1566,6 +1544,7 @@ class ChzzkApp {
 
   // ================= Live Broadcast Notifications (Request 1) =================
   syncNotifyButtonDOM(channelId, isNotify) {
+    if (this.isMobileUIMode()) return;
     const btns = document.querySelectorAll(`.btn-notify[data-channel-id="${channelId}"]`);
     btns.forEach(btn => {
       btn.classList.toggle('notified', isNotify);
@@ -1578,6 +1557,7 @@ class ChzzkApp {
   }
 
   isChannelNotifyEnabled(channelId) {
+    if (this.isMobileUIMode()) return false;
     if (!channelId) return false;
 
     // Check if channel is bookmarked or followed
@@ -1606,6 +1586,7 @@ class ChzzkApp {
   }
 
   async toggleChannelNotify(channelId) {
+    if (this.isMobileUIMode()) return;
     try {
       const res = await fetch(`/api/bookmarks/${channelId}/notify`, { method: 'POST' }).then(r => r.json());
       if (res && res.success) {
@@ -1634,6 +1615,7 @@ class ChzzkApp {
   }
 
   initLiveNotificationWatcher() {
+    if (this.isMobileUIMode() || this._liveNotifyTimer) return;
     // Request browser notification permission if available
     try {
       if ('Notification' in window && Notification.permission === 'default') {
@@ -1642,12 +1624,13 @@ class ChzzkApp {
     } catch (_) {}
 
     // Check every 30 seconds for new live broadcasts
-    setInterval(() => {
+    this._liveNotifyTimer = setInterval(() => {
       this.checkLiveNotifications();
     }, 30000);
   }
 
   async checkLiveNotifications() {
+    if (this.isMobileUIMode()) return;
     try {
       const promises = [
         fetch('/api/user/following-lives').then(r => r.json()).catch(() => ({})),
@@ -1716,6 +1699,7 @@ class ChzzkApp {
   }
 
   triggerLiveNotification(live) {
+    if (this.isMobileUIMode()) return;
     const chId = live.channelId;
     const name = live.channelName || '스트리머';
     const title = live.liveTitle || live.title || '새 방송을 시작했습니다.';
@@ -1745,6 +1729,7 @@ class ChzzkApp {
   }
 
   showInAppLiveBanner(live) {
+    if (this.isMobileUIMode()) return;
     const container = document.getElementById('liveNotificationContainer') || this.liveNotificationContainer;
     if (!container) return;
 
@@ -1784,6 +1769,7 @@ class ChzzkApp {
   }
 
   playNotificationSound() {
+    if (this.isMobileUIMode()) return;
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
@@ -1935,36 +1921,18 @@ class ChzzkApp {
                   <span style="font-weight:700; color:#fff;">${nameEsc}</span>
                   <span style="font-size:11px; color:var(--text-dim); margin-left:4px;">팔로워 ${followers}</span>
                 </div>
-                <div class="card-inline-actions">
-                  <button class="icon-btn-inline" onclick="event.stopPropagation(); window.app.goToChannelClips('${chId}')" title="클립 목록 보기">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
-                      <line x1="7" y1="2" x2="7" y2="22"/>
-                      <line x1="17" y1="2" x2="17" y2="22"/>
-                      <line x1="2" y1="12" x2="22" y2="12"/>
-                      <line x1="2" y1="7" x2="7" y2="7"/>
-                      <line x1="2" y1="17" x2="7" y2="17"/>
-                      <line x1="17" y1="17" x2="22" y2="17"/>
-                      <line x1="17" y1="7" x2="22" y2="7"/>
-                    </svg>
-                  </button>
-                  <button class="icon-btn-inline btn-notify ${notifyEnabled ? 'notified' : ''}" data-channel-id="${chId}" onclick="event.stopPropagation(); window.app.toggleChannelNotify('${chId}')" title="${notifyEnabled ? '방송 시작 알림 켜짐 (클릭시 끄기)' : '방송 시작 알림 꺼짐 (클릭시 켜기)'}">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="${notifyEnabled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                    </svg>
-                  </button>
-                  <button class="icon-btn-inline btn-follow followed" data-channel-id="${chId}" onclick="event.stopPropagation(); window.app.toggleFollow('${chId}')" title="치지직 팔로우 취소">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                    </svg>
-                  </button>
-                  <button class="icon-btn-inline btn-bookmark ${isBookmarked ? 'bookmarked' : ''}" data-channel-id="${chId}" onclick="event.stopPropagation(); window.app.toggleBookmark('${chId}')" title="${isBookmarked ? '즐겨찾기 해제' : '즐겨찾기 추가'}">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="${isBookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                    </svg>
-                  </button>
-                </div>
+                ${this.renderCardInlineActionsHtml(chId, ch.channelName, ch.channelImageUrl, {
+                  isBookmarked,
+                  notifyEnabled,
+                  bookmarkOnclick: `window.app.toggleBookmark('${chId}')`,
+                  extraBeforeBookmarkHtml: `
+                    <button class="icon-btn-inline btn-follow followed" data-channel-id="${chId}" onclick="event.stopPropagation(); window.app.toggleFollow('${chId}')" title="치지직 팔로우 취소">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                      </svg>
+                    </button>
+                  `
+                })}
               </div>
             </div>
           </div>

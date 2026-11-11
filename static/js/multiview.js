@@ -6850,7 +6850,10 @@ class MultiViewManager {
       this.hidePiP();
       return;
     }
-    const isMobilePortrait = window.innerWidth <= 960 && window.innerHeight > window.innerWidth;
+    const isMobileUI = (window.app && typeof window.app.isMobileUIMode === 'function')
+      ? window.app.isMobileUIMode()
+      : (window.innerWidth <= 960);
+    const isMobilePortrait = isMobileUI && window.innerHeight > window.innerWidth;
     if (isMobilePortrait) {
       // 모바일 세로 화면에서만 멀티뷰 PiP 미표시 (데스크톱/태블릿 가로에서는 PiP 허용)
       this.hidePiP();
@@ -6865,7 +6868,7 @@ class MultiViewManager {
     const target = unmuted.length > 0 ? unmuted[0] : activeSlots.sort((a, b) => a.index - b.index)[0];
     if (this.pipMiniPlayer) {
       this.pipMiniPlayer.classList.add('pip-shortform-landscape');
-      const isDesktopYt = Boolean(window.innerWidth > 960 && window.app && window.app.currentTab === 'youtube');
+      const isDesktopYt = Boolean(!isMobileUI && window.innerWidth > 960 && window.app && window.app.currentTab === 'youtube');
       this.pipMiniPlayer.classList.toggle('pip-yt-sidebar-offset', isDesktopYt);
     }
     this.showPiP(target);

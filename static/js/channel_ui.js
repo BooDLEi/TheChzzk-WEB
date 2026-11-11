@@ -109,6 +109,7 @@ class ChannelUI {
 
     if (this.channelNotifyToggleBtn) {
       this.channelNotifyToggleBtn.addEventListener('click', () => {
+        if (window.app && typeof window.app.isMobileUIMode === 'function' && window.app.isMobileUIMode()) return;
         if (this.currentChannelId && window.app) {
           window.app.toggleChannelNotify(this.currentChannelId);
           setTimeout(() => this.updateNotifyButtonState(), 200);
@@ -251,6 +252,11 @@ class ChannelUI {
 
   updateNotifyButtonState() {
     if (!window.app || !this.currentChannelId || !this.channelNotifyToggleBtn) return;
+    if (typeof window.app.isMobileUIMode === 'function' && window.app.isMobileUIMode()) {
+      this.channelNotifyToggleBtn.style.display = 'none';
+      return;
+    }
+    this.channelNotifyToggleBtn.style.display = 'flex';
     const isNotify = window.app.isChannelNotifyEnabled(this.currentChannelId);
     if (isNotify) {
       this.channelNotifyToggleBtn.innerHTML = `
