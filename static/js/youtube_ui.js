@@ -938,7 +938,6 @@ class YouTubeUI {
           if (this.ytChannelBannerAvatar) this.ytChannelBannerAvatar.src = avatarUrl;
         }
         if (sData.videos && sData.videos.length > 0) {
-        if (sData.videos && sData.videos.length > 0) {
           this.channelVideos = sData.videos;
           this.channelVideosCount = 12;
           this.channelContinuationToken = null;

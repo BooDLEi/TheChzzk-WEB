@@ -3341,7 +3341,17 @@ class MultiViewManager {
       slot.lastChannelName = data.channelName;
       slot.title = data.title;
       slot.lastTitle = data.title;
-      slot.streamUrl = masterUrl;
+      slot.masterUrl = data.masterUrl || masterUrl;
+      slot.hlsUrl = data.hlsUrl || '';
+      slot.hasPlayedOnce = false;
+      slot._stallTimestamps = [];
+      slot._lastNonFatalLogAt = 0;
+
+      const activeLiveCount = this.slots.filter(s => s && s.active && s.type === 'live').length;
+      const preferStdHls = Boolean(activeLiveCount >= 5 && slot.hlsUrl && slot.hlsUrl !== slot.masterUrl);
+      const initialStreamUrl = preferStdHls ? slot.hlsUrl : masterUrl;
+      slot.usingStandardHls = preferStdHls;
+      slot.streamUrl = initialStreamUrl;
       slot.chatChannelId = data.chatChannelId || '';
       slot.userCount = data.userCount;
       slot.type = 'live';
@@ -3382,99 +3392,13 @@ class MultiViewManager {
       video.volume = shouldUnmute ? masterVol : 0;
       slot.videoEl = video;
 
-      video.addEventListener('play', () => {
-        const btn = document.getElementById(`slot-play-btn-${slot.index}`);
-        if (btn) btn.innerHTML = ICONS.pause;
-      });
-      video.addEventListener('pause', () => {
-        const btn = document.getElementById(`slot-play-btn-${slot.index}`);
-        if (btn) btn.innerHTML = ICONS.play;
-      });
-
-      // Buffer stall & active watchdog tracker
-      let stallStartTime = 0;
-      slot.stallTimer = null;
-      slot.stallCount = 0;
-      slot.lastStallResetTimer = null;
-
-      video.addEventListener('waiting', () => {
-        if (!slot.active) return;
-        stallStartTime = Date.now();
-        slot.stallCount = (slot.stallCount || 0) + 1;
-        const latency = (slot.hls && typeof slot.hls.liveSyncPosition === 'number' && video.currentTime) ? (slot.hls.liveSyncPosition - video.currentTime) : null;
-        const bufLen = this.getBufferLength(video);
-        this.sendDiagnosticLog('BUFFER', 'STALL', `Buffering/stalled (count: ${slot.stallCount}) at ${video.currentTime.toFixed(1)}s`, slot.index, slot.channelName, latency, bufLen);
-
-        // Smart Adaptive Latency: 버퍼링 발생 시 liveSyncDuration을 1.2초 늘려 더 넉넉한 버퍼를 확보 (최대 8.5초)
-        // 네트워크가 일시적으로 흔들려도 연속 끊김을 방지하는 스마트 적응형 버퍼
-        if (slot.hls && slot.hls.config && !slot.isTimeshifted) {
-          const curTarget = slot.hls.config.liveSyncDuration || 4.8;
-          const newTarget = Math.min(8.5, curTarget + 1.2);
-          if (newTarget > curTarget) {
-            slot.hls.config.liveSyncDuration = newTarget;
-            console.log(`[Slot ${slot.index + 1}] Adaptive buffer expansion: ${curTarget.toFixed(1)}s -> ${newTarget.toFixed(1)}s`);
-          }
-        }
-
-        // Active Stall Watchdog: 2.5초 이상 멈춤(버퍼 고갈) 지속 시 즉시 실시간 위치로 점프 및 로드 재개
-        if (slot.stallTimer) clearTimeout(slot.stallTimer);
-        slot.stallTimer = setTimeout(() => {
-          if (!slot.active || !slot.videoEl || slot.videoEl.paused) return;
-          if (slot.isTimeshifted) {
-            if (slot.hls) slot.hls.startLoad();
-            return;
-          }
-          if (slot.hls && typeof slot.hls.liveSyncPosition === 'number' && slot.hls.liveSyncPosition > 0) {
-            const currentLag = slot.hls.liveSyncPosition - slot.videoEl.currentTime;
-            if (currentLag > 1.8) {
-              console.warn(`[Slot ${slot.index + 1}] Stall watchdog: nudging playhead by ${currentLag.toFixed(1)}s to live edge`);
-              this.sendDiagnosticLog('WATCHDOG', 'NUDGE', `Nudging stuck playhead by ${currentLag.toFixed(1)}s to liveSyncPosition`, slot.index, slot.channelName, currentLag);
-              slot.videoEl.currentTime = slot.hls.liveSyncPosition;
-              slot.hls.startLoad();
-              slot.videoEl.play().catch(() => {});
-            } else {
-              slot.hls.startLoad();
-            }
-          }
-        }, 2500);
-      });
-
-      video.addEventListener('playing', () => {
-        if (!slot.active) return;
-        if (slot.stallTimer) {
-          clearTimeout(slot.stallTimer);
-          slot.stallTimer = null;
-        }
-        if (stallStartTime > 0) {
-          const stallSec = ((Date.now() - stallStartTime) / 1000).toFixed(2);
-          stallStartTime = 0;
-          const bufLen = this.getBufferLength(video);
-          this.sendDiagnosticLog('BUFFER', 'RESUME', `Playback resumed after ${stallSec}s stall`, slot.index, slot.channelName, null, bufLen);
-        }
-
-        // 2분 동안 버퍼링 없이 안정적으로 재생되면 원래의 저지연 타겟(4.8s)으로 서서히 복귀
-        if (slot.lastStallResetTimer) clearTimeout(slot.lastStallResetTimer);
-        slot.lastStallResetTimer = setTimeout(() => {
-          if (slot.active && slot.hls && slot.hls.config && !slot.isTimeshifted) {
-            slot.hls.config.liveSyncDuration = 4.8;
-            slot.stallCount = 0;
-            console.log(`[Slot ${slot.index + 1}] Restored base liveSyncDuration (4.8s) after stable playback`);
-          }
-        }, 120000);
-      });
-
-      video.addEventListener('error', (e) => {
-        console.warn(`[Slot ${slot.index + 1}] Video element error:`, e);
-        slot.hasError = true;
-        slot.errorMessage = '비디오 스트림 재생 오류가 발생했습니다.';
-        this.renderSlots();
-      });
+      this.bindLiveVideoEvents(slot, video);
 
       // Direct CDN stream playback (Bypasses Python proxy bottleneck for high-performance zero-delay playback)
       if (window.Hls && window.Hls.isSupported()) {
-        this.createHlsPlayer(slot, masterUrl);
+        this.createHlsPlayer(slot, initialStreamUrl, preferStdHls);
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = masterUrl;
+        video.src = initialStreamUrl;
         video.play().catch(err => {
           console.log('Autoplay prevented, retrying muted:', err);
           video.muted = true;
@@ -4316,10 +4240,15 @@ class MultiViewManager {
       clearTimeout(slot.stallTimer);
       slot.stallTimer = null;
     }
+    if (slot._holeNudgeTimer) {
+      clearTimeout(slot._holeNudgeTimer);
+      slot._holeNudgeTimer = null;
+    }
     if (slot.lastStallResetTimer) {
       clearTimeout(slot.lastStallResetTimer);
       slot.lastStallResetTimer = null;
     }
+    slot.hasPlayedOnce = false;
     if (slot.hls) {
       try { slot.hls.stopLoad(); } catch (e) {}
       try { slot.hls.detachMedia(); } catch (e) {}
@@ -4425,6 +4354,12 @@ class MultiViewManager {
     slot.channelName = null;
     slot.title = null;
     slot.streamUrl = null;
+    slot.masterUrl = null;
+    slot.hlsUrl = null;
+    slot.usingStandardHls = false;
+    slot.hasPlayedOnce = false;
+    slot._stallTimestamps = [];
+    slot._lastNonFatalLogAt = 0;
     slot.active = false;
     slot.hasError = false;
     slot.errorMessage = null;
@@ -4470,7 +4405,169 @@ class MultiViewManager {
 
   // ================= Live Stream Auto-Recovery & Diagnostics =================
 
-  createHlsPlayer(slot, masterUrl) {
+  bindLiveVideoEvents(slot, video) {
+    if (!slot || !video) return;
+
+    video.addEventListener('play', () => {
+      const btn = document.getElementById(`slot-play-btn-${slot.index}`);
+      if (btn) btn.innerHTML = ICONS.pause;
+    });
+    video.addEventListener('pause', () => {
+      const btn = document.getElementById(`slot-play-btn-${slot.index}`);
+      if (btn) btn.innerHTML = ICONS.play;
+    });
+
+    let stallStartTime = 0;
+    slot.stallTimer = null;
+    slot._holeNudgeTimer = null;
+    slot.stallCount = 0;
+
+    video.addEventListener('waiting', () => {
+      if (!slot.active || slot.videoEl !== video) return;
+      // Ignore initial startup seek/buffering before first rendered frame
+      if (!slot.hasPlayedOnce && video.currentTime < 1.0 && video.readyState < 3) return;
+
+      const now = Date.now();
+      stallStartTime = now;
+      slot.stallCount = (slot.stallCount || 0) + 1;
+      slot._stallTimestamps = (slot._stallTimestamps || []).filter(ts => (now - ts) < 120000);
+      slot._stallTimestamps.push(now);
+
+      const latency = (slot.hls && typeof slot.hls.liveSyncPosition === 'number' && video.currentTime)
+        ? (slot.hls.liveSyncPosition - video.currentTime)
+        : null;
+      const bufLen = this.getBufferLength(video);
+      this.sendDiagnosticLog(
+        'BUFFER',
+        'STALL',
+        `Buffering/stalled (count: ${slot.stallCount}, mode: ${slot.usingStandardHls ? 'HLS' : 'LLHLS'}) at ${video.currentTime.toFixed(1)}s`,
+        slot.index,
+        slot.channelName,
+        latency,
+        bufLen
+      );
+
+      // Permanently widen target latency cushion when a stream struggles (never snap back to 4.8s)
+      if (slot.hls && slot.hls.config && !slot.isTimeshifted) {
+        const curTarget = slot.hls.config.liveSyncDuration || (slot.usingStandardHls ? 8.0 : 5.8);
+        const newTarget = Math.min(slot.usingStandardHls ? 10.0 : 8.5, curTarget + 1.0);
+        if (newTarget > curTarget) {
+          slot.hls.config.liveSyncDuration = newTarget;
+        }
+      }
+
+      // Fast buffer-hole skip (400ms) if playback stalled right before a tiny gap in SourceBuffer
+      if (slot._holeNudgeTimer) clearTimeout(slot._holeNudgeTimer);
+      slot._holeNudgeTimer = setTimeout(() => {
+        if (!slot.active || slot.videoEl !== video || video.paused || !video.buffered) return;
+        const ct = video.currentTime;
+        for (let b = 0; b < video.buffered.length; b++) {
+          const bStart = video.buffered.start(b);
+          if (bStart > ct && (bStart - ct) < 1.5) {
+            video.currentTime = bStart + 0.05;
+            return;
+          }
+        }
+      }, 400);
+
+      // Stall Recovery Watchdog (1600ms): breaks chronic LL-HLS edge stalls or reloads buffer cleanly
+      if (slot.stallTimer) clearTimeout(slot.stallTimer);
+      slot.stallTimer = setTimeout(() => {
+        if (!slot.active || slot.videoEl !== video || video.paused) return;
+        if (slot.isTimeshifted) {
+          if (slot.hls) slot.hls.startLoad(video.currentTime);
+          return;
+        }
+
+        // If LL-HLS stalled >= 2 times within 120s and Standard HLS is available, switch seamlessly
+        if (!slot.usingStandardHls && slot.hlsUrl && slot.hlsUrl !== slot.masterUrl && slot._stallTimestamps.length >= 2) {
+          this.switchSlotToStandardHls(slot);
+          return;
+        }
+
+        if (slot.hls && typeof slot.hls.liveSyncPosition === 'number' && slot.hls.liveSyncPosition > 0) {
+          const curBuf = this.getBufferLength(video);
+          const currentLag = slot.hls.liveSyncPosition - video.currentTime;
+          if (currentLag > 2.2 || curBuf < 0.35) {
+            const targetPos = slot.hls.liveSyncPosition;
+            this.sendDiagnosticLog(
+              'WATCHDOG',
+              'RESYNC',
+              `Stall watchdog re-syncing playhead to safe liveSyncPosition (${targetPos.toFixed(1)}s, lag=${currentLag.toFixed(1)}s, buf=${curBuf.toFixed(2)}s)`,
+              slot.index,
+              slot.channelName,
+              currentLag,
+              curBuf
+            );
+            try { video.currentTime = targetPos; } catch (_) {}
+            slot.hls.startLoad(targetPos);
+            video.play().catch(() => {});
+          } else {
+            slot.hls.startLoad(video.currentTime);
+          }
+        }
+      }, 1600);
+    });
+
+    video.addEventListener('playing', () => {
+      if (!slot.active || slot.videoEl !== video) return;
+      slot.hasPlayedOnce = true;
+      slot.isLoading = false;
+      if (slot.stallTimer) {
+        clearTimeout(slot.stallTimer);
+        slot.stallTimer = null;
+      }
+      if (slot._holeNudgeTimer) {
+        clearTimeout(slot._holeNudgeTimer);
+        slot._holeNudgeTimer = null;
+      }
+      if (stallStartTime > 0) {
+        const stallSec = ((Date.now() - stallStartTime) / 1000).toFixed(2);
+        stallStartTime = 0;
+        const latency = (slot.hls && typeof slot.hls.liveSyncPosition === 'number' && video.currentTime)
+          ? (slot.hls.liveSyncPosition - video.currentTime)
+          : null;
+        const bufLen = this.getBufferLength(video);
+        this.sendDiagnosticLog('BUFFER', 'RESUME', `Playback resumed after ${stallSec}s stall`, slot.index, slot.channelName, latency, bufLen);
+      }
+    });
+
+    video.addEventListener('error', (e) => {
+      if (slot.videoEl !== video) return;
+      console.warn(`[Slot ${slot.index + 1}] Video element error:`, e);
+      slot.hasError = true;
+      slot.errorMessage = '비디오 스트림 재생 오류가 발생했습니다.';
+      this.renderSlots();
+    });
+  }
+
+  switchSlotToStandardHls(slot) {
+    if (!slot || !slot.active || !slot.videoEl || slot.usingStandardHls || !slot.hlsUrl) return false;
+    slot.usingStandardHls = true;
+    slot.streamUrl = slot.hlsUrl;
+    slot.hasPlayedOnce = false;
+    slot._stallTimestamps = [];
+    slot.stallCount = 0;
+    if (slot.stallTimer) {
+      clearTimeout(slot.stallTimer);
+      slot.stallTimer = null;
+    }
+    if (slot._holeNudgeTimer) {
+      clearTimeout(slot._holeNudgeTimer);
+      slot._holeNudgeTimer = null;
+    }
+    this.sendDiagnosticLog(
+      'RECOVERY',
+      'AUTO_HLS_FALLBACK',
+      'Repeated LL-HLS stalls detected. Switching stream to stable Standard HLS.',
+      slot.index,
+      slot.channelName
+    );
+    this.createHlsPlayer(slot, slot.hlsUrl, true);
+    return true;
+  }
+
+  createHlsPlayer(slot, masterUrl, useStandardHls = false) {
     if (!window.Hls || !window.Hls.isSupported() || !slot.videoEl) return null;
 
     if (slot.hls) {
@@ -4482,44 +4579,60 @@ class MultiViewManager {
       slot.hls = null;
     }
 
+    const activeLiveCount = this.slots.filter(s => s && s.active && s.type === 'live').length;
+    const isStandardHls = Boolean(useStandardHls || slot.usingStandardHls);
+    const targetSyncDur = isStandardHls ? 8.0 : (activeLiveCount >= 4 ? 7.0 : 5.8);
+    const maxLatDur = isStandardHls ? 24.0 : 20.0;
+
     const video = slot.videoEl;
     const hls = new Hls({
       enableWorker: true,
-      lowLatencyMode: true,           // LL-HLS 저지연 모드
+      lowLatencyMode: !isStandardHls, // LL-HLS (1-4 slots) vs Standard 2s HLS (fallback / 5+ slots)
       startFragPrefetch: true,        // 매니페스트 파싱 직후 초기 세그먼트 동시 프리페치 (첫 화면 로딩 단축)
       backBufferLength: 30,           // 30초 백버퍼 유지 (타임머신 + 멀티뷰 메모리 균형)
       maxBufferLength: 30,            // 30초 전방 버퍼
       maxMaxBufferLength: 60,
       maxBufferSize: 35 * 1000 * 1000, // 35MB MSE 버퍼 상한 (다중 슬롯 RAM 점유 억제)
-      liveSyncDuration: 4.8,          // 안정적인 저지연 타겟 (기존 3.8s에서 상향하여 버퍼 여유 확보, 끊김 완벽 방지)
-      liveMaxLatencyDuration: 25.0,   // 급격한 점프 방지 (미세 배속 추격으로 흡수)
-      maxLiveSyncPlaybackRate: 1.08,  // 8% 부드러운 미세 배속으로 지연 누적 없이 지속 동기화
+      liveSyncDuration: targetSyncDur, // 안정적 전방 버퍼 여유 확보 (기존 4.8s 대비 여유 확보)
+      liveMaxLatencyDuration: maxLatDur,
+      maxLiveSyncPlaybackRate: 1.02,  // 과도한 배속(1.08x)으로 버퍼를 소진하지 않도록 최대 2% 미세 동기화
       liveDurationInfinity: true,
-      highBufferWatchdogPeriod: 2,
+      highBufferWatchdogPeriod: 1,    // 미세 버퍼 공백(Hole) 조기 감지 (1초)
       maxBufferHole: 0.6,             // 미세 시간 갭(Gap)으로 인한 멈춤 자동 건너뛰기
       maxFragLookUpTolerance: 0.25,   // 프래그먼트 조회 허용 오차
-      nudgeOffset: 0.1,               // 버퍼 스톨 넛지 오프셋
+      nudgeOffset: 0.15,              // 버퍼 스톨 넛지 오프셋
       nudgeMaxRetry: 5,               // 넛지 최대 재시도
-      fragLoadingTimeOut: 20000,
-      manifestLoadingTimeOut: 20000,
-      levelLoadingTimeOut: 20000,
-      fragLoadingMaxRetry: 6,
-      fragLoadingRetryDelay: 500,
-      manifestLoadingMaxRetry: 6,
-      manifestLoadingRetryDelay: 500,
-      levelLoadingMaxRetry: 6,
-      levelLoadingRetryDelay: 500,
-      abrEwmaDefaultEstimate: 5000000,
+      nudgeOnVideoHole: true,
+      capLevelOnFPSDrop: true,        // 다중 슬롯 디코딩 과부하로 프레임 드랍 시 자동 화질 보호
+      playlistLoadPolicy: {
+        default: {
+          maxTimeToFirstByteMs: 5000,
+          maxLoadTimeMs: 8000,
+          timeoutRetry: { maxNumRetry: 3, retryDelayMs: 250, maxRetryDelayMs: 2000, backoff: 'linear' },
+          errorRetry: { maxNumRetry: 3, retryDelayMs: 400, maxRetryDelayMs: 3000, backoff: 'linear' }
+        }
+      },
+      fragLoadPolicy: {
+        default: {
+          maxTimeToFirstByteMs: 5000,
+          maxLoadTimeMs: 12000,
+          timeoutRetry: { maxNumRetry: 4, retryDelayMs: 200, maxRetryDelayMs: 2000, backoff: 'linear' },
+          errorRetry: { maxNumRetry: 5, retryDelayMs: 300, maxRetryDelayMs: 4000, backoff: 'linear' }
+        }
+      },
+      abrEwmaDefaultEstimate: activeLiveCount >= 4 ? 2500000 : 5000000,
       abrBandWidthFactor: 0.88,
       abrBandWidthUpFactor: 0.7
     });
 
     slot.hls = hls;
+    slot.usingStandardHls = isStandardHls;
     slot.consecutiveNetworkErrors = 0;
     slot.consecutiveMediaErrors = 0;
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      this.sendDiagnosticLog('PLAYER', 'START', `Live stream manifest loaded (Direct CDN, LL-HLS: ON, Target Latency: 4.8s)`, slot.index, slot.channelName);
+      const modeLabel = isStandardHls ? 'Standard HLS' : 'LL-HLS: ON';
+      this.sendDiagnosticLog('PLAYER', 'START', `Live stream manifest loaded (Direct CDN, ${modeLabel}, Target Latency: ${targetSyncDur.toFixed(1)}s)`, slot.index, slot.channelName);
       if (typeof hls.liveSyncPosition === 'number' && hls.liveSyncPosition > 0) {
         video.currentTime = hls.liveSyncPosition;
       }
@@ -4532,9 +4645,9 @@ class MultiViewManager {
       });
     });
 
-    // Smooth sync monitoring: preserve timeshift state when rewound, and smoothly catch up when live
+    // Smooth sync monitoring: preserve timeshift state when rewound, and guard startup before HARD_RESYNC
     hls.on(Hls.Events.LEVEL_LOADED, () => {
-      if (!slot.active || !slot.videoEl) return;
+      if (!slot.active || !slot.videoEl || slot.hls !== hls) return;
       slot.consecutiveNetworkErrors = 0;
       if (slot.isTimeshifted) {
         if (hls.config) {
@@ -4544,12 +4657,11 @@ class MultiViewManager {
         if (video.playbackRate !== 1.0) {
           video.playbackRate = 1.0;
         }
-      } else {
+      } else if (slot.hasPlayedOnce && !video.seeking && video.readyState >= 2 && video.currentTime > 1.0) {
         if (typeof hls.liveSyncPosition === 'number' && hls.liveSyncPosition > 0) {
           const latency = hls.liveSyncPosition - video.currentTime;
-          // 25초 이상 비정상적으로 지연이 벌어졌을 때만 최종적으로 실시간 위치 리싱크
-          if (latency > 25.0) {
-            this.sendDiagnosticLog('PLAYER', 'HARD_RESYNC', `Large latency drift (${latency.toFixed(1)}s > 25.0s). Re-seeking live edge.`, slot.index, slot.channelName, latency);
+          if (latency > maxLatDur + 2.0) {
+            this.sendDiagnosticLog('PLAYER', 'HARD_RESYNC', `Large latency drift (${latency.toFixed(1)}s > ${(maxLatDur + 2.0).toFixed(1)}s). Re-seeking live edge.`, slot.index, slot.channelName, latency);
             video.currentTime = hls.liveSyncPosition;
           }
         }
@@ -4602,20 +4714,40 @@ class MultiViewManager {
     };
 
     hls.on(Hls.Events.ERROR, async (event, errData) => {
+      if (slot.hls !== hls) return;
       const httpCode = errData.response ? errData.response.code : null;
       const isFatal = errData.fatal;
+
+      if (!isFatal) {
+        const detail = errData.details || '';
+        if (detail === Hls.ErrorDetails.BUFFER_STALLED_ERROR ||
+            detail === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT ||
+            detail === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+            detail === Hls.ErrorDetails.LEVEL_LOAD_TIMEOUT ||
+            detail === Hls.ErrorDetails.LEVEL_LOAD_ERROR ||
+            detail === Hls.ErrorDetails.BUFFER_APPEND_ERROR) {
+          const now = Date.now();
+          if (!slot._lastNonFatalLogAt || (now - slot._lastNonFatalLogAt) > 5000) {
+            slot._lastNonFatalLogAt = now;
+            const bufLen = this.getBufferLength(video);
+            this.sendDiagnosticLog('HLS_WARN', 'NON_FATAL', `${detail} (${errData.type}, HTTP: ${httpCode || 'N/A'})`, slot.index, slot.channelName, null, bufLen);
+          }
+        }
+        return;
+      }
 
       if (isFatal) {
         this.sendDiagnosticLog('HLS_ERROR', 'FATAL', `${errData.details} (${errData.type}, HTTP: ${httpCode || 'N/A'})`, slot.index, slot.channelName);
         switch (errData.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
             slot.consecutiveNetworkErrors = (slot.consecutiveNetworkErrors || 0) + 1;
-            // 403, 404, 410 또는 네트워크 에러 2회 연속 시 새 master URL 갱신 자동 복구
-            if (httpCode === 403 || httpCode === 404 || httpCode === 410 || slot.consecutiveNetworkErrors >= 2) {
+            if (!slot.usingStandardHls && slot.hlsUrl && slot.hlsUrl !== slot.masterUrl && slot.consecutiveNetworkErrors >= 2) {
+              this.switchSlotToStandardHls(slot);
+            } else if (httpCode === 403 || httpCode === 404 || httpCode === 410 || slot.consecutiveNetworkErrors >= 2) {
               this.sendDiagnosticLog('RECOVERY', 'MASTER_REFRESH', `Stream URL expired or network error (HTTP ${httpCode}). Refreshing master URL...`, slot.index, slot.channelName);
               await this.recoverSlotStream(slot.index);
             } else {
-              hls.startLoad();
+              hls.startLoad(video.currentTime > 0 ? video.currentTime : -1);
             }
             break;
           case Hls.ErrorTypes.MEDIA_ERROR:
@@ -4650,16 +4782,21 @@ class MultiViewManager {
       const res = await fetch(`/api/live/${slot.channelId}`);
       const data = await res.json();
       if (data.success && data.masterUrl) {
-        slot.streamUrl = data.masterUrl;
+        slot.masterUrl = data.masterUrl;
+        slot.hlsUrl = data.hlsUrl || '';
+        const targetUrl = (slot.usingStandardHls && slot.hlsUrl) ? slot.hlsUrl : data.masterUrl;
+        slot.streamUrl = targetUrl;
         slot.consecutiveNetworkErrors = 0;
         slot.consecutiveMediaErrors = 0;
         slot.hasError = false;
         slot.errorMessage = null;
+        slot.hasPlayedOnce = false;
+        slot._stallTimestamps = [];
 
         if (slot.videoEl && window.Hls && window.Hls.isSupported()) {
-          this.createHlsPlayer(slot, data.masterUrl);
+          this.createHlsPlayer(slot, targetUrl, slot.usingStandardHls);
         } else if (slot.videoEl) {
-          slot.videoEl.src = data.masterUrl;
+          slot.videoEl.src = targetUrl;
           slot.videoEl.play().catch(() => {});
         }
         this.renderSlots();
@@ -4770,7 +4907,17 @@ class MultiViewManager {
         slot.lastChannelName = slot.channelName;
         slot.title = data.title || slot.title || slot.lastTitle;
         slot.lastTitle = slot.title;
-        slot.streamUrl = masterUrl;
+        slot.masterUrl = data.masterUrl || masterUrl;
+        slot.hlsUrl = data.hlsUrl || '';
+        slot.hasPlayedOnce = false;
+        slot._stallTimestamps = [];
+        slot._lastNonFatalLogAt = 0;
+
+        const activeLiveCount = this.slots.filter(s => s && s.active && s.type === 'live').length;
+        const preferStdHls = Boolean(activeLiveCount >= 5 && slot.hlsUrl && slot.hlsUrl !== slot.masterUrl);
+        const targetUrl = preferStdHls ? slot.hlsUrl : masterUrl;
+        slot.usingStandardHls = preferStdHls;
+        slot.streamUrl = targetUrl;
         slot.userCount = data.userCount;
         slot.type = 'live';
         slot.active = true;
@@ -4794,52 +4941,12 @@ class MultiViewManager {
         video.volume = prevMuted ? 0 : prevVol;
         slot.videoEl = video;
 
-        video.addEventListener('play', () => {
-          const btn = document.getElementById(`slot-play-btn-${slot.index}`);
-          if (btn) btn.innerHTML = ICONS.pause;
-        });
-        video.addEventListener('pause', () => {
-          const btn = document.getElementById(`slot-play-btn-${slot.index}`);
-          if (btn) btn.innerHTML = ICONS.play;
-        });
-
-        let stallStartTime = 0;
-        slot.stallTimer = null;
-        video.addEventListener('waiting', () => {
-          if (!slot.active) return;
-          stallStartTime = Date.now();
-          if (slot.stallTimer) clearTimeout(slot.stallTimer);
-          slot.stallTimer = setTimeout(() => {
-            if (!slot.active || !slot.videoEl || slot.videoEl.paused) return;
-            if (slot.hls && typeof slot.hls.liveSyncPosition === 'number' && slot.hls.liveSyncPosition > 0) {
-              const lag = slot.hls.liveSyncPosition - slot.videoEl.currentTime;
-              if (lag > 1.8) {
-                slot.videoEl.currentTime = slot.hls.liveSyncPosition;
-              }
-              slot.hls.startLoad();
-              slot.videoEl.play().catch(() => {});
-            }
-          }, 2500);
-        });
-
-        video.addEventListener('playing', () => {
-          if (slot.stallTimer) {
-            clearTimeout(slot.stallTimer);
-            slot.stallTimer = null;
-          }
-        });
-
-        video.addEventListener('error', (e) => {
-          console.warn(`[Slot ${slotIndex + 1}] Video playback error:`, e);
-          slot.hasError = true;
-          slot.errorMessage = '스트림 재생 오류가 발생했습니다.';
-          this.renderSlots();
-        });
+        this.bindLiveVideoEvents(slot, video);
 
         if (window.Hls && window.Hls.isSupported()) {
-          this.createHlsPlayer(slot, masterUrl);
+          this.createHlsPlayer(slot, targetUrl, preferStdHls);
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = masterUrl;
+          video.src = targetUrl;
           video.play().catch(() => {});
         }
 
@@ -5290,10 +5397,10 @@ class MultiViewManager {
     slot.isTimeshifted = false;
     slot.timeshiftSeconds = 0;
 
-    // Restore smooth LL-HLS catchup configuration
+    // Restore smooth live catchup configuration
     if (slot.hls && slot.hls.config) {
-      slot.hls.config.liveMaxLatencyDuration = 25.0;
-      slot.hls.config.maxLiveSyncPlaybackRate = 1.08;
+      slot.hls.config.liveMaxLatencyDuration = slot.usingStandardHls ? 24.0 : 20.0;
+      slot.hls.config.maxLiveSyncPlaybackRate = 1.02;
     }
 
     const liveEdge = this.getLiveEdge(slot);
