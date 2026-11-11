@@ -3079,6 +3079,25 @@
               즐겨찾기, 재생목록, 알고리즘 키워드 등 모든 개인 데이터는 현재 사용 중인 브라우저 내부(LocalStorage)에만 안전하게 보관됩니다.
             </div>
           </div>
+          ${window.AndroidChzzk ? '' : `
+          <div id="webApkDownloadCard" style="margin-top: 12px; padding: 14px; background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.24); border-radius: 8px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="min-width: 0; flex: 1 1 200px;">
+              <div style="font-weight: 700; color: #38bdf8; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                <span>Android 전용 앱 (APK) 다운로드</span>
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted); line-height: 1.45;">
+                모바일 기기에서 더 안정적인 숏폼·멀티뷰·내부저장소 녹화를 사용하려면 최신 APK를 설치하세요.
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <a id="webApkDownloadBtn" href="https://github.com/BooDLEi/TheChzzk-WEB/releases/latest/download/TheChzzk.apk" target="_blank" rel="noopener noreferrer" download="TheChzzk.apk" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>최신 APK 받기</span>
+              </a>
+            </div>
+          </div>
+          `}
         `;
       }
       const tokenBox = document.getElementById('updateGithubTokenInput');
