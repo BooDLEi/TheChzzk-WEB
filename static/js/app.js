@@ -12,6 +12,71 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+function getChzzkNoStoreLoader() {
+  if (window._ChzzkNoStoreLoader) return window._ChzzkNoStoreLoader;
+  if (!window.Hls) return undefined;
+  try {
+    const tmp = new window.Hls({ progressive: true, autoStartLoad: false });
+    const FetchLoaderBase = tmp.config && tmp.config.loader;
+    tmp.destroy();
+    if (FetchLoaderBase && FetchLoaderBase.prototype && typeof FetchLoaderBase.prototype.load === 'function') {
+      class ChzzkNoStoreLoader extends FetchLoaderBase {
+        load(context, config, callbacks) {
+          // Disable progressive chunk streaming (prevents MSE micro-gaps and extra chunk allocations)
+          // while retaining FetchLoader retries, Range headers, aborts, and cache:'no-store'.
+          const nonProgCfg = Object.assign({}, config, { highWaterMark: Infinity });
+          super.load(context, nonProgCfg, callbacks);
+        }
+      }
+      window._ChzzkNoStoreLoader = ChzzkNoStoreLoader;
+      return ChzzkNoStoreLoader;
+    }
+  } catch (_) {}
+  return undefined;
+}
+
+/**
+ * Shared hls.js config builder. Uses non-progressive FetchLoader with cache: 'no-store'
+ * so Chzzk CDN's max-age=3600 segments never accumulate in Blink MemoryCache / HttpCache.
+ */
+window.buildChzzkHlsConfig = function buildChzzkHlsConfig(overrides = {}, isLive = true) {
+  const fetchSetup = (context, initParams) => {
+    try {
+      return new Request(context.url, Object.assign({}, initParams, { cache: 'no-store' }));
+    } catch (_) {
+      return new Request(context.url, initParams);
+    }
+  };
+  const customLoader = getChzzkNoStoreLoader();
+  const defaults = isLive
+    ? {
+        enableWorker: false,
+        progressive: false,
+        fetchSetup,
+        lowLatencyMode: true,
+        startFragPrefetch: true,
+        backBufferLength: 20,
+        maxBufferLength: 16,
+        maxMaxBufferLength: 28,
+        maxBufferSize: 20 * 1000 * 1000,
+        maxLiveSyncPlaybackRate: 1.0
+      }
+    : {
+        enableWorker: true,
+        progressive: false,
+        fetchSetup,
+        lowLatencyMode: false,
+        backBufferLength: 25,
+        maxBufferLength: 25,
+        maxMaxBufferLength: 45,
+        maxBufferSize: 28 * 1000 * 1000
+      };
+  if (customLoader) {
+    defaults.loader = customLoader;
+  }
+  return Object.assign(defaults, overrides || {});
+};
+
 class ChzzkApp {
   constructor() {
     this.currentTab = 'explore';
@@ -26,6 +91,7 @@ class ChzzkApp {
     this.loginPollingInterval = null;
     this.lastVaultSubtab = 'recorder';
     this.homeBookmarkFilterActive = false;
+    this._lastExploreSyncAt = 0;
 
     // Master volume state (Chzzk & YouTube independent)
     this.masterChzzkVolume = 1.0;
@@ -652,6 +718,11 @@ class ChzzkApp {
 
     if (tabName !== 'channel' && window.channelUI) {
       window.channelUI.destroyLivePlayer();
+      if (typeof window.channelUI.clearTransientDom === 'function') {
+        window.channelUI.clearTransientDom();
+      }
+    } else if (tabName === 'channel' && window.channelUI && typeof window.channelUI.restoreTransientDomIfNeeded === 'function') {
+      window.channelUI.restoreTransientDomIfNeeded();
     }
 
     // Floating PiP Mini Player & Mobile Shortform Audio/Pause Isolation
@@ -678,8 +749,12 @@ class ChzzkApp {
     }
 
     if (tabName === 'explore') {
-      this.fetchFollowingLives();
-      this.fetchBookmarks();
+      const now = Date.now();
+      if (!this._lastExploreSyncAt || (now - this._lastExploreSyncAt) > 20000) {
+        this._lastExploreSyncAt = now;
+        this.fetchFollowingLives();
+        this.fetchBookmarks();
+      }
       if (this.homeBookmarkFilterActive) {
         this.renderMobileHomeBookmarks();
       }
@@ -704,6 +779,7 @@ class ChzzkApp {
   }
 
   async loadInitialData() {
+    this._lastExploreSyncAt = Date.now();
     await this.fetchFollowingIds();
     this.fetchLives();
     this.fetchBookmarks();
@@ -910,8 +986,51 @@ class ChzzkApp {
     `;
   }
 
+  renderCardHtml(item, bookmarkIds) {
+    const viewers = Number(item.userCount || 0).toLocaleString();
+    const thumb = escapeHtml(item.thumbUrl || item.channelImageUrl || './static/img/favicon.png');
+    const avatar = escapeHtml(item.channelImageUrl || './static/img/favicon.png');
+    const titleEsc = escapeHtml(item.liveTitle || item.title || '');
+    const nameEsc = escapeHtml(item.channelName || '');
+    const genre = escapeHtml(item.categoryValue || '종합 / 토크');
+    const isBookmarked = bookmarkIds.has(item.channelId);
+    const notifyEnabled = this.isChannelNotifyEnabled(item.channelId);
+
+    return `
+      <div class="live-card" data-channel-id="${item.channelId}">
+        <div class="card-thumb-wrap" onclick="window.app.handleCardClick('${item.channelId}')" oncontextmenu="event.preventDefault(); window.app.openInMultiviewBackground('${item.channelId}')" title="클릭하여 멀티뷰 슬롯에서 시청 (우클릭: 현재 화면 유지하며 멀티뷰에 추가)">
+          <img src="${thumb}" loading="lazy" decoding="async" alt="${nameEsc}" onerror="this.onerror=null; this.src='./static/img/favicon.png';">
+          <div class="card-badge-live">LIVE</div>
+          <div class="card-badge-category" title="클릭하여 '${genre}' 방송 모아보기" onclick="event.stopPropagation(); window.app.filterByCategory('${genre.replace(/'/g, "\\'")}')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/></svg><span class="card-cat-text">${genre}</span>
+          </div>
+          <div class="card-badge-viewers">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>${viewers}명</span>
+          </div>
+        </div>
+        <div class="card-info">
+          <img class="card-avatar" src="${avatar}" loading="lazy" decoding="async" alt="" onerror="this.onerror=null; this.src='./static/img/favicon.png';" onclick="event.stopPropagation(); window.app.openChannelPage('${item.channelId}')" title="스트리머 채널 방문" style="cursor: pointer;">
+          <div class="card-details">
+            <div class="card-title" onclick="window.app.handleCardClick('${item.channelId}')" oncontextmenu="event.preventDefault(); window.app.openInMultiviewBackground('${item.channelId}')" title="${titleEsc}" style="cursor: pointer;">${titleEsc}</div>
+            <div class="card-channel-row">
+              <div class="card-channel-name" onclick="event.stopPropagation(); window.app.openChannelPage('${item.channelId}')" title="스트리머 채널 방문" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <span style="font-weight:700; color:#fff;">${nameEsc}</span>
+              </div>
+              ${this.renderCardInlineActionsHtml(item.channelId, item.channelName, item.channelImageUrl, { isBookmarked, notifyEnabled })}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   renderCards(items, container) {
     if (!container) return;
+    if (container._loadMoreObserver) {
+      try { container._loadMoreObserver.disconnect(); } catch (_) {}
+      container._loadMoreObserver = null;
+    }
+
     if (items.length === 0) {
       const searchBtnHtml = this.searchKeyword 
         ? `<div style="margin-top: 14px;"><button class="btn btn-sm btn-outline" onclick="window.app.toggleOfflineChannelSearch(true)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" style="margin-right:4px; vertical-align:-2px;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'${escapeHtml(this.searchKeyword)}' 오프라인 채널 검색하기</button></div>`
@@ -921,45 +1040,72 @@ class ChzzkApp {
     }
 
     const bookmarkIds = new Set((this.bookmarks || []).map(b => b.channelId));
-    const followingIds = this.followingChannelIds || new Set();
+    const BATCH_SIZE = 48;
+    const isIncremental = (container === this.livesGrid && items.length > BATCH_SIZE);
 
-    container.innerHTML = items.map(item => {
-      const viewers = Number(item.userCount || 0).toLocaleString();
-      const thumb = escapeHtml(item.thumbUrl || item.channelImageUrl || './static/img/favicon.png');
-      const avatar = escapeHtml(item.channelImageUrl || './static/img/favicon.png');
-      const titleEsc = escapeHtml(item.liveTitle || item.title || '');
-      const nameEsc = escapeHtml(item.channelName || '');
-      const genre = escapeHtml(item.categoryValue || '종합 / 토크');
-      const isBookmarked = bookmarkIds.has(item.channelId);
-      const notifyEnabled = this.isChannelNotifyEnabled(item.channelId);
+    if (!isIncremental) {
+      container.innerHTML = items.map(item => this.renderCardHtml(item, bookmarkIds)).join('');
+      return;
+    }
 
-      return `
-        <div class="live-card" data-channel-id="${item.channelId}">
-          <div class="card-thumb-wrap" onclick="window.app.handleCardClick('${item.channelId}')" oncontextmenu="event.preventDefault(); window.app.openInMultiviewBackground('${item.channelId}')" title="클릭하여 멀티뷰 슬롯에서 시청 (우클릭: 현재 화면 유지하며 멀티뷰에 추가)">
-            <img src="${thumb}" loading="lazy" decoding="async" alt="${nameEsc}" onerror="this.onerror=null; this.src='./static/img/favicon.png';">
-            <div class="card-badge-live">LIVE</div>
-            <div class="card-badge-category" title="클릭하여 '${genre}' 방송 모아보기" onclick="event.stopPropagation(); window.app.filterByCategory('${genre.replace(/'/g, "\\'")}')">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/></svg><span class="card-cat-text">${genre}</span>
-            </div>
-            <div class="card-badge-viewers">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>${viewers}명</span>
-            </div>
-          </div>
-          <div class="card-info">
-            <img class="card-avatar" src="${avatar}" loading="lazy" decoding="async" alt="" onerror="this.onerror=null; this.src='./static/img/favicon.png';" onclick="event.stopPropagation(); window.app.openChannelPage('${item.channelId}')" title="스트리머 채널 방문" style="cursor: pointer;">
-            <div class="card-details">
-              <div class="card-title" onclick="window.app.handleCardClick('${item.channelId}')" oncontextmenu="event.preventDefault(); window.app.openInMultiviewBackground('${item.channelId}')" title="${titleEsc}" style="cursor: pointer;">${titleEsc}</div>
-              <div class="card-channel-row">
-                <div class="card-channel-name" onclick="event.stopPropagation(); window.app.openChannelPage('${item.channelId}')" title="스트리머 채널 방문" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  <span style="font-weight:700; color:#fff;">${nameEsc}</span>
-                </div>
-                ${this.renderCardInlineActionsHtml(item.channelId, item.channelName, item.channelImageUrl, { isBookmarked, notifyEnabled })}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+    let renderedCount = Math.min(BATCH_SIZE, items.length);
+    container.innerHTML = items.slice(0, renderedCount).map(item => this.renderCardHtml(item, bookmarkIds)).join('');
+
+    const appendMoreRow = () => {
+      const prevRow = container.querySelector('.live-load-more-row');
+      if (prevRow) prevRow.remove();
+      if (renderedCount >= items.length) {
+        if (container._loadMoreObserver) {
+          try { container._loadMoreObserver.disconnect(); } catch (_) {}
+          container._loadMoreObserver = null;
+        }
+        return;
+      }
+
+      const row = document.createElement('div');
+      row.className = 'live-load-more-row';
+      row.style.cssText = 'grid-column: 1 / -1; display: flex; justify-content: center; padding: 14px 0 8px;';
+      const remainingCount = items.length - renderedCount;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-outline';
+      btn.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; font-size: 13px;';
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg><span>더 많은 방송 보기 (${remainingCount}개 남음)</span>`;
+
+      const loadNextBatch = () => {
+        if (!document.body.contains(row)) return;
+        const nextEnd = Math.min(renderedCount + BATCH_SIZE, items.length);
+        const chunkHtml = items.slice(renderedCount, nextEnd).map(item => this.renderCardHtml(item, bookmarkIds)).join('');
+        renderedCount = nextEnd;
+        row.insertAdjacentHTML('beforebegin', chunkHtml);
+        if (renderedCount >= items.length) {
+          row.remove();
+          if (container._loadMoreObserver) {
+            try { container._loadMoreObserver.disconnect(); } catch (_) {}
+            container._loadMoreObserver = null;
+          }
+        } else {
+          const span = btn.querySelector('span');
+          if (span) span.textContent = `더 많은 방송 보기 (${items.length - renderedCount}개 남음)`;
+        }
+      };
+
+      btn.addEventListener('click', loadNextBatch);
+      row.appendChild(btn);
+      container.appendChild(row);
+
+      if (typeof IntersectionObserver !== 'undefined') {
+        const obs = new IntersectionObserver((entries) => {
+          if (entries.some(e => e.isIntersecting)) {
+            loadNextBatch();
+          }
+        }, { rootMargin: '320px 0px' });
+        obs.observe(row);
+        container._loadMoreObserver = obs;
+      }
+    };
+
+    appendMoreRow();
   }
 
   openChannelPage(channelId) {

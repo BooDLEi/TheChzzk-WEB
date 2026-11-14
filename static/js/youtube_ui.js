@@ -58,7 +58,7 @@ class YouTubeUI {
     this.loadVideoBookmarks();
     this.loadCustomPlaylists();
     this.loadWatchLater();
-    this.loadRecommendations();
+    // Defer heavy recommendation DOM/network loading until the YouTube tab is opened
   }
 
   initElements() {

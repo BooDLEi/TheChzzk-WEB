@@ -357,23 +357,22 @@ class ChannelUI {
     video.volume = 0.8 * masterVol;
 
     if (window.Hls && window.Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 20,
-        maxBufferLength: 15,
-        maxMaxBufferLength: 30,
-        maxBufferSize: 25 * 1000 * 1000,
-        liveSyncDuration: 3.8,
-        liveMaxLatencyDuration: 25.0,
-        maxLiveSyncPlaybackRate: 1.08
-      });
+      const overrides = {
+        backBufferLength: 10,
+        maxBufferLength: 12,
+        maxMaxBufferLength: 24,
+        maxBufferSize: 15 * 1000 * 1000,
+        liveSyncDuration: 5.5,
+        liveMaxLatencyDuration: 22.0,
+        maxLiveSyncPlaybackRate: 1.0
+      };
+      const cfg = (typeof window.buildChzzkHlsConfig === 'function')
+        ? window.buildChzzkHlsConfig(overrides, true)
+        : Object.assign({ enableWorker: true, lowLatencyMode: true }, overrides);
+      const hls = new Hls(cfg);
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (typeof hls.liveSyncPosition === 'number' && hls.liveSyncPosition > 0) {
-          video.currentTime = hls.liveSyncPosition;
-        }
         video.play().catch(() => {
           video.muted = true;
           video.play().catch(() => {});
@@ -395,8 +394,27 @@ class ChannelUI {
     }
     if (this.channelLiveVideo) {
       this.channelLiveVideo.pause();
+      this.channelLiveVideo.srcObject = null;
       this.channelLiveVideo.removeAttribute('src');
       this.channelLiveVideo.load();
+    }
+  }
+
+  clearTransientDom() {
+    if (this.channelVodsGrid && this.currentVideos && this.currentVideos.length > 0) {
+      this.channelVodsGrid.innerHTML = '';
+    }
+    if (this.channelClipsGrid && this.currentClips && this.currentClips.length > 0) {
+      this.channelClipsGrid.innerHTML = '';
+    }
+  }
+
+  restoreTransientDomIfNeeded() {
+    if (this.currentVideos && this.currentVideos.length > 0 && this.channelVodsGrid && this.channelVodsGrid.children.length === 0) {
+      this.renderVods();
+    }
+    if (this.currentClips && this.currentClips.length > 0 && this.channelClipsGrid && this.channelClipsGrid.children.length === 0) {
+      this.renderClips();
     }
   }
 
@@ -505,14 +523,10 @@ class ChannelUI {
 
       if (data.isHls || (data.streamUrl && data.streamUrl.includes('.m3u8'))) {
         if (window.Hls && window.Hls.isSupported()) {
-          const hls = new Hls({
-            enableWorker: true,
-            lowLatencyMode: false,
-            backBufferLength: 30,
-            maxBufferLength: 30,
-            maxMaxBufferLength: 60,
-            maxBufferSize: 35 * 1000 * 1000
-          });
+          const vodCfg = (typeof window.buildChzzkHlsConfig === 'function')
+            ? window.buildChzzkHlsConfig({ backBufferLength: 25, maxBufferLength: 25, maxMaxBufferLength: 45, maxBufferSize: 28 * 1000 * 1000 }, false)
+            : { enableWorker: true, lowLatencyMode: false, backBufferLength: 25, maxBufferLength: 25, maxMaxBufferLength: 45, maxBufferSize: 28 * 1000 * 1000 };
+          const hls = new Hls(vodCfg);
           hls.loadSource(data.streamUrl);
           hls.attachMedia(this.vodModalVideo);
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -547,6 +561,7 @@ class ChannelUI {
     this.destroyVodHls();
     if (this.vodModalVideo) {
       this.vodModalVideo.pause();
+      this.vodModalVideo.srcObject = null;
       this.vodModalVideo.removeAttribute('src');
       this.vodModalVideo.load();
     }
